@@ -1,0 +1,184 @@
+from __future__ import annotations
+
+from cpu.z80 import RAMBlock, ROMBlock, PythonPortHandler
+from devices.ula import Spectrum48KULA
+from frontend.input_events import InputEvent
+from machines.z80.base import Z80MachineBase
+
+
+class SpectrumBase(Z80MachineBase):
+    """Common ZX Spectrum machine behavior shared across memory variants."""
+
+    ROM_SIZE = 0x4000
+    RAM_SIZE = 0x4000
+    RAM_BASE = 0x4000
+    TSTATES_PER_FRAME = 69888
+
+    def __init__(self, rom_data: bytes | None = None):
+        super().__init__()
+
+        self.rom = ROMBlock(self.ROM_SIZE)
+        self.ram = RAMBlock(self.RAM_SIZE)
+
+        if rom_data is not None:
+            self.rom.load_bytes(rom_data)
+
+        self.bus.map_block(0x0000, self.rom)
+        # Each model maps only the RAM it physically has. Unmapped pages fall
+        # back to the bus default behavior (0xFF on reads, ignored writes).
+        self.bus.map_block(self.RAM_BASE, self.ram)
+
+        self.border_color = 0
+        self.last_out_fe = 0
+
+        self.ula = Spectrum48KULA(self)
+        self.framebuffer = self.ula.framebuffer
+        self.audio_samples = self.ula.get_frame_samples()
+        self.audio_ring = self.audio_ring.__class__(self.ula.beeper.sample_rate // 2)
+
+        self.keyboard_rows = [0x1F] * 8
+
+        self.bus.set_port_handler(
+            0xFE,
+            PythonPortHandler(self._port_read_fe, self._port_write_fe),
+        )
+
+    @property
+    def ram_top(self) -> int:
+        return self.RAM_BASE + self.RAM_SIZE
+
+    def _port_read_fe(self, port: int) -> int:
+        result = 0xFF
+        high = (port >> 8) & 0xFF
+
+        for row in range(8):
+            if (high & (1 << row)) == 0:
+                result &= self.keyboard_rows[row]
+
+        return result & 0xFF
+
+    def _port_write_fe(self, port: int, value: int) -> None:
+        value &= 0xFF
+        self.last_out_fe = value
+        self.border_color = value & 0x07
+        self.ula.beeper.set_level_from_port_value(value, self.frame_tstates)
+
+    def reset(self):
+        super().reset()
+        self.border_color = 0
+        self.last_out_fe = 0
+        self.keyboard_rows = [0x1F] * 8
+
+        self.ula.reset()
+        self.framebuffer = self.ula.framebuffer
+        self.audio_samples = self.ula.get_frame_samples()
+
+    def run_frame(self) -> int:
+        self.frame_tstates = 0
+        self.ula.beeper.begin_frame()
+
+        while self.frame_tstates < self.TSTATES_PER_FRAME:
+            used = self.cpu.step()
+            self.tstates += used
+            self.frame_tstates += used
+            self._run_devices_until(self.frame_tstates)
+
+            if used <= 0:
+                break
+
+        self.ula.end_frame()
+
+        self.framebuffer = self.ula.framebuffer
+        self.audio_samples = self.ula.get_frame_samples()
+        self.audio_ring.write(self.audio_samples)
+        self.frame_counter += 1
+        return self.tstates
+
+    def _run_devices_until(self, tstates: int):
+        self.ula.run_until(tstates)
+
+    def load_rom(self, data: bytes):
+        self.rom.load_bytes(data)
+
+    def _is_ram_address(self, addr: int) -> bool:
+        return self.RAM_BASE <= addr < self.ram_top
+
+    def poke(self, addr: int, value: int):
+        if self._is_ram_address(addr):
+            self.ram.load(addr - self.RAM_BASE, bytes([value & 0xFF]))
+            return
+        raise ValueError(
+            f"solo se puede escribir en RAM 0x{self.RAM_BASE:04X}-0x{self.ram_top - 1:04X}"
+        )
+
+    def peek(self, addr: int) -> int:
+        if 0x0000 <= addr < self.ROM_SIZE:
+            return self.rom.peek(addr)
+        if self._is_ram_address(addr):
+            return self.ram.peek(addr - self.RAM_BASE)
+        if 0 <= addr <= 0xFFFF:
+            # Smaller models expose holes above installed RAM. Returning 0xFF
+            # keeps the high-level helpers aligned with the underlying bus.
+            return 0xFF
+        raise ValueError("dirección fuera de rango")
+
+    def load_ram(self, addr: int, data: bytes):
+        if not self._is_ram_address(addr) or addr + len(data) > self.ram_top:
+            raise ValueError(
+                f"el rango debe caer dentro de la RAM del Spectrum "
+                f"0x{self.RAM_BASE:04X}-0x{self.ram_top - 1:04X}"
+            )
+        self.ram.load(addr - self.RAM_BASE, data)
+
+    def clear_input_state(self):
+        self.keyboard_rows = [0x1F] * 8
+
+    def _press_key(self, row: int, bit: int):
+        self.keyboard_rows[row] &= ~(1 << bit)
+        self.keyboard_rows[row] &= 0x1F
+
+    def _release_key(self, row: int, bit: int):
+        self.keyboard_rows[row] |= (1 << bit)
+        self.keyboard_rows[row] &= 0x1F
+
+    def handle_input_event(self, event):
+        if not isinstance(event, InputEvent):
+            raise TypeError(f"evento de input inválido: {type(event)!r}")
+
+        if event.kind != "key_matrix":
+            raise ValueError(f"tipo de input no soportado: {event.kind}")
+
+        if event.active:
+            self._press_key(event.control_a, event.control_b)
+        else:
+            self._release_key(event.control_a, event.control_b)
+
+    def render_frame(self):
+        self.framebuffer = self.ula.render_frame()
+        return self.framebuffer
+
+    def get_audio_samples(self):
+        return self.audio_samples
+
+    def snapshot(self) -> dict:
+        snap = self.cpu.snapshot()
+        snap["border_color"] = self.border_color
+        snap["last_out_fe"] = self.last_out_fe
+        snap["tstates"] = self.tstates
+        snap["frame_counter"] = self.frame_counter
+        snap["frame_tstates"] = self.frame_tstates
+        snap["ram_base"] = self.RAM_BASE
+        snap["ram_size"] = self.RAM_SIZE
+        return snap
+
+
+class Spectrum16K(SpectrumBase):
+    """ZX Spectrum 16K with RAM only in 0x4000-0x7FFF."""
+
+    RAM_SIZE = 0x4000
+
+
+class Spectrum48K(SpectrumBase):
+    """ZX Spectrum 48K with the full 0x4000-0xFFFF RAM space mapped."""
+
+    RAM_SIZE = 0xC000
