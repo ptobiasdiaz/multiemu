@@ -11,7 +11,7 @@ extensions = [
 
 setup(
     name="multiemu",
-    version="0.1.0a1",
+    version="0.0.1",
     description="Work-in-progress retro machine emulator in Python and Cython",
     packages=find_packages(),
     entry_points={
