@@ -4,6 +4,7 @@ from cpu.z80 import RAMBlock, ROMBlock, PythonPortHandler
 from devices.ula import Spectrum48KULA
 from frontend.input_events import InputEvent
 from machines.z80.base import Z80MachineBase
+from video import get_display_profile
 
 
 class SpectrumBase(Z80MachineBase):
@@ -14,8 +15,10 @@ class SpectrumBase(Z80MachineBase):
     RAM_BASE = 0x4000
     TSTATES_PER_FRAME = 69888
 
-    def __init__(self, rom_data: bytes | None = None):
+    def __init__(self, rom_data: bytes | None = None, *, display_profile: str = "default"):
         super().__init__()
+        self.display_profile_name = display_profile
+        self.display_profile = get_display_profile(display_profile)
 
         self.rom = ROMBlock(self.ROM_SIZE)
         self.ram = RAMBlock(self.RAM_SIZE)
@@ -32,7 +35,9 @@ class SpectrumBase(Z80MachineBase):
         self.last_out_fe = 0
 
         self.ula = Spectrum48KULA(self)
-        self.framebuffer = self.ula.framebuffer
+        self.frame_width = self.ula.frame_width
+        self.frame_height = self.ula.frame_height
+        self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
         self.audio_samples = self.ula.get_frame_samples()
         self.audio_ring = self.audio_ring.__class__(self.ula.beeper.sample_rate // 2)
 
@@ -42,6 +47,19 @@ class SpectrumBase(Z80MachineBase):
             0xFE,
             PythonPortHandler(self._port_read_fe, self._port_write_fe),
         )
+
+    @property
+    def framebuffer_rgb24(self):
+        if hasattr(self, "ula"):
+            return self.ula.framebuffer_rgb24
+        return getattr(self, "_framebuffer_rgb24", None)
+
+    @framebuffer_rgb24.setter
+    def framebuffer_rgb24(self, value):
+        if hasattr(self, "ula"):
+            self.ula.framebuffer_rgb24 = value
+            return
+        self._framebuffer_rgb24 = value
 
     @property
     def ram_top(self) -> int:
@@ -70,7 +88,7 @@ class SpectrumBase(Z80MachineBase):
         self.keyboard_rows = [0x1F] * 8
 
         self.ula.reset()
-        self.framebuffer = self.ula.framebuffer
+        self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
         self.audio_samples = self.ula.get_frame_samples()
 
     def run_frame(self) -> int:
@@ -88,7 +106,7 @@ class SpectrumBase(Z80MachineBase):
 
         self.ula.end_frame()
 
-        self.framebuffer = self.ula.framebuffer
+        self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
         self.audio_samples = self.ula.get_frame_samples()
         self.audio_ring.write(self.audio_samples)
         self.frame_counter += 1
@@ -154,8 +172,8 @@ class SpectrumBase(Z80MachineBase):
             self._release_key(event.control_a, event.control_b)
 
     def render_frame(self):
-        self.framebuffer = self.ula.render_frame()
-        return self.framebuffer
+        self.framebuffer_rgb24 = self.ula.render_frame()
+        return self.framebuffer_rgb24
 
     def get_audio_samples(self):
         return self.audio_samples

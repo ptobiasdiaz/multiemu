@@ -14,6 +14,7 @@ from multiemu.machine_registry import (
     get_default_rom_search_dirs,
     instantiate_machine,
     list_machine_specs,
+    parse_cli_rom_specs,
 )
 from multiemu.runtime_registry import (
     CONNECT_FRONTENDS,
@@ -24,6 +25,7 @@ from multiemu.runtime_registry import (
     get_runtime_spec,
     list_runtime_ids,
 )
+from video import list_display_profiles
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,6 +36,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_parser = subparsers.add_parser("list-machines", help="list supported machine definitions")
     list_parser.set_defaults(handler=_handle_list_machines)
+
+    list_displays_parser = subparsers.add_parser(
+        "list-display-profiles",
+        help="list supported monitor/display profiles",
+    )
+    list_displays_parser.set_defaults(handler=_handle_list_display_profiles)
 
     run_parser = subparsers.add_parser("run", help="run a machine locally with a selected frontend")
     _add_machine_argument(run_parser)
@@ -108,7 +116,12 @@ def _add_machine_argument(parser: argparse.ArgumentParser) -> None:
 def _add_common_machine_options(parser: argparse.ArgumentParser) -> None:
     """Register runtime options shared by local and TCP-backed execution."""
 
-    parser.add_argument("--rom", default=None, help="path to ROM file")
+    parser.add_argument(
+        "--rom",
+        action="append",
+        default=[],
+        help="ROM path or slot=path; repeat for machines with multiple ROMs",
+    )
     parser.add_argument("--fps", type=int, default=50, help="frame rate limit")
     parser.add_argument(
         "--audio-sample-rate",
@@ -122,6 +135,12 @@ def _add_common_machine_options(parser: argparse.ArgumentParser) -> None:
         default=512,
         help="audio chunk size in samples",
     )
+    parser.add_argument(
+        "--display-profile",
+        choices=[profile.profile_id for profile in list_display_profiles()],
+        default="default",
+        help="monitor/display profile used to present the machine raster",
+    )
 
 
 def _handle_list_machines(args) -> int:
@@ -129,8 +148,20 @@ def _handle_list_machines(args) -> int:
 
     del args
     for spec in list_machine_specs():
-        rom = spec.rom_filename or "-"
-        print(f"{spec.machine_id}\t{spec.display_name}\trom: {rom}")
+        roms = ", ".join(
+            f"{slot.slot_id}={'/'.join(slot.filenames)}{'?' if not slot.required else ''}"
+            for slot in spec.rom_slots
+        ) or "-"
+        print(f"{spec.machine_id}\t{spec.display_name}\troms: {roms}")
+    return 0
+
+
+def _handle_list_display_profiles(args) -> int:
+    """Print supported display profiles in a script-friendly format."""
+
+    del args
+    for profile in list_display_profiles():
+        print(f"{profile.profile_id}\t{profile.description}")
     return 0
 
 
@@ -139,7 +170,8 @@ def _handle_run(args) -> int:
 
     machine = instantiate_machine(
         args.machine,
-        rom_path=args.rom,
+        roms=parse_cli_rom_specs(args.machine, args.rom),
+        display_profile=args.display_profile,
     )
     title = args.title or f"MultiEmu - {args.machine}"
     frontend_cls = get_runtime_spec(LOCAL_FRONTENDS, args.frontend).factory()
@@ -160,7 +192,8 @@ def _handle_serve(args) -> int:
 
     machine = instantiate_machine(
         args.machine,
-        rom_path=args.rom,
+        roms=parse_cli_rom_specs(args.machine, args.rom),
+        display_profile=args.display_profile,
     )
     transport_cls = get_runtime_spec(SERVER_TRANSPORTS, args.transport).factory()
     app = transport_cls(

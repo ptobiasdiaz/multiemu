@@ -2076,7 +2076,7 @@ cdef class Z80Core:
 
     cpdef int run_cycles(self, int cycles):
         cdef int used = 0
-        while used < cycles and not self.halted:
+        while used < cycles:
             used += self.step()
         return used
 

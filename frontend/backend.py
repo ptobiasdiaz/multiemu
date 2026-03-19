@@ -4,7 +4,7 @@ from typing import Protocol
 
 
 class FrontendBackend(Protocol):
-    framebuffer: object
+    framebuffer_rgb24: object
 
     def render_frame(self):
         ...
@@ -36,8 +36,20 @@ class LocalMachineBackend:
         return self.machine.frame_counter
 
     @property
-    def framebuffer(self):
-        return self.machine.framebuffer
+    def framebuffer_rgb24(self):
+        return getattr(self.machine, "framebuffer_rgb24", None)
+
+    @property
+    def frame_width(self):
+        return getattr(self.machine, "frame_width", None)
+
+    @property
+    def frame_height(self):
+        return getattr(self.machine, "frame_height", None)
+
+    @property
+    def input_keymap_name(self):
+        return getattr(self.machine, "input_keymap_name", None)
 
     def render_frame(self):
         return self.machine.render_frame()

@@ -1,373 +1,320 @@
-Aquí tienes el contexto actualizado del proyecto para retomarlo en otra sesión sin perder decisiones importantes.
+Aqui tienes un contexto de reentrada breve y actualizado del proyecto.
 
 ---
 
 # Proyecto
 
-`MultiEmu` es un multiemulador de máquinas retro en **Python + Cython**.
+`MultiEmu` es un multiemulador de maquinas retro en Python + Cython.
 
-Filosofía actual:
+Direccion actual:
 
-- CPU en Cython para rendimiento
-- máquinas y hardware en Python para flexibilidad
+- CPU y dispositivos calientes en Cython
+- maquina, cableado e integracion en Python
 - frontends desacoplados
-- arquitectura pensada para soportar varias máquinas con la misma CPU
+- ruta principal de video y streaming basada en `rgb24`
 
-La CPU actual es **Z80** y la familia activa es **ZX Spectrum**.
+Version de trabajo actual:
 
----
-
-# Estado actual
-
-## CPU Z80
-
-La CPU ya ejecuta suficiente del set de instrucciones para arrancar ROMs del Spectrum.
-
-Durante el desarrollo se añadieron, entre otras:
-
-- `LD A,(DE)`
-- `LD (DE),A`
-- `EX (SP),HL`
-- `LD SP,HL`
-- opcodes prefijados `ED`
-- `IN r,(C)`
-- `OUT (C),r`
-- block instructions como `LDIR`, `CPIR`, `INIR`, `OTIR`
-
-La ROM del Spectrum 48K arranca.
+- `0.0.2`
 
 ---
 
-# Máquinas
+# Estado general
 
-## Jerarquía actual
+Familias visibles ahora:
 
-La familia Spectrum ya no está implementada como una única clase aislada.
+- `spectrum16k`
+- `spectrum48k`
+- `cpc464`
 
-Ahora existe:
+La arquitectura que se esta consolidando es:
+
+- implementacion acelerada en `devices/*_accel.pyx`
+- wrappers de produccion minimos en `devices/*.py`
+- referencias Python movidas a `tests/fallbacks/` solo para equivalencia y tests
+
+El contrato de video de produccion ya no es el framebuffer estructurado.
+
+La salida canonica es:
+
+- `framebuffer_rgb24`
+
+La limpieza de `framebuffer` en produccion ya esta hecha en Spectrum, CPC,
+frontend local y runtime remoto.
+
+---
+
+# CPU Z80
+
+La CPU Z80 en Cython arranca ROMs reales de Spectrum y CPC.
+
+Punto importante reciente:
+
+- se corrigio `run_cycles()` para que el reloj siga avanzando en `HALT`
+
+Ese bug hacia que ciertas cargas, especialmente ROMs de prueba del CPC basadas
+en `HALT` + interrupciones, corriesen demasiado rapido.
+
+Hay regresion especifica en:
+
+- `tests/test_z80_core.py`
+
+---
+
+# Maquinas
+
+## Spectrum
+
+Archivos principales:
 
 - `machines/z80/spectrum.py`
-  - `SpectrumBase`
-  - `Spectrum16K`
-  - `Spectrum48K`
+- `machines/z80/spectrum48k.py` como shim de compatibilidad
+- `devices/ula.py`
+- `devices/ula_accel.pyx`
 
-Además se mantiene:
+Estado actual:
 
-- `machines/z80/spectrum48k.py`
+- `SpectrumBase`, `Spectrum16K` y `Spectrum48K` son la jerarquia vigente
+- la ULA de produccion genera `rgb24` directamente
+- `SpectrumBase` expone `frame_width` y `frame_height` desde la ULA
+- teclado, beeper y puerto `0xFE` siguen en la maquina
 
-como shim de compatibilidad para imports antiguos.
+La referencia Python de la ULA ya no forma parte de la ruta principal y vive en:
 
-## Diseño de `SpectrumBase`
+- `tests/fallbacks/ula_reference.py`
 
-`SpectrumBase` concentra lo común a la familia Spectrum:
+## CPC464
 
-- ULA
-- beeper
-- teclado
-- puerto `0xFE`
-- render de vídeo
-- frame loop
-- audio
-- helpers de RAM/ROM
+Archivo principal:
 
-Los modelos concretos especializan principalmente:
+- `machines/z80/cpc.py`
 
-- tamaño de RAM
-- rango de RAM mapeado
-- semántica visible desde helpers como `peek`, `poke`, `load_ram`
+Arquitectura actual:
 
-## Spectrum16K
+- `CPC464` orquesta la maquina en Python
+- chips y subsistemas principales del CPC ya tienen implementacion acelerada
+- los nombres se acercan al hardware real
 
-`Spectrum16K` existe ya como máquina independiente.
+Chips/subsistemas actuales:
 
-Características actuales:
+- `devices/cpc_gate_array.py` -> `CPCGateArray`
+- `devices/cpc_crtc.py` -> `HD6845`
+- `devices/cpc_ppi.py` -> `Intel8255`
+- `devices/cpc_video.py` -> `CPCVideo`
+- `devices/ay38912.py` -> `AY38912`
 
-- ROM en `0x0000-0x3FFF`
-- RAM real en `0x4000-0x7FFF`
-- zona alta no mapeada a partir de `0x8000`
-- `peek()` en RAM no mapeada devuelve `0xFF`
-- `poke()` y `load_ram()` fuera de la RAM real lanzan `ValueError`
+Implementaciones aceleradas correspondientes:
 
-## Spectrum48K
+- `devices/cpc_gate_array_accel.pyx`
+- `devices/cpc_crtc_accel.pyx`
+- `devices/cpc_ppi_accel.pyx`
+- `devices/cpc_video_accel.pyx`
+- `devices/cpc_render_accel.pyx`
+- `devices/ay38912_accel.pyx`
 
-`Spectrum48K` ahora hereda de `SpectrumBase`.
+Estado funcional del CPC:
 
-Características actuales:
+- ROM baja y ROM alta soportadas
+- overlay de ROM sobre RAM
+- Gate Array, CRTC y PPI cableados
+- teclado CPC por matriz via PPI + PSG
+- video principal en `rgb24`
+- frontend local y TCP funcionando con CPC
 
-- ROM en `0x0000-0x3FFF`
-- RAM en `0x4000-0xFFFF`
+Lo que todavia no se considera cerrado:
 
-## Verificación hecha
+- fidelidad fina de video
+- fidelidad del `AY-3-8912`
+- teclado CPC en pulsaciones rapidas
+- perifericos como cassette
 
-Se comprobó:
+Las referencias Python del CPC viven ahora en:
 
-- `tests/test_spectrum16k.py`
-- `tests/test_spectrum_ram_exec.py`
-
-y la jerarquía exporta correctamente:
-
-- `SpectrumBase`
-- `Spectrum16K`
-- `Spectrum48K`
-
----
-
-# Vídeo
-
-La ULA actual sigue renderizando el framebuffer leyendo la RAM del Spectrum.
-
-Memoria de pantalla:
-
-- bitmap `0x4000`
-- attributes `0x5800`
-
-Resolución visible:
-
-- `256x192`
-
-Frame completo con borde:
-
-- `352x296`
-
-Limitaciones actuales:
-
-- sin contención
-- sin timing por scanline
-- sin borde por ciclo
-
-La imagen se ve correctamente.
+- `tests/fallbacks/cpc_chip_references.py`
+- `tests/fallbacks/cpc_render_reference.py`
+- `tests/fallbacks/cpc_video_reference.py`
 
 ---
 
-# Teclado
+# Video
 
-El teclado del Spectrum sigue modelado como matriz de 8 filas.
+Regla actual de arquitectura:
 
-Puerto:
+- produccion consume y entrega `rgb24`
+- helpers de framebuffer estructurado, si existen, pertenecen a referencias o tests
 
-- `0xFE`
+Impacto ya aplicado:
 
-La máquina mantiene:
+- Spectrum produce `rgb24`
+- CPC produce `rgb24`
+- `frontend/pygame_frontend.py` consume `rgb24`
+- `multiemu/remote_runtime.py` codifica y envia `rgb24`
 
-- `keyboard_rows[8]`
-
-El frontend local y el frontend TCP envían eventos/estados sobre esa matriz.
+Esto simplifica la ruta normal y evita conversiones por frame que ya no aportan
+valor en produccion.
 
 ---
 
 # Audio
 
-## Generación
+## Spectrum
 
-El audio sigue saliendo del beeper conectado al puerto `0xFE`, bit 4.
+- beeper clasico del puerto `0xFE`
 
-La ULA contiene:
+## CPC
 
-- `ULABeeper`
+- PSG basado en `AY-3-8912`
+- integracion CPC via `Intel8255`
 
-La síntesis sigue siendo PCM `16-bit` mono a `44100 Hz`, con unas `~882` muestras por frame.
+Estado practico del `AY38912`:
 
-## Frontend local
+- registros, tonos, ruido, envolvente y puertos estan implementados
+- existe ruta accel + referencia
+- es suficiente para seguir con CPC
+- todavia no se da por fidelidad completa
 
-`frontend/pygame_frontend.py` se mejoró durante esta sesión.
+Archivos clave:
 
-Cambio importante:
+- `devices/ay38912.py`
+- `devices/ay38912_accel.pyx`
+- `tests/fallbacks/ay38912_reference.py`
+- `tests/test_ay38912.py`
 
-- ya no alimenta `pygame.mixer` con chunks muy pequeños
-- acumula audio y lo reproduce en bloques más largos (`>= 2048` muestras)
-- el buffer del mixer se inicializa con ese tamaño
+Se generaron ROMs de prueba de sonido para CPC en:
 
-Resultado:
+- `tools/build_cpc_sound_test_rom.py`
+- `roms/generated/cpc_ode_to_joy.rom`
 
-- el audio local es mucho más limpio
-- todavía puede haber algunos `pocs`, pero bastante menos desagradables
+Sirvieron para descubrir el bug de timing del Z80 en `HALT`, pero la calidad
+musical del CPC todavia no se considera buena.
 
-## Frontend TCP
+---
 
-Existe:
+# Frontends y runtimes
 
+Frontends/runtimes actuales:
+
+- `frontend/pygame_frontend.py`
 - `frontend/tcp_frontend.py`
 - `frontend/tcp_pygame_client.py`
+- `multiemu/remote_runtime.py`
 
 Estado actual:
 
-- handshake `hello/welcome`
-- varios clientes simultáneos
-- `input_state` compartido para `keyboard_0`
-- fusión del teclado por frame
-- vídeo y audio enviados por TCP
+- `pygame` local funcionando
+- cliente TCP `pygame` funcionando
+- handshake remoto corregido para no depender de dimensiones `None`
+- video y audio remotos siguen siendo funcionales, aunque el audio TCP no es la
+  parte mas refinada del proyecto
 
-Mejoras hechas:
-
-- el servidor ya no trata audio y vídeo como un único payload descartable
-- el vídeo mantiene solo el frame más reciente por cliente
-- el audio se acumula aparte por cliente
-- el cliente TCP usa chunks de reproducción más largos, igual que el frontend local
-
-Estado del audio TCP:
-
-- ha mejorado mucho
-- sigue siendo peor que el frontend local
-- todavía hay ruido/jitter residual
-
-Se dejó un `FIXME` en:
-
-- `frontend/tcp_pygame_client.py`
-
-Motivo:
-
-- el audio TCP sigue acoplado al framing/ritmo de entrega del vídeo
-- a futuro conviene separar el camino lógico de audio del de vídeo
-
----
-
-# Frontends
-
-## Local
-
-- `frontend/pygame_frontend.py`
-
-## Remoto
-
-- `frontend/tcp_frontend.py`
-- `frontend/tcp_pygame_client.py`
-
-## Backend adaptador
-
-Existe un adaptador compartido:
-
-- `frontend/backend.py`
-
-`LocalMachineBackend` expone el estado de máquina al frontend y ahora también delega `frame_counter`.
-
----
-
-# Estructura del repo
-
-Se hicieron cambios de limpieza para una pre-release:
-
-- añadido `README.md`
-- añadida licencia `MIT` en `LICENSE`
-- añadido `.gitignore` en la raíz
-- actualizados metadatos en `pyproject.toml`
-- versión actual marcada como `0.1.0a1`
-
-## Scripts y tests
-
-Todos los `test_*` se movieron a:
-
-- `tests/`
-
----
-
-# Decisiones nuevas de esta sesión
-
-## CLI unificado
-
-Ahora existe una capa de CLI propia para el proyecto en:
-
-- `multiemu/cli.py`
-
-El comando instalado es:
-
-- `multiemu`
-
-Objetivo de diseño:
-
-- dejar de usar los `tests/test_*.py` como punto de entrada principal
-- exponer una interfaz estable para usuarios y futuras automatizaciones
-- mantener el parser fino y mover la lógica real a registros/factorías
-
-Comandos actuales:
+CLI actual:
 
 - `multiemu list-machines`
 - `multiemu run`
 - `multiemu serve`
 - `multiemu connect`
-- `multiemu client`
 
-Notas:
+---
 
-- `client` es alias de `connect`
-- `run` usa `--frontend`
-- `serve` usa `--transport`
-- `connect` usa `--transport` y `--frontend`
+# Tests
 
-Defaults actuales:
+La suite ya no se basa en scripts manuales de arranque. Ahora el objetivo es
+que los tests reales sean `pytest`.
 
-- frontend local por defecto: `pygame`
-- transporte remoto por defecto: `tcp`
-- frontend de conexión por defecto: `pygame`
+Archivos principales de tests:
 
-## Registro de máquinas
+- `tests/test_spectrum.py`
+- `tests/test_cpc464.py`
+- `tests/test_ay38912.py`
+- `tests/test_z80_bus.py`
+- `tests/test_z80_core.py`
+- `tests/test_accel_equivalence.py`
+- `tests/test_cli.py`
+- `tests/test_display_profiles.py`
+- `tests/test_keymaps.py`
 
-Existe un registro central en:
+Las referencias Python para comparar con las implementaciones aceleradas viven
+en:
+
+- `tests/fallbacks/`
+
+Decision importante:
+
+- el fallback ya no es parte de la ejecucion normal del emulador
+- su funcion ahora es validar semantica, servir de referencia y facilitar tests
+
+---
+
+# Decisiones de diseno
+
+Estas notas no describen el estado puntual del codigo, sino decisiones de
+arquitectura que conviene preservar entre sesiones.
+
+## CLI y registros
+
+La CLI publica vive en:
+
+- `multiemu/cli.py`
+
+La idea sigue siendo:
+
+- no usar `tests/` como punto de entrada del emulador
+- mantener un CLI estable para uso manual y automatizaciones
+- dejar la logica de seleccion en registros/factorias, no en `if/elif`
+
+Registros relevantes:
 
 - `multiemu/machine_registry.py`
-
-Propósito:
-
-- resolver máquinas soportadas desde un punto único
-- separar creación de máquinas del parser CLI
-- facilitar añadir nuevas familias o modelos sin meter `if/elif` en el CLI
-
-La construcción pública actual es:
-
-- `instantiate_machine(machine_id, rom_path=None)`
-
-Comportamiento importante:
-
-- la factoría resetea siempre la máquina tras construirla
-- esto garantiza un estado inicial homogéneo para `run` y `serve`
-
-## Política de búsqueda de ROMs
-
-Si no se pasa `--rom`, cada máquina busca un nombre de ROM canónico en este orden:
-
-1. `CWD`
-2. `$HOME/.local/share/multiemu/`
-3. `/usr/local/share/multiemu/roms/`
-4. `/usr/share/multiemu/`
-
-Nombres canónicos actuales:
-
-- `spectrum16k` -> `spec16k.rom`
-- `spectrum48k` -> `spec48k.rom`
-
-Decisión de diseño:
-
-- la búsqueda por defecto no depende del árbol del repositorio
-- así el comportamiento es igual en desarrollo e instalación real
-
-Si no aparece la ROM, el CLI falla con error claro y muestra el search path.
-
-## Registro de runtimes
-
-Existe una capa declarativa para seleccionar runtimes en:
-
 - `multiemu/runtime_registry.py`
 
-Objetivo:
-
-- desacoplar selección de frontend/transporte del código del parser
-- permitir crecimiento incremental sin reescribir handlers
-
-Separación actual:
+Separacion actual de runtimes:
 
 - `LOCAL_FRONTENDS`
 - `SERVER_TRANSPORTS`
 - `CONNECT_TRANSPORTS`
 - `CONNECT_FRONTENDS`
 
-Punto importante:
+Decision importante:
 
-- en `connect`, transporte y frontend ya no se modelan como una sola opción combinada
-- la composición actual válida es `tcp + pygame`
-- se dejó así para que futuras combinaciones no obliguen a crear ids artificiales tipo `tcp-pygame`, `ws-pygame`, etc.
+- `connect` separa transporte y frontend
+- no conviene colapsar eso en ids artificiales como `tcp-pygame`
 
-## Desacoplo del servidor remoto
+## Politica de busqueda de ROMs
 
-Se extrajo una base común para sesiones remotas en:
+La busqueda de ROMs no debe depender del arbol del repositorio.
+
+Si no se pasa `--rom`, cada slot busca en este orden:
+
+1. `CWD`
+2. `$HOME/.local/share/multiemu/`
+3. `/usr/local/share/multiemu/roms/`
+4. `/usr/share/multiemu/`
+
+Slots/nombres por defecto vigentes:
+
+- `spectrum16k` -> `spec16k.rom`
+- `spectrum48k` -> `spec48k.rom`
+- `cpc464` slot `os` -> `OS_464.ROM`
+
+Para CPC se mantiene el modelo de slots nombrados, no una proliferacion de
+flags tipo `--rom2`, `--rom3`.
+
+## Perfiles de display
+
+Los perfiles de display viven en:
+
+- `video/display_profiles.py`
+
+Su funcion es separar:
+
+- el raster/hardware que produce la maquina
+- la ventana visible o perfil presentado al usuario
+
+Esto se comparte entre Spectrum y CPC, y debe seguir asi.
+
+## Runtime remoto
+
+La base comun del frontend remoto vive en:
 
 - `multiemu/remote_runtime.py`
 
@@ -375,102 +322,42 @@ Clase principal:
 
 - `RemoteFrontendSession`
 
-Responsabilidades de esa capa:
+La intencion sigue siendo que la sesion remota comun concentre:
 
-- loop de emulación remoto
-- cadence/frame budget
+- loop de emulacion remoto
 - merge de input por frame
-- codificación base de framebuffer a `rgb24`
-- drenado de audio del backend
+- ritmo/cadencia
+- codificacion de video
+- drenado de audio
 
-Implementación concreta actual:
+Y que el transporte concreto, hoy TCP, se encargue sobre todo de:
 
-- `frontend/tcp_frontend.py`
+- sockets
+- parsing de mensajes
+- colas/salida
 
-`TcpFrontend` ya no contiene toda la semántica de sesión remota, sino sobre todo:
+## Convencion de documentacion
 
-- aceptación de sockets
-- gestión de clientes
-- parsing de mensajes TCP
-- cola/salida de payloads
+La documentacion interna debe preservar decisiones, no narrar el codigo.
 
-Decisión de diseño:
+Regla acordada:
 
-- `serve` ya no está acoplado conceptualmente a TCP, aunque hoy TCP sea el único transporte implementado
-
-## Ctrl-C en `serve`
-
-El comando `multiemu serve` captura `KeyboardInterrupt`.
-
-Comportamiento deseado:
-
-- cierre limpio
-- sin traceback al pulsar `Ctrl-C`
-- mensaje operacional claro al usuario
-- retorno `130`
-
-La captura se hace en el handler del CLI, no en la capa global.
-
-Motivo:
-
-- la semántica especial aplica al servidor de larga duración y no necesariamente al resto de comandos
-
-## Convención de documentación para futuras sesiones
-
-Se acordó que los archivos tocados deben mantener contexto homogéneo mediante:
-
-- docstrings de módulo cuando aporten contexto arquitectónico
-- docstrings en funciones/clases públicas
-- comentarios breves sólo donde expliquen decisiones no obvias
-
-No se buscan comentarios redundantes, sino preservar decisiones de diseño para continuidad entre sesiones.
-
-Ahora conviene ejecutarlos como módulos, por ejemplo:
-
-- `python -m tests.test_spectrum_rom`
-- `python -m tests.test_spectrum16k_rom`
-- `python -m tests.test_server_spectrum48k`
-- `python -m tests.test_client`
-
-Hay además:
-
-- `tests/test_server_pectrum48k.py`
-
-como wrapper de compatibilidad para el nombre antiguo con typo.
-
-Importante:
-
-muchos de esos `test_*.py` no son tests formales, sino launchers o smoke tests.
-
-La intención explícita para la próxima sesión es:
-
-- crear una aplicación específica para instanciar y lanzar máquinas
-- dejar `tests/` más orientado a tests reales
+- docstrings de modulo o clase cuando aporten contexto arquitectonico
+- comentarios breves solo para decisiones no obvias o rarezas de hardware
+- evitar comentarios redundantes que solo repitan el codigo
 
 ---
 
-# ROMs y launchers relevantes
+# Prioridades abiertas
 
-Actualmente se usan en scripts de arranque:
+Si se retoma el trabajo del CPC, el orden recomendado es:
 
-- `48E.rom` para Spectrum 48K
-- `cl-48.rom` para Spectrum 16K
+1. fidelidad basica de video e input
+2. afinar `AY38912`
+3. medir rendimiento real del CPC completo
+4. decidir si merece la pena mas Cython o mas hardware
 
-Launchers útiles:
+Si aparece un bug de timing raro en CPC, recordar primero:
 
-- `tests/test_spectrum_rom.py`
-- `tests/test_spectrum16k_rom.py`
-- `tests/test_server_spectrum48k.py`
-- `tests/test_client.py`
-
----
-
-# Próximos pasos razonables
-
-Prioridad natural para continuar:
-
-1. Crear una app/CLI específica para instanciar máquinas y frontends
-2. Separar launchers de tests reales
-3. Seguir mejorando audio TCP desacoplando audio y vídeo
-4. Seguir ampliando la familia Spectrum sobre `SpectrumBase`
-5. Decidir cómo documentar/gestionar ROMs de usuario de cara a GitHub
+- revisar relacion entre `run_frame()`, interrupciones y `HALT`
+- comprobar si la ROM o test depende de esperas por frame

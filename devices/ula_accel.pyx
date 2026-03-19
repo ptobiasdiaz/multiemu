@@ -5,6 +5,7 @@
 # cython: cdivision=True
 
 from array import array
+from video import get_display_profile
 
 from cpu.z80.memory cimport RAMBlock
 
@@ -172,8 +173,14 @@ cdef class Spectrum48KULA:
     cdef public int last_tstates
     cdef public bint flash_phase
     cdef public int flash_counter
-    cdef public object framebuffer
+    cdef public object framebuffer_rgb24
     cdef public ULABeeper beeper
+    cdef public int border_left
+    cdef public int border_right
+    cdef public int border_top
+    cdef public int border_bottom
+    cdef public int frame_width
+    cdef public int frame_height
 
     SCREEN_WIDTH = 256
     SCREEN_HEIGHT = 192
@@ -209,20 +216,28 @@ cdef class Spectrum48KULA:
     )
 
     def __init__(self, machine):
+        cdef object profile
         self.machine = machine
         self.ram = <RAMBlock>machine.ram
         self.last_tstates = 0
         self.flash_phase = False
         self.flash_counter = 0
+        profile = get_display_profile(getattr(machine, "display_profile_name", "default"))
+        self.border_left = profile.spectrum_border_left or self.BORDER_LEFT
+        self.border_right = profile.spectrum_border_right or self.BORDER_RIGHT
+        self.border_top = profile.spectrum_border_top or self.BORDER_TOP
+        self.border_bottom = profile.spectrum_border_bottom or self.BORDER_BOTTOM
+        self.frame_width = self.SCREEN_WIDTH + self.border_left + self.border_right
+        self.frame_height = self.SCREEN_HEIGHT + self.border_top + self.border_bottom
 
-        self.framebuffer = self._make_blank_frame((0, 0, 0))
+        self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
         self.beeper = ULABeeper(self, tstates_per_frame=machine.TSTATES_PER_FRAME)
 
     cpdef reset(self):
         self.last_tstates = 0
         self.flash_phase = False
         self.flash_counter = 0
-        self.framebuffer = self._make_blank_frame((0, 0, 0))
+        self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
         self.beeper.reset()
 
     cpdef run_until(self, int tstates):
@@ -236,12 +251,13 @@ cdef class Spectrum48KULA:
             self.flash_phase = not self.flash_phase
 
         self.machine.cpu.interrupt()
-        self.framebuffer = self.render_frame()
+        self.framebuffer_rgb24 = self.render_frame()
         self.beeper.end_frame()
 
     cpdef render_frame(self):
         cdef int border_index = self.machine.border_color & 0x07
-        cdef list frame = self._make_blank_frame(self.PALETTE[border_index])
+        cdef tuple border_rgb = self.PALETTE[border_index]
+        cdef bytearray out = self._make_blank_frame_rgb24(border_rgb)
         cdef int y
         cdef int bitmap_row_addr
         cdef int attr_row_addr
@@ -254,16 +270,15 @@ cdef class Spectrum48KULA:
         cdef int dst_x_base
         cdef int bit
         cdef int pixel_on
-        cdef list frame_row
-        cdef object ink_rgb
-        cdef object paper_rgb
+        cdef tuple ink_rgb
+        cdef tuple paper_rgb
         cdef object tmp
+        cdef int pixel_index
 
         for y in range(self.SCREEN_HEIGHT):
             bitmap_row_addr = self._zx_bitmap_row_address(y) - 0x4000
             attr_row_addr = self.SCREEN_ATTR_BASE + ((y >> 3) * 32) - 0x4000
-            dst_y = self.BORDER_TOP + y
-            frame_row = frame[dst_y]
+            dst_y = self.border_top + y
 
             for x_char in range(32):
                 bitmap_byte = self.ram.data[bitmap_row_addr + x_char]
@@ -283,13 +298,22 @@ cdef class Spectrum48KULA:
 
                 ink_rgb = self.PALETTE[ink_idx]
                 paper_rgb = self.PALETTE[paper_idx]
-                dst_x_base = self.BORDER_LEFT + (x_char * 8)
+                dst_x_base = self.border_left + (x_char * 8)
 
                 for bit in range(8):
                     pixel_on = (bitmap_byte >> (7 - bit)) & 1
-                    frame_row[dst_x_base + bit] = ink_rgb if pixel_on else paper_rgb
+                    pixel_index = ((dst_y * self.frame_width) + dst_x_base + bit) * 3
+                    if pixel_on:
+                        out[pixel_index] = ink_rgb[0]
+                        out[pixel_index + 1] = ink_rgb[1]
+                        out[pixel_index + 2] = ink_rgb[2]
+                    else:
+                        out[pixel_index] = paper_rgb[0]
+                        out[pixel_index + 1] = paper_rgb[1]
+                        out[pixel_index + 2] = paper_rgb[2]
 
-        return frame
+        self.framebuffer_rgb24 = bytes(out)
+        return self.framebuffer_rgb24
 
     cpdef get_frame_samples(self):
         return self.beeper.get_frame_samples()
@@ -302,8 +326,5 @@ cdef class Spectrum48KULA:
             + ((y & 0x38) << 2)
         )
 
-    def _make_blank_frame(self, rgb):
-        return [
-            [rgb for _ in range(self.FRAME_WIDTH)]
-            for _ in range(self.FRAME_HEIGHT)
-        ]
+    cdef bytearray _make_blank_frame_rgb24(self, tuple rgb):
+        return bytearray(bytes(rgb) * (self.frame_width * self.frame_height))

@@ -3,8 +3,7 @@ from __future__ import annotations
 
 The server owns the emulated machine and can fan out frames to multiple
 clients at once. Clients first send ``hello`` and receive ``welcome`` with the
-stream layout and available input devices. For Spectrum 48K the exposed input
-device is a shared keyboard matrix named ``keyboard_0``.
+stream layout and the machine-specific keyboard matrix geometry.
 
 Input is modeled as per-client state, not as immediate events. Each client
 publishes its current pressed keys with ``input_state`` and the server merges
@@ -54,8 +53,6 @@ class TcpFrontend(RemoteFrontendSession):
     """Serve an emulator backend to multiple TCP clients over a TCP transport."""
 
     PROTOCOL_VERSION = 1
-    MACHINE_ID = "spectrum48k"
-    MACHINE_NAME = "ZX Spectrum 48K"
     KEYBOARD_DEVICE_ID = "keyboard_0"
     MAX_PENDING_AUDIO_MS = 200
 
@@ -80,6 +77,7 @@ class TcpFrontend(RemoteFrontendSession):
         self.server = None
         self._next_client_id = 1
         self.clients: dict[int, ClientSession] = {}
+        self.machine = getattr(self.backend, "machine", None)
 
     def start_transport(self) -> None:
         """Create and configure the listening TCP socket."""
@@ -203,11 +201,11 @@ class TcpFrontend(RemoteFrontendSession):
             {
                 "type": "welcome",
                 "protocol": self.PROTOCOL_VERSION,
-                "session_id": f"{self.MACHINE_ID}-{self.port}",
+                "session_id": f"{self.machine_id}-{self.port}",
                 "client_id": session.client_id,
                 "machine": {
-                    "id": self.MACHINE_ID,
-                    "name": self.MACHINE_NAME,
+                    "id": self.machine_id,
+                    "name": self.machine_name,
                 },
                 "video": {
                     "width": self.frame_width,
@@ -219,6 +217,7 @@ class TcpFrontend(RemoteFrontendSession):
                     "sample_rate": self.audio_sample_rate,
                     "channels": 1,
                     "format": "s16le",
+                    "chunk_samples": self.audio_chunk_size,
                 },
                 "input_devices": [
                     {
@@ -227,11 +226,14 @@ class TcpFrontend(RemoteFrontendSession):
                         "mode": "shared",
                         "state_model": "state",
                         "layout": {
-                            "rows": 8,
-                            "cols": 5,
+                            "rows": self.keyboard_rows,
+                            "cols": self.keyboard_cols,
                         },
                     }
                 ],
+                "frontend": {
+                    "keymap": self.input_keymap_name,
+                },
             },
         )
 
@@ -247,7 +249,7 @@ class TcpFrontend(RemoteFrontendSession):
         for item in message.get("pressed", []):
             row = int(item["control_a"])
             bit = int(item["control_b"])
-            if not (0 <= row < 8 and 0 <= bit < 5):
+            if not (0 <= row < self.keyboard_rows and 0 <= bit < self.keyboard_cols):
                 continue
             pressed.add((row, bit))
 
@@ -427,3 +429,33 @@ class TcpFrontend(RemoteFrontendSession):
                 self.server.close()
             finally:
                 self.server = None
+
+    @property
+    def machine_id(self) -> str:
+        """Expose the current machine id to remote clients."""
+
+        return getattr(self.machine, "machine_id", self.backend.__class__.__name__.lower())
+
+    @property
+    def machine_name(self) -> str:
+        """Expose a user-facing machine name in the TCP handshake."""
+
+        return getattr(self.machine, "display_name", self.machine_id)
+
+    @property
+    def input_keymap_name(self) -> str | None:
+        """Tell clients which local keymap should be used for this machine."""
+
+        return getattr(self.backend, "input_keymap_name", None)
+
+    @property
+    def keyboard_rows(self) -> int:
+        """Expose the remote keyboard matrix geometry for validation."""
+
+        return int(getattr(self.machine, "KEYBOARD_LINES", 8))
+
+    @property
+    def keyboard_cols(self) -> int:
+        """Expose the remote keyboard matrix bit width for validation."""
+
+        return int(getattr(self.machine, "KEYBOARD_BITS", 5))

@@ -34,7 +34,7 @@ class BaseMachine(ABC):
         self.frame_counter = 0
         self.frame_tstates = 0
 
-        self.framebuffer = None
+        self.framebuffer_rgb24 = None
         self.audio_samples = array("h")
         self.audio_ring = AudioRingBuffer(audio_sample_rate // 2)
 

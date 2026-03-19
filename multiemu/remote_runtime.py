@@ -30,12 +30,14 @@ class RemoteFrontendSession(ABC):
         self.audio_chunk_size = audio_chunk_size
         self.running = False
 
-        fb = self.backend.framebuffer
-        if fb is None:
-            fb = self.backend.render_frame()
+        packed = getattr(self.backend, "framebuffer_rgb24", None)
+        frame_width = getattr(self.backend, "frame_width", None)
+        frame_height = getattr(self.backend, "frame_height", None)
 
-        self.frame_height = len(fb)
-        self.frame_width = len(fb[0])
+        if packed is None:
+            packed = self.backend.render_frame()
+        self.frame_width = frame_width
+        self.frame_height = frame_height
 
     def run(self):
         """Drive the emulation loop and delegate transport hooks to subclasses."""
@@ -52,7 +54,7 @@ class RemoteFrontendSession(ABC):
                 self._apply_merged_input_state(self.collect_pressed_keys())
 
                 self.backend.run_frame()
-                frame_bytes = self.encode_framebuffer(self.backend.framebuffer)
+                frame_bytes = self.encode_framebuffer(getattr(self.backend, "framebuffer_rgb24", None))
                 audio_bytes = self.pop_audio_bytes()
                 self.broadcast_stream_data(frame_bytes, audio_bytes)
                 self.flush_writes()
@@ -92,17 +94,9 @@ class RemoteFrontendSession(ABC):
     def encode_framebuffer(self, framebuffer) -> bytes:
         """Encode the RGB framebuffer as contiguous rgb24 bytes."""
 
-        out = bytearray(self.frame_width * self.frame_height * 3)
-        i = 0
-
-        for row in framebuffer:
-            for r, g, b in row:
-                out[i] = r
-                out[i + 1] = g
-                out[i + 2] = b
-                i += 3
-
-        return bytes(out)
+        if framebuffer is None:
+            raise ValueError("backend no expone framebuffer_rgb24")
+        return bytes(framebuffer)
 
     @abstractmethod
     def start_transport(self) -> None:

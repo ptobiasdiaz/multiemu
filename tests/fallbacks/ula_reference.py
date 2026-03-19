@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from array import array
 
+from video import get_display_profile
+
 
 class ULABeeper:
     def __init__(
@@ -159,15 +161,37 @@ class Spectrum48KULA:
         self.last_tstates = 0
         self.flash_phase = False
         self.flash_counter = 0
+        profile = get_display_profile(getattr(machine, "display_profile_name", "default"))
+        self.border_left = profile.spectrum_border_left or self.BORDER_LEFT
+        self.border_right = profile.spectrum_border_right or self.BORDER_RIGHT
+        self.border_top = profile.spectrum_border_top or self.BORDER_TOP
+        self.border_bottom = profile.spectrum_border_bottom or self.BORDER_BOTTOM
+        self.frame_width = self.SCREEN_WIDTH + self.border_left + self.border_right
+        self.frame_height = self.SCREEN_HEIGHT + self.border_top + self.border_bottom
 
-        self.framebuffer = self._make_blank_frame((0, 0, 0))
+        self._framebuffer_cache = None
+        self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
         self.beeper = ULABeeper(self, tstates_per_frame=machine.TSTATES_PER_FRAME)
+
+    @property
+    def framebuffer(self):
+        if self._framebuffer_cache is not None:
+            return self._framebuffer_cache
+        if self.framebuffer_rgb24 is None:
+            return None
+        self._framebuffer_cache = self._decode_framebuffer_rgb24(self.framebuffer_rgb24)
+        return self._framebuffer_cache
+
+    @framebuffer.setter
+    def framebuffer(self, value):
+        self._framebuffer_cache = value
 
     def reset(self):
         self.last_tstates = 0
         self.flash_phase = False
         self.flash_counter = 0
-        self.framebuffer = self._make_blank_frame((0, 0, 0))
+        self.framebuffer = None
+        self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
         self.beeper.reset()
 
     def run_until(self, tstates: int):
@@ -181,31 +205,37 @@ class Spectrum48KULA:
             self.flash_phase = not self.flash_phase
 
         self.machine.cpu.interrupt()
-        self.framebuffer = self.render_frame()
+        self.framebuffer_rgb24 = self.render_frame()
+        self.framebuffer = None
         self.beeper.end_frame()
 
     def render_frame(self):
         border_rgb = self.PALETTE[self.machine.border_color & 0x07]
-        frame = self._make_blank_frame(border_rgb)
+        out = bytearray(bytes(border_rgb) * (self.frame_width * self.frame_height))
 
         for y in range(self.SCREEN_HEIGHT):
             bitmap_row_addr = self._zx_bitmap_row_address(y)
             attr_row_addr = self.SCREEN_ATTR_BASE + ((y >> 3) * 32)
-            dst_y = self.BORDER_TOP + y
+            dst_y = self.border_top + y
 
             for x_char in range(32):
                 bitmap_byte = self.machine.peek(bitmap_row_addr + x_char)
                 attr = self.machine.peek(attr_row_addr + x_char)
 
                 ink, paper = self._decode_attr(attr)
-                dst_x_base = self.BORDER_LEFT + (x_char * 8)
+                dst_x_base = self.border_left + (x_char * 8)
 
                 for bit in range(8):
                     pixel_on = (bitmap_byte >> (7 - bit)) & 1
                     rgb = ink if pixel_on else paper
-                    frame[dst_y][dst_x_base + bit] = rgb
+                    pixel = ((dst_y * self.frame_width) + dst_x_base + bit) * 3
+                    out[pixel] = rgb[0]
+                    out[pixel + 1] = rgb[1]
+                    out[pixel + 2] = rgb[2]
 
-        return frame
+        self.framebuffer_rgb24 = bytes(out)
+        self.framebuffer = None
+        return self.framebuffer_rgb24
 
     def get_frame_samples(self):
         return self.beeper.get_frame_samples()
@@ -235,6 +265,21 @@ class Spectrum48KULA:
 
     def _make_blank_frame(self, rgb):
         return [
-            [rgb for _ in range(self.FRAME_WIDTH)]
-            for _ in range(self.FRAME_HEIGHT)
+            [rgb for _ in range(self.frame_width)]
+            for _ in range(self.frame_height)
         ]
+
+    def _make_blank_frame_rgb24(self, rgb):
+        return bytes(rgb) * (self.frame_width * self.frame_height)
+
+    def _decode_framebuffer_rgb24(self, packed: bytes):
+        rows = []
+        stride = self.frame_width * 3
+        for y in range(self.frame_height):
+            row_start = y * stride
+            row = []
+            for x in range(self.frame_width):
+                pixel = row_start + (x * 3)
+                row.append((packed[pixel], packed[pixel + 1], packed[pixel + 2]))
+            rows.append(tuple(row))
+        return tuple(rows)

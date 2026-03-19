@@ -5,7 +5,9 @@ The client connects to a remote emulator instance, sends ``hello``, receives
 ``welcome``, then loops on ``frame`` messages carrying raw ``rgb24`` video and
 ``s16le`` mono audio. Keyboard state is sent as ``input_state`` for the shared
 ``keyboard_0`` device, matching the server-side model of per-client input
-state.
+state. The server also advertises which local keymap should be used so the
+same client can talk to different machine families without hardcoding
+Spectrum-only assumptions.
 """
 
 import json
@@ -13,7 +15,7 @@ import socket
 from collections import deque
 
 import pygame
-from frontend.keymap import SPECTRUM_PYGAME_KEYMAP
+from frontend.keymap import get_pygame_keymap
 
 try:
     import numpy as np
@@ -23,6 +25,10 @@ except ImportError:
 
 class TcpPygameClient:
     """Render a remote emulator stream locally with pygame."""
+
+    # Mirror the local frontend so short remote taps survive firmware scans.
+    TAP_HOLD_FRAMES = 5
+    QUICK_TAP_MAX_FRAMES = 2
 
     def __init__(
         self,
@@ -55,11 +61,17 @@ class TcpPygameClient:
         self.audio_channel = None
         self.audio_started = False
         self.audio_queue = deque()
+        # Default to the more stable Spectrum-like profile until the server
+        # tells us which machine family is behind the transport.
         self.audio_prebuffer_chunks = 4
         self.audio_max_queue_chunks = 12
         self.audio_byte_buffer = bytearray()
         self.use_surfarray = np is not None and hasattr(pygame, "surfarray")
-        self.keymap = SPECTRUM_PYGAME_KEYMAP
+        self.keymap = get_pygame_keymap(None)
+        self.active_controls: set[tuple[int, int]] = set()
+        self.active_control_frames: dict[tuple[int, int], int] = {}
+        self.tap_pulse_frames: dict[tuple[int, int], int] = {}
+        self.pending_tap_counts: dict[tuple[int, int], int] = {}
 
     def run(self):
         with socket.create_connection((self.host, self.port)) as sock:
@@ -144,32 +156,91 @@ class TcpPygameClient:
         self.win_height = self.src_height * self.scale
         self.fps_limit = int(video.get("fps", self.fps_limit))
         self.audio_sample_rate = int(audio.get("sample_rate", self.audio_sample_rate))
+        self.audio_chunk_size = int(audio.get("chunk_samples", self.audio_chunk_size))
+        self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
+        frontend = welcome.get("frontend", {})
+        self.keymap = get_pygame_keymap(frontend.get("keymap"))
+        self._configure_audio_profile(welcome)
+
+    def _configure_audio_profile(self, welcome: dict) -> None:
+        """Tune client-side buffering to the remote machine audio pattern.
+
+        Spectrum benefits from the more conservative buffering already used by
+        the local frontend because its continuous audio exposes transport
+        jitter quickly. CPC firmware, on the other hand, often emits short
+        beeps, so it needs a shallower startup queue to avoid swallowing them.
+        """
+
+        machine = welcome.get("machine", {})
+        machine_id = str(machine.get("id", ""))
+
+        if machine_id.startswith("cpc"):
+            self.audio_prebuffer_chunks = 1
+            self.audio_play_chunk_size = max(1024, self.audio_chunk_size)
+            return
+
+        self.audio_prebuffer_chunks = 4
+        self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
 
     def _handle_local_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
                 return
-
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_ESCAPE]:
-            self.running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.running = False
+                    return
+                control = self.keymap.get(event.key)
+                if control is not None:
+                    self.active_controls.add(control)
+                    self.active_control_frames.setdefault(control, 0)
+            elif event.type == pygame.KEYUP:
+                control = self.keymap.get(event.key)
+                if control is not None:
+                    held_frames = self.active_control_frames.get(control, 0)
+                    if held_frames <= self.QUICK_TAP_MAX_FRAMES:
+                        if control in self.tap_pulse_frames:
+                            self.pending_tap_counts[control] = self.pending_tap_counts.get(control, 0) + 1
+                        else:
+                            self.tap_pulse_frames[control] = self.TAP_HOLD_FRAMES
+                    self.active_controls.discard(control)
+                    self.active_control_frames.pop(control, None)
 
     def _send_input_state(self):
         if not self.running:
             return
 
-        keys = pygame.key.get_pressed()
         pressed = []
+        controls_to_send = set(self.active_controls)
+        controls_to_send.update(self.tap_pulse_frames)
 
-        for pg_key, (row, bit) in self.keymap.items():
-            if keys[pg_key]:
-                pressed.append(
-                    {
-                        "control_a": row,
-                        "control_b": bit,
-                    }
-                )
+        for row, bit in controls_to_send:
+            pressed.append(
+                {
+                    "control_a": row,
+                    "control_b": bit,
+                }
+            )
+
+        for control in list(self.active_controls):
+            self.active_control_frames[control] = self.active_control_frames.get(control, 0) + 1
+
+        expired = []
+        for control, frames_left in self.tap_pulse_frames.items():
+            if frames_left <= 1:
+                expired.append(control)
+            else:
+                self.tap_pulse_frames[control] = frames_left - 1
+
+        for control in expired:
+            queued = self.pending_tap_counts.get(control, 0)
+            if queued > 0:
+                self.pending_tap_counts[control] = queued - 1
+                self.tap_pulse_frames[control] = self.TAP_HOLD_FRAMES
+            else:
+                self.tap_pulse_frames.pop(control, None)
+                self.pending_tap_counts.pop(control, None)
 
         self._send_json(
             {

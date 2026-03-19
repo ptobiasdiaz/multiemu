@@ -1571,7 +1571,7 @@ struct __pyx_obj_3cpu_3z80_6memory_ROMBlock {
 };
 
 
-/* "devices/ula_accel.pyx":12
+/* "devices/ula_accel.pyx":13
  * 
  * 
  * cdef class ULABeeper:             # <<<<<<<<<<<<<<
@@ -1600,7 +1600,7 @@ struct __pyx_obj_7devices_9ula_accel_ULABeeper {
 };
 
 
-/* "devices/ula_accel.pyx":169
+/* "devices/ula_accel.pyx":170
  * 
  * 
  * cdef class Spectrum48KULA:             # <<<<<<<<<<<<<<
@@ -1615,8 +1615,14 @@ struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA {
   int last_tstates;
   int flash_phase;
   int flash_counter;
-  PyObject *framebuffer;
+  PyObject *framebuffer_rgb24;
   struct __pyx_obj_7devices_9ula_accel_ULABeeper *beeper;
+  int border_left;
+  int border_right;
+  int border_top;
+  int border_bottom;
+  int frame_width;
+  int frame_height;
 };
 
 
@@ -1666,7 +1672,7 @@ struct __pyx_vtabstruct_3cpu_3z80_6memory_ROMBlock {
 static struct __pyx_vtabstruct_3cpu_3z80_6memory_ROMBlock *__pyx_vtabptr_3cpu_3z80_6memory_ROMBlock;
 
 
-/* "devices/ula_accel.pyx":12
+/* "devices/ula_accel.pyx":13
  * 
  * 
  * cdef class ULABeeper:             # <<<<<<<<<<<<<<
@@ -1686,7 +1692,7 @@ struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper {
 static struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *__pyx_vtabptr_7devices_9ula_accel_ULABeeper;
 
 
-/* "devices/ula_accel.pyx":169
+/* "devices/ula_accel.pyx":170
  * 
  * 
  * cdef class Spectrum48KULA:             # <<<<<<<<<<<<<<
@@ -1701,6 +1707,7 @@ struct __pyx_vtabstruct_7devices_9ula_accel_Spectrum48KULA {
   PyObject *(*render_frame)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, int __pyx_skip_dispatch);
   PyObject *(*get_frame_samples)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, int __pyx_skip_dispatch);
   int (*_zx_bitmap_row_address)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, int);
+  PyObject *(*_make_blank_frame_rgb24)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, PyObject *);
 };
 static struct __pyx_vtabstruct_7devices_9ula_accel_Spectrum48KULA *__pyx_vtabptr_7devices_9ula_accel_Spectrum48KULA;
 static CYTHON_INLINE int __pyx_f_7devices_9ula_accel_14Spectrum48KULA__zx_bitmap_row_address(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, int);
@@ -2332,30 +2339,23 @@ static CYTHON_INLINE PyObject* __Pyx_PyLong_SubtractObjC(PyObject *op1, PyObject
     (inplace ? PyNumber_InPlaceSubtract(op1, op2) : PyNumber_Subtract(op1, op2))
 #endif
 
-/* PyRange_Check.proto */
-#if CYTHON_COMPILING_IN_PYPY && !defined(PyRange_Check)
-  #define PyRange_Check(obj)  __Pyx_TypeCheck((obj), &PyRange_Type)
-#endif
+/* SetStringIndexingError.proto (used by SetItemIntByteArray) */
+static void __Pyx_SetStringIndexingError(const char* message, int has_gil);
 
-/* ListCompAppend.proto */
-#if CYTHON_USE_PYLIST_INTERNALS && CYTHON_ASSUME_SAFE_MACROS
-static CYTHON_INLINE int __Pyx_ListComp_Append(PyObject* list, PyObject* x) {
-    PyListObject* L = (PyListObject*) list;
-    Py_ssize_t len = Py_SIZE(list);
-    if (likely(L->allocated > len)) {
-        Py_INCREF(x);
-        #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030d0000
-        L->ob_item[len] = x;
-        #else
-        PyList_SET_ITEM(list, len, x);
-        #endif
-        __Pyx_SET_SIZE(list, len + 1);
-        return 0;
-    }
-    return PyList_Append(list, x);
-}
+/* SetItemIntByteArray.proto */
+#define __Pyx_SetItemInt_ByteArray(o, i, v, type, is_signed, to_py_func, is_list, wraparound, boundscheck, has_gil, unsafe_shared)\
+    (__Pyx_fits_Py_ssize_t(i, type, is_signed) ?\
+    __Pyx_SetItemInt_ByteArray_Fast(o, (Py_ssize_t)i, v, wraparound, boundscheck, has_gil, unsafe_shared) :\
+    (__Pyx_SetStringIndexingError("bytearray index out of range", has_gil), -1))
+static CYTHON_INLINE int __Pyx_SetItemInt_ByteArray_Fast(PyObject* string, Py_ssize_t i, unsigned char v,
+                                                         int wraparound, int boundscheck, int has_gil, int unsafe_shared);
+
+/* PySequenceMultiply.proto */
+#define __Pyx_PySequence_Multiply_Left(mul, seq)  __Pyx_PySequence_Multiply(seq, mul)
+#if !CYTHON_USE_TYPE_SLOTS
+#define  __Pyx_PySequence_Multiply PySequence_Repeat
 #else
-#define __Pyx_ListComp_Append(L,x) PyList_Append(L,x)
+static CYTHON_INLINE PyObject* __Pyx_PySequence_Multiply(PyObject *seq, Py_ssize_t mul);
 #endif
 
 /* ExtTypeTest.proto */
@@ -2505,6 +2505,9 @@ static CYTHON_INLINE long __Pyx_PyLong_As_long(PyObject *);
 /* CIntToPy.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyLong_From_long(long value);
 
+/* CIntFromPy.proto */
+static CYTHON_INLINE unsigned char __Pyx_PyLong_As_unsigned_char(PyObject *);
+
 /* PyObjectCall2Args.proto */
 static CYTHON_INLINE PyObject* __Pyx_PyObject_Call2Args(PyObject* function, PyObject* arg1, PyObject* arg2);
 
@@ -2630,6 +2633,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
 static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, int __pyx_skip_dispatch); /* proto*/
 static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_get_frame_samples(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, int __pyx_skip_dispatch); /* proto*/
 static CYTHON_INLINE int __pyx_f_7devices_9ula_accel_14Spectrum48KULA__zx_bitmap_row_address(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, int __pyx_v_y); /* proto*/
+static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA__make_blank_frame_rgb24(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_rgb); /* proto*/
 
 /* Module declarations from "libc.stdint" */
 
@@ -2652,7 +2656,7 @@ static PyObject *__pyx_builtin_round;
 static PyObject *__pyx_builtin_sorted;
 /* #### Code section: string_decls ### */
 static const char __pyx_k_amplitude_current_level_events_f[] = "amplitude, current_level, events, filter_state_1, filter_state_2, frame_samples, frame_start_tstate, machine, sample_rate, samples_per_frame, start_level, total_samples_emitted, total_tstates, tstates_per_frame, tstates_per_second, ula";
-static const char __pyx_k_beeper_flash_counter_flash_phase[] = "beeper, flash_counter, flash_phase, framebuffer, last_tstates, machine, ram";
+static const char __pyx_k_beeper_border_bottom_border_left[] = "beeper, border_bottom, border_left, border_right, border_top, flash_counter, flash_phase, frame_height, frame_width, framebuffer_rgb24, last_tstates, machine, ram";
 /* #### Code section: decls ### */
 static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7devices_9ula_accel_ULABeeper *__pyx_v_self, PyObject *__pyx_v_ula, int __pyx_v_sample_rate, int __pyx_v_amplitude, int __pyx_v_tstates_per_frame); /* proto */
 static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_2reset(struct __pyx_obj_7devices_9ula_accel_ULABeeper *__pyx_v_self); /* proto */
@@ -2706,7 +2710,6 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_4run_until(struct
 static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_6end_frame(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
 static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_8render_frame(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
 static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_10get_frame_samples(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12_make_blank_frame(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_rgb); /* proto */
 static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_7machine___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
 static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_7machine_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
 static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_7machine_4__del__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
@@ -2716,14 +2719,26 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11flash_phase___g
 static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11flash_phase_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
 static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13flash_counter___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
 static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13flash_counter_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
-static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
-static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
-static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_4__del__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_4__del__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
 static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_6beeper___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
 static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_6beeper_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
 static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_6beeper_4__del__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__reduce_cython__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
-static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_16__setstate_cython__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v___pyx_state); /* proto */
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11border_left___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11border_left_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12border_right___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12border_right_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_10border_top___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_10border_top_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13border_bottom___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13border_bottom_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11frame_width___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11frame_width_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12frame_height___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12frame_height_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value); /* proto */
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12__reduce_cython__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self); /* proto */
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__setstate_cython__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v___pyx_state); /* proto */
 static PyObject *__pyx_pf_7devices_9ula_accel___pyx_unpickle_ULABeeper(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v___pyx_type, long __pyx_v___pyx_checksum, PyObject *__pyx_v___pyx_state); /* proto */
 static PyObject *__pyx_pf_7devices_9ula_accel_2__pyx_unpickle_Spectrum48KULA(CYTHON_UNUSED PyObject *__pyx_self, PyObject *__pyx_v___pyx_type, long __pyx_v___pyx_checksum, PyObject *__pyx_v___pyx_state); /* proto */
 static PyObject *__pyx_tp_new_7devices_9ula_accel_ULABeeper(PyTypeObject *t, PyObject *a, PyObject *k); /*proto*/
@@ -2759,8 +2774,8 @@ typedef struct {
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_pop;
   __Pyx_CachedCFunction __pyx_umethod_PyDict_Type_values;
   PyObject *__pyx_tuple[16];
-  PyObject *__pyx_codeobj_tab[19];
-  PyObject *__pyx_string_tab[125];
+  PyObject *__pyx_codeobj_tab[18];
+  PyObject *__pyx_string_tab[128];
   PyObject *__pyx_number_tab[12];
 /* #### Code section: module_state_contents ### */
 /* CommonTypesMetaclass.module_state_decls */
@@ -2827,48 +2842,48 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_n_u_Spectrum48KULA __pyx_string_tab[22]
 #define __pyx_n_u_Spectrum48KULA___reduce_cython __pyx_string_tab[23]
 #define __pyx_n_u_Spectrum48KULA___setstate_cython __pyx_string_tab[24]
-#define __pyx_n_u_Spectrum48KULA__make_blank_frame __pyx_string_tab[25]
-#define __pyx_n_u_Spectrum48KULA_end_frame __pyx_string_tab[26]
-#define __pyx_n_u_Spectrum48KULA_get_frame_samples __pyx_string_tab[27]
-#define __pyx_n_u_Spectrum48KULA_render_frame __pyx_string_tab[28]
-#define __pyx_n_u_Spectrum48KULA_reset __pyx_string_tab[29]
-#define __pyx_n_u_Spectrum48KULA_run_until __pyx_string_tab[30]
-#define __pyx_n_u_TSTATES_PER_FRAME __pyx_string_tab[31]
-#define __pyx_n_u_ULABeeper __pyx_string_tab[32]
-#define __pyx_n_u_ULABeeper___reduce_cython __pyx_string_tab[33]
-#define __pyx_n_u_ULABeeper___setstate_cython __pyx_string_tab[34]
-#define __pyx_n_u_ULABeeper__render_frame_samples __pyx_string_tab[35]
-#define __pyx_n_u_ULABeeper_begin_frame __pyx_string_tab[36]
-#define __pyx_n_u_ULABeeper_end_frame __pyx_string_tab[37]
-#define __pyx_n_u_ULABeeper_get_frame_samples __pyx_string_tab[38]
-#define __pyx_n_u_ULABeeper_reset __pyx_string_tab[39]
-#define __pyx_n_u_ULABeeper_run_until __pyx_string_tab[40]
-#define __pyx_n_u_ULABeeper_set_level_from_port_va __pyx_string_tab[41]
-#define __pyx_n_u__3 __pyx_string_tab[42]
-#define __pyx_n_u_amplitude __pyx_string_tab[43]
-#define __pyx_n_u_array __pyx_string_tab[44]
-#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[45]
-#define __pyx_n_u_begin_frame __pyx_string_tab[46]
-#define __pyx_n_u_border_color __pyx_string_tab[47]
-#define __pyx_n_u_cline_in_traceback __pyx_string_tab[48]
-#define __pyx_n_u_cpu __pyx_string_tab[49]
-#define __pyx_n_u_devices_ula_accel __pyx_string_tab[50]
-#define __pyx_n_u_dict __pyx_string_tab[51]
-#define __pyx_n_u_dict_2 __pyx_string_tab[52]
+#define __pyx_n_u_Spectrum48KULA_end_frame __pyx_string_tab[25]
+#define __pyx_n_u_Spectrum48KULA_get_frame_samples __pyx_string_tab[26]
+#define __pyx_n_u_Spectrum48KULA_render_frame __pyx_string_tab[27]
+#define __pyx_n_u_Spectrum48KULA_reset __pyx_string_tab[28]
+#define __pyx_n_u_Spectrum48KULA_run_until __pyx_string_tab[29]
+#define __pyx_n_u_TSTATES_PER_FRAME __pyx_string_tab[30]
+#define __pyx_n_u_ULABeeper __pyx_string_tab[31]
+#define __pyx_n_u_ULABeeper___reduce_cython __pyx_string_tab[32]
+#define __pyx_n_u_ULABeeper___setstate_cython __pyx_string_tab[33]
+#define __pyx_n_u_ULABeeper__render_frame_samples __pyx_string_tab[34]
+#define __pyx_n_u_ULABeeper_begin_frame __pyx_string_tab[35]
+#define __pyx_n_u_ULABeeper_end_frame __pyx_string_tab[36]
+#define __pyx_n_u_ULABeeper_get_frame_samples __pyx_string_tab[37]
+#define __pyx_n_u_ULABeeper_reset __pyx_string_tab[38]
+#define __pyx_n_u_ULABeeper_run_until __pyx_string_tab[39]
+#define __pyx_n_u_ULABeeper_set_level_from_port_va __pyx_string_tab[40]
+#define __pyx_n_u_amplitude __pyx_string_tab[41]
+#define __pyx_n_u_array __pyx_string_tab[42]
+#define __pyx_n_u_asyncio_coroutines __pyx_string_tab[43]
+#define __pyx_n_u_begin_frame __pyx_string_tab[44]
+#define __pyx_n_u_border_color __pyx_string_tab[45]
+#define __pyx_n_u_cline_in_traceback __pyx_string_tab[46]
+#define __pyx_n_u_cpu __pyx_string_tab[47]
+#define __pyx_n_u_default __pyx_string_tab[48]
+#define __pyx_n_u_devices_ula_accel __pyx_string_tab[49]
+#define __pyx_n_u_dict __pyx_string_tab[50]
+#define __pyx_n_u_dict_2 __pyx_string_tab[51]
+#define __pyx_n_u_display_profile_name __pyx_string_tab[52]
 #define __pyx_n_u_end_frame __pyx_string_tab[53]
 #define __pyx_n_u_event __pyx_string_tab[54]
 #define __pyx_n_u_func __pyx_string_tab[55]
-#define __pyx_n_u_get_frame_samples __pyx_string_tab[56]
-#define __pyx_n_u_getstate __pyx_string_tab[57]
-#define __pyx_n_u_h __pyx_string_tab[58]
-#define __pyx_n_u_interrupt __pyx_string_tab[59]
-#define __pyx_n_u_is_coroutine __pyx_string_tab[60]
-#define __pyx_n_u_items __pyx_string_tab[61]
-#define __pyx_n_u_key __pyx_string_tab[62]
-#define __pyx_n_u_lambda __pyx_string_tab[63]
-#define __pyx_n_u_machine __pyx_string_tab[64]
-#define __pyx_n_u_main __pyx_string_tab[65]
-#define __pyx_n_u_make_blank_frame __pyx_string_tab[66]
+#define __pyx_n_u_get_display_profile __pyx_string_tab[56]
+#define __pyx_n_u_get_frame_samples __pyx_string_tab[57]
+#define __pyx_n_u_getstate __pyx_string_tab[58]
+#define __pyx_n_u_h __pyx_string_tab[59]
+#define __pyx_n_u_interrupt __pyx_string_tab[60]
+#define __pyx_n_u_is_coroutine __pyx_string_tab[61]
+#define __pyx_n_u_items __pyx_string_tab[62]
+#define __pyx_n_u_key __pyx_string_tab[63]
+#define __pyx_n_u_lambda __pyx_string_tab[64]
+#define __pyx_n_u_machine __pyx_string_tab[65]
+#define __pyx_n_u_main __pyx_string_tab[66]
 #define __pyx_n_u_module __pyx_string_tab[67]
 #define __pyx_n_u_name __pyx_string_tab[68]
 #define __pyx_n_u_new __pyx_string_tab[69]
@@ -2887,46 +2902,49 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_n_u_reduce_ex __pyx_string_tab[82]
 #define __pyx_n_u_render_frame __pyx_string_tab[83]
 #define __pyx_n_u_reset __pyx_string_tab[84]
-#define __pyx_n_u_rgb __pyx_string_tab[85]
-#define __pyx_n_u_round __pyx_string_tab[86]
-#define __pyx_n_u_run_until __pyx_string_tab[87]
-#define __pyx_n_u_sample_rate __pyx_string_tab[88]
-#define __pyx_n_u_self __pyx_string_tab[89]
-#define __pyx_n_u_set_level_from_port_value __pyx_string_tab[90]
-#define __pyx_n_u_set_name __pyx_string_tab[91]
-#define __pyx_n_u_setdefault __pyx_string_tab[92]
-#define __pyx_n_u_setstate __pyx_string_tab[93]
-#define __pyx_n_u_setstate_cython __pyx_string_tab[94]
-#define __pyx_n_u_sorted __pyx_string_tab[95]
-#define __pyx_n_u_state __pyx_string_tab[96]
-#define __pyx_n_u_test __pyx_string_tab[97]
-#define __pyx_n_u_tstate_in_frame __pyx_string_tab[98]
-#define __pyx_n_u_tstates __pyx_string_tab[99]
-#define __pyx_n_u_tstates_per_frame __pyx_string_tab[100]
-#define __pyx_n_u_ula __pyx_string_tab[101]
-#define __pyx_n_u_update __pyx_string_tab[102]
-#define __pyx_n_u_use_setstate __pyx_string_tab[103]
-#define __pyx_n_u_value __pyx_string_tab[104]
-#define __pyx_n_u_values __pyx_string_tab[105]
-#define __pyx_kp_b_iso88591_AV1 __pyx_string_tab[106]
-#define __pyx_kp_b_iso88591_A_A __pyx_string_tab[107]
-#define __pyx_kp_b_iso88591_A_A_G_Qa __pyx_string_tab[108]
-#define __pyx_kp_b_iso88591_A_A_O1_Q_O4_1_3c_G6 __pyx_string_tab[109]
-#define __pyx_kp_b_iso88591_A_HN_A_0_XQa_E_at1_d_9_Rq_D_2_b __pyx_string_tab[110]
-#define __pyx_kp_b_iso88591_A_O4q_Ja_a __pyx_string_tab[111]
-#define __pyx_kp_b_iso88591_A_Q_O1_Ja_Q_Q_a_a_U_5_d __pyx_string_tab[112]
-#define __pyx_kp_b_iso88591_A_V6_a_S_A_r_4q_a_wb_8_K1 __pyx_string_tab[113]
-#define __pyx_kp_b_iso88591_A_a_4_c_t4q_HD_O4_A_G_Q __pyx_string_tab[114]
-#define __pyx_kp_b_iso88591_A_d_T_7q __pyx_string_tab[115]
-#define __pyx_kp_b_iso88591_A_q_T_U_q_A_U_4q __pyx_string_tab[116]
-#define __pyx_kp_b_iso88591_A_t1 __pyx_string_tab[117]
-#define __pyx_kp_b_iso88591_A_t7_A __pyx_string_tab[118]
-#define __pyx_kp_b_iso88591_T_T_1_YdBSSWWhhll_A_A_V_V_Z_Z_d __pyx_string_tab[119]
-#define __pyx_kp_b_iso88591_T_d_NRVVeeiisswwx_G1F_a_vWE_Q_q __pyx_string_tab[120]
-#define __pyx_kp_b_iso88591_q_0_kQR_7_0_1B_PQ_1 __pyx_string_tab[121]
-#define __pyx_kp_b_iso88591_q_0_kQR_9HAQ_7_1L_a_1 __pyx_string_tab[122]
-#define __pyx_kp_b_iso88591_q_a __pyx_string_tab[123]
-#define __pyx_kp_b_iso88591_uAQ __pyx_string_tab[124]
+#define __pyx_n_u_round __pyx_string_tab[85]
+#define __pyx_n_u_run_until __pyx_string_tab[86]
+#define __pyx_n_u_sample_rate __pyx_string_tab[87]
+#define __pyx_n_u_self __pyx_string_tab[88]
+#define __pyx_n_u_set_level_from_port_value __pyx_string_tab[89]
+#define __pyx_n_u_set_name __pyx_string_tab[90]
+#define __pyx_n_u_setdefault __pyx_string_tab[91]
+#define __pyx_n_u_setstate __pyx_string_tab[92]
+#define __pyx_n_u_setstate_cython __pyx_string_tab[93]
+#define __pyx_n_u_sorted __pyx_string_tab[94]
+#define __pyx_n_u_spectrum_border_bottom __pyx_string_tab[95]
+#define __pyx_n_u_spectrum_border_left __pyx_string_tab[96]
+#define __pyx_n_u_spectrum_border_right __pyx_string_tab[97]
+#define __pyx_n_u_spectrum_border_top __pyx_string_tab[98]
+#define __pyx_n_u_state __pyx_string_tab[99]
+#define __pyx_n_u_test __pyx_string_tab[100]
+#define __pyx_n_u_tstate_in_frame __pyx_string_tab[101]
+#define __pyx_n_u_tstates __pyx_string_tab[102]
+#define __pyx_n_u_tstates_per_frame __pyx_string_tab[103]
+#define __pyx_n_u_ula __pyx_string_tab[104]
+#define __pyx_n_u_update __pyx_string_tab[105]
+#define __pyx_n_u_use_setstate __pyx_string_tab[106]
+#define __pyx_n_u_value __pyx_string_tab[107]
+#define __pyx_n_u_values __pyx_string_tab[108]
+#define __pyx_n_u_video __pyx_string_tab[109]
+#define __pyx_kp_b_iso88591_AV1 __pyx_string_tab[110]
+#define __pyx_kp_b_iso88591_A_A __pyx_string_tab[111]
+#define __pyx_kp_b_iso88591_A_A_G_Qa __pyx_string_tab[112]
+#define __pyx_kp_b_iso88591_A_A_O1_Q_Rs_Q_G6 __pyx_string_tab[113]
+#define __pyx_kp_b_iso88591_A_HN_A_HAQ_T_9_E_at1_d_9_Rq_D_2 __pyx_string_tab[114]
+#define __pyx_kp_b_iso88591_A_O4q_Ja_a __pyx_string_tab[115]
+#define __pyx_kp_b_iso88591_A_Q_O1_Ja_Q_Q_a_a_U_5_d __pyx_string_tab[116]
+#define __pyx_kp_b_iso88591_A_V6_a_S_A_r_4q_a_wb_8_K1 __pyx_string_tab[117]
+#define __pyx_kp_b_iso88591_A_a_4_c_t4q_HD_G_Q __pyx_string_tab[118]
+#define __pyx_kp_b_iso88591_A_d_T_7q __pyx_string_tab[119]
+#define __pyx_kp_b_iso88591_A_t1 __pyx_string_tab[120]
+#define __pyx_kp_b_iso88591_A_t7_A __pyx_string_tab[121]
+#define __pyx_kp_b_iso88591_T_T_1_YdBSSWWhhll_A_A_V_V_Z_Z_d __pyx_string_tab[122]
+#define __pyx_kp_b_iso88591_T_d_OSWWddhhxx_K_K_O_O_b_b_p_p __pyx_string_tab[123]
+#define __pyx_kp_b_iso88591_q_0_kQR_7_0_1B_PQ_1 __pyx_string_tab[124]
+#define __pyx_kp_b_iso88591_q_0_kQR_9HAQ_7_1L_a_1 __pyx_string_tab[125]
+#define __pyx_kp_b_iso88591_q_a __pyx_string_tab[126]
+#define __pyx_kp_b_iso88591_uAQ __pyx_string_tab[127]
 #define __pyx_int_0 __pyx_number_tab[0]
 #define __pyx_int_7 __pyx_number_tab[1]
 #define __pyx_int_48 __pyx_number_tab[2]
@@ -2938,7 +2956,7 @@ static __pyx_mstatetype * const __pyx_mstate_global = &__pyx_mstate_global_stati
 #define __pyx_int_16384 __pyx_number_tab[8]
 #define __pyx_int_22528 __pyx_number_tab[9]
 #define __pyx_int_68456158 __pyx_number_tab[10]
-#define __pyx_int_124065692 __pyx_number_tab[11]
+#define __pyx_int_149647251 __pyx_number_tab[11]
 /* #### Code section: module_state_clear ### */
 #if CYTHON_USE_MODULE_STATE
 static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
@@ -2961,8 +2979,8 @@ static CYTHON_SMALL_CODE int __pyx_m_clear(PyObject *m) {
   Py_CLEAR(clear_module_state->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA);
   Py_CLEAR(clear_module_state->__pyx_type_7devices_9ula_accel_Spectrum48KULA);
   for (int i=0; i<16; ++i) { Py_CLEAR(clear_module_state->__pyx_tuple[i]); }
-  for (int i=0; i<19; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<125; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<18; ++i) { Py_CLEAR(clear_module_state->__pyx_codeobj_tab[i]); }
+  for (int i=0; i<128; ++i) { Py_CLEAR(clear_module_state->__pyx_string_tab[i]); }
   for (int i=0; i<12; ++i) { Py_CLEAR(clear_module_state->__pyx_number_tab[i]); }
 /* #### Code section: module_state_clear_contents ### */
 /* CommonTypesMetaclass.module_state_clear */
@@ -2994,8 +3012,8 @@ static CYTHON_SMALL_CODE int __pyx_m_traverse(PyObject *m, visitproc visit, void
   Py_VISIT(traverse_module_state->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA);
   Py_VISIT(traverse_module_state->__pyx_type_7devices_9ula_accel_Spectrum48KULA);
   for (int i=0; i<16; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_tuple[i]); }
-  for (int i=0; i<19; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
-  for (int i=0; i<125; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
+  for (int i=0; i<18; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_codeobj_tab[i]); }
+  for (int i=0; i<128; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_string_tab[i]); }
   for (int i=0; i<12; ++i) { __Pyx_VISIT_CONST(traverse_module_state->__pyx_number_tab[i]); }
 /* #### Code section: module_state_traverse_contents ### */
 /* CommonTypesMetaclass.module_state_traverse */
@@ -3010,7 +3028,7 @@ return 0;
 #endif
 /* #### Code section: module_code ### */
 
-/* "devices/ula_accel.pyx":30
+/* "devices/ula_accel.pyx":31
  *     cdef public object frame_samples
  * 
  *     def __init__(             # <<<<<<<<<<<<<<
@@ -3043,47 +3061,47 @@ static int __pyx_pw_7devices_9ula_accel_9ULABeeper_1__init__(PyObject *__pyx_v_s
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_ula,&__pyx_mstate_global->__pyx_n_u_sample_rate,&__pyx_mstate_global->__pyx_n_u_amplitude,&__pyx_mstate_global->__pyx_n_u_tstates_per_frame,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_VARARGS(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 30, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 31, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 30, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 31, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < (0)) __PYX_ERR(0, 30, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < (0)) __PYX_ERR(0, 31, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, i); __PYX_ERR(0, 30, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, i); __PYX_ERR(0, 31, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 30, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 31, __pyx_L3_error)
     }
     __pyx_v_ula = values[0];
     if (values[1]) {
-      __pyx_v_sample_rate = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_sample_rate == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 34, __pyx_L3_error)
+      __pyx_v_sample_rate = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_sample_rate == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 35, __pyx_L3_error)
     } else {
       __pyx_v_sample_rate = ((int)0xAC44);
     }
     if (values[2]) {
-      __pyx_v_amplitude = __Pyx_PyLong_As_int(values[2]); if (unlikely((__pyx_v_amplitude == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 35, __pyx_L3_error)
+      __pyx_v_amplitude = __Pyx_PyLong_As_int(values[2]); if (unlikely((__pyx_v_amplitude == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 36, __pyx_L3_error)
     } else {
       __pyx_v_amplitude = ((int)0x1770);
     }
     if (values[3]) {
-      __pyx_v_tstates_per_frame = __Pyx_PyLong_As_int(values[3]); if (unlikely((__pyx_v_tstates_per_frame == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 36, __pyx_L3_error)
+      __pyx_v_tstates_per_frame = __Pyx_PyLong_As_int(values[3]); if (unlikely((__pyx_v_tstates_per_frame == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 37, __pyx_L3_error)
     } else {
       __pyx_v_tstates_per_frame = ((int)0x11100);
     }
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 30, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 31, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -3118,7 +3136,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__init__", 0);
 
-  /* "devices/ula_accel.pyx":38
+  /* "devices/ula_accel.pyx":39
  *         int tstates_per_frame=69888,
  *     ):
  *         self.ula = ula             # <<<<<<<<<<<<<<
@@ -3131,14 +3149,14 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
   __Pyx_DECREF(__pyx_v_self->ula);
   __pyx_v_self->ula = __pyx_v_ula;
 
-  /* "devices/ula_accel.pyx":39
+  /* "devices/ula_accel.pyx":40
  *     ):
  *         self.ula = ula
  *         self.machine = ula.machine             # <<<<<<<<<<<<<<
  *         self.sample_rate = sample_rate
  *         self.amplitude = amplitude
 */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_ula, __pyx_mstate_global->__pyx_n_u_machine); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 39, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_ula, __pyx_mstate_global->__pyx_n_u_machine); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 40, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_GIVEREF(__pyx_t_1);
   __Pyx_GOTREF(__pyx_v_self->machine);
@@ -3146,7 +3164,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
   __pyx_v_self->machine = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":40
+  /* "devices/ula_accel.pyx":41
  *         self.ula = ula
  *         self.machine = ula.machine
  *         self.sample_rate = sample_rate             # <<<<<<<<<<<<<<
@@ -3155,7 +3173,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->sample_rate = __pyx_v_sample_rate;
 
-  /* "devices/ula_accel.pyx":41
+  /* "devices/ula_accel.pyx":42
  *         self.machine = ula.machine
  *         self.sample_rate = sample_rate
  *         self.amplitude = amplitude             # <<<<<<<<<<<<<<
@@ -3164,7 +3182,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->amplitude = __pyx_v_amplitude;
 
-  /* "devices/ula_accel.pyx":42
+  /* "devices/ula_accel.pyx":43
  *         self.sample_rate = sample_rate
  *         self.amplitude = amplitude
  *         self.tstates_per_frame = tstates_per_frame             # <<<<<<<<<<<<<<
@@ -3173,7 +3191,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->tstates_per_frame = __pyx_v_tstates_per_frame;
 
-  /* "devices/ula_accel.pyx":44
+  /* "devices/ula_accel.pyx":45
  *         self.tstates_per_frame = tstates_per_frame
  * 
  *         self.tstates_per_second = self.tstates_per_frame * 50             # <<<<<<<<<<<<<<
@@ -3182,7 +3200,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->tstates_per_second = (__pyx_v_self->tstates_per_frame * 50);
 
-  /* "devices/ula_accel.pyx":45
+  /* "devices/ula_accel.pyx":46
  * 
  *         self.tstates_per_second = self.tstates_per_frame * 50
  *         self.samples_per_frame = <int>round(sample_rate / 50.0)             # <<<<<<<<<<<<<<
@@ -3190,7 +3208,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
  *         self.current_level = 0
 */
   __pyx_t_2 = NULL;
-  __pyx_t_3 = PyFloat_FromDouble((((double)__pyx_v_sample_rate) / 50.0)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 45, __pyx_L1_error)
+  __pyx_t_3 = PyFloat_FromDouble((((double)__pyx_v_sample_rate) / 50.0)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 46, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __pyx_t_4 = 1;
   {
@@ -3198,14 +3216,14 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
     __pyx_t_1 = __Pyx_PyObject_FastCall((PyObject*)__pyx_builtin_round, __pyx_callargs+__pyx_t_4, (2-__pyx_t_4) | (__pyx_t_4*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 45, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 46, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
-  __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_1); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 45, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyLong_As_int(__pyx_t_1); if (unlikely((__pyx_t_5 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 46, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_v_self->samples_per_frame = ((int)__pyx_t_5);
 
-  /* "devices/ula_accel.pyx":47
+  /* "devices/ula_accel.pyx":48
  *         self.samples_per_frame = <int>round(sample_rate / 50.0)
  * 
  *         self.current_level = 0             # <<<<<<<<<<<<<<
@@ -3214,7 +3232,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->current_level = 0;
 
-  /* "devices/ula_accel.pyx":48
+  /* "devices/ula_accel.pyx":49
  * 
  *         self.current_level = 0
  *         self.start_level = 0             # <<<<<<<<<<<<<<
@@ -3223,14 +3241,14 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->start_level = 0;
 
-  /* "devices/ula_accel.pyx":49
+  /* "devices/ula_accel.pyx":50
  *         self.current_level = 0
  *         self.start_level = 0
  *         self.events = []             # <<<<<<<<<<<<<<
  *         self.frame_start_tstate = 0
  *         self.total_tstates = 0
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 49, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 50, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_GIVEREF(__pyx_t_1);
   __Pyx_GOTREF(__pyx_v_self->events);
@@ -3238,7 +3256,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
   __pyx_v_self->events = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":50
+  /* "devices/ula_accel.pyx":51
  *         self.start_level = 0
  *         self.events = []
  *         self.frame_start_tstate = 0             # <<<<<<<<<<<<<<
@@ -3247,7 +3265,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->frame_start_tstate = 0;
 
-  /* "devices/ula_accel.pyx":51
+  /* "devices/ula_accel.pyx":52
  *         self.events = []
  *         self.frame_start_tstate = 0
  *         self.total_tstates = 0             # <<<<<<<<<<<<<<
@@ -3256,7 +3274,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->total_tstates = 0;
 
-  /* "devices/ula_accel.pyx":52
+  /* "devices/ula_accel.pyx":53
  *         self.frame_start_tstate = 0
  *         self.total_tstates = 0
  *         self.total_samples_emitted = 0             # <<<<<<<<<<<<<<
@@ -3265,7 +3283,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->total_samples_emitted = 0;
 
-  /* "devices/ula_accel.pyx":53
+  /* "devices/ula_accel.pyx":54
  *         self.total_tstates = 0
  *         self.total_samples_emitted = 0
  *         self.filter_state_1 = 0.0             # <<<<<<<<<<<<<<
@@ -3274,7 +3292,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->filter_state_1 = 0.0;
 
-  /* "devices/ula_accel.pyx":54
+  /* "devices/ula_accel.pyx":55
  *         self.total_samples_emitted = 0
  *         self.filter_state_1 = 0.0
  *         self.filter_state_2 = 0.0             # <<<<<<<<<<<<<<
@@ -3283,7 +3301,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
 */
   __pyx_v_self->filter_state_2 = 0.0;
 
-  /* "devices/ula_accel.pyx":55
+  /* "devices/ula_accel.pyx":56
  *         self.filter_state_1 = 0.0
  *         self.filter_state_2 = 0.0
  *         self.frame_samples = array("h", [0] * self.samples_per_frame)             # <<<<<<<<<<<<<<
@@ -3291,15 +3309,15 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
  *     cpdef reset(self):
 */
   __pyx_t_3 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_mstate_global->__pyx_n_u_array); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 55, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_mstate_global->__pyx_n_u_array); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 56, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_6 = PyList_New(1 * ((__pyx_v_self->samples_per_frame<0) ? 0:__pyx_v_self->samples_per_frame)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 55, __pyx_L1_error)
+  __pyx_t_6 = PyList_New(1 * ((__pyx_v_self->samples_per_frame<0) ? 0:__pyx_v_self->samples_per_frame)); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 56, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_6);
   { Py_ssize_t __pyx_temp;
     for (__pyx_temp=0; __pyx_temp < __pyx_v_self->samples_per_frame; __pyx_temp++) {
       __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
       __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_0);
-      if (__Pyx_PyList_SET_ITEM(__pyx_t_6, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 55, __pyx_L1_error);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_6, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 56, __pyx_L1_error);
     }
   }
   __pyx_t_4 = 1;
@@ -3320,7 +3338,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
     __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 55, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 56, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __Pyx_GIVEREF(__pyx_t_1);
@@ -3329,7 +3347,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
   __pyx_v_self->frame_samples = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":30
+  /* "devices/ula_accel.pyx":31
  *     cdef public object frame_samples
  * 
  *     def __init__(             # <<<<<<<<<<<<<<
@@ -3352,7 +3370,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper___init__(struct __pyx_obj_7de
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":57
+/* "devices/ula_accel.pyx":58
  *         self.frame_samples = array("h", [0] * self.samples_per_frame)
  * 
  *     cpdef reset(self):             # <<<<<<<<<<<<<<
@@ -3395,7 +3413,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_reset); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 57, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_reset); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 58, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_9ULABeeper_3reset)) {
         __Pyx_XDECREF(__pyx_r);
@@ -3419,7 +3437,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
           __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_4, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 57, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 58, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -3440,7 +3458,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
     #endif
   }
 
-  /* "devices/ula_accel.pyx":58
+  /* "devices/ula_accel.pyx":59
  * 
  *     cpdef reset(self):
  *         self.current_level = 0             # <<<<<<<<<<<<<<
@@ -3449,7 +3467,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
 */
   __pyx_v_self->current_level = 0;
 
-  /* "devices/ula_accel.pyx":59
+  /* "devices/ula_accel.pyx":60
  *     cpdef reset(self):
  *         self.current_level = 0
  *         self.start_level = 0             # <<<<<<<<<<<<<<
@@ -3458,14 +3476,14 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
 */
   __pyx_v_self->start_level = 0;
 
-  /* "devices/ula_accel.pyx":60
+  /* "devices/ula_accel.pyx":61
  *         self.current_level = 0
  *         self.start_level = 0
  *         self.events = []             # <<<<<<<<<<<<<<
  *         self.frame_start_tstate = 0
  *         self.total_tstates = 0
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 60, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 61, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_GIVEREF(__pyx_t_1);
   __Pyx_GOTREF(__pyx_v_self->events);
@@ -3473,7 +3491,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
   __pyx_v_self->events = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":61
+  /* "devices/ula_accel.pyx":62
  *         self.start_level = 0
  *         self.events = []
  *         self.frame_start_tstate = 0             # <<<<<<<<<<<<<<
@@ -3482,7 +3500,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
 */
   __pyx_v_self->frame_start_tstate = 0;
 
-  /* "devices/ula_accel.pyx":62
+  /* "devices/ula_accel.pyx":63
  *         self.events = []
  *         self.frame_start_tstate = 0
  *         self.total_tstates = 0             # <<<<<<<<<<<<<<
@@ -3491,7 +3509,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
 */
   __pyx_v_self->total_tstates = 0;
 
-  /* "devices/ula_accel.pyx":63
+  /* "devices/ula_accel.pyx":64
  *         self.frame_start_tstate = 0
  *         self.total_tstates = 0
  *         self.total_samples_emitted = 0             # <<<<<<<<<<<<<<
@@ -3500,7 +3518,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
 */
   __pyx_v_self->total_samples_emitted = 0;
 
-  /* "devices/ula_accel.pyx":64
+  /* "devices/ula_accel.pyx":65
  *         self.total_tstates = 0
  *         self.total_samples_emitted = 0
  *         self.filter_state_1 = 0.0             # <<<<<<<<<<<<<<
@@ -3509,7 +3527,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
 */
   __pyx_v_self->filter_state_1 = 0.0;
 
-  /* "devices/ula_accel.pyx":65
+  /* "devices/ula_accel.pyx":66
  *         self.total_samples_emitted = 0
  *         self.filter_state_1 = 0.0
  *         self.filter_state_2 = 0.0             # <<<<<<<<<<<<<<
@@ -3518,7 +3536,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
 */
   __pyx_v_self->filter_state_2 = 0.0;
 
-  /* "devices/ula_accel.pyx":66
+  /* "devices/ula_accel.pyx":67
  *         self.filter_state_1 = 0.0
  *         self.filter_state_2 = 0.0
  *         self.frame_samples = array("h", [0] * self.samples_per_frame)             # <<<<<<<<<<<<<<
@@ -3526,15 +3544,15 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
  *     cpdef begin_frame(self):
 */
   __pyx_t_2 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_array); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 66, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_array); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 67, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_3 = PyList_New(1 * ((__pyx_v_self->samples_per_frame<0) ? 0:__pyx_v_self->samples_per_frame)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 66, __pyx_L1_error)
+  __pyx_t_3 = PyList_New(1 * ((__pyx_v_self->samples_per_frame<0) ? 0:__pyx_v_self->samples_per_frame)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 67, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   { Py_ssize_t __pyx_temp;
     for (__pyx_temp=0; __pyx_temp < __pyx_v_self->samples_per_frame; __pyx_temp++) {
       __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
       __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_0);
-      if (__Pyx_PyList_SET_ITEM(__pyx_t_3, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 66, __pyx_L1_error);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_3, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 67, __pyx_L1_error);
     }
   }
   __pyx_t_5 = 1;
@@ -3555,7 +3573,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 66, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 67, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __Pyx_GIVEREF(__pyx_t_1);
@@ -3564,7 +3582,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_reset(struct __pyx_obj_7
   __pyx_v_self->frame_samples = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":57
+  /* "devices/ula_accel.pyx":58
  *         self.frame_samples = array("h", [0] * self.samples_per_frame)
  * 
  *     cpdef reset(self):             # <<<<<<<<<<<<<<
@@ -3639,7 +3657,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_2reset(struct __pyx_obj
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("reset", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_reset(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 57, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_reset(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 58, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -3656,7 +3674,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_2reset(struct __pyx_obj
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":68
+/* "devices/ula_accel.pyx":69
  *         self.frame_samples = array("h", [0] * self.samples_per_frame)
  * 
  *     cpdef begin_frame(self):             # <<<<<<<<<<<<<<
@@ -3701,7 +3719,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_begin_frame(struct __pyx
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_begin_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 68, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_begin_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 69, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_9ULABeeper_5begin_frame)) {
         __Pyx_XDECREF(__pyx_r);
@@ -3725,7 +3743,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_begin_frame(struct __pyx
           __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_4, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 68, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 69, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -3746,7 +3764,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_begin_frame(struct __pyx
     #endif
   }
 
-  /* "devices/ula_accel.pyx":69
+  /* "devices/ula_accel.pyx":70
  * 
  *     cpdef begin_frame(self):
  *         self.start_level = self.current_level             # <<<<<<<<<<<<<<
@@ -3756,14 +3774,14 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_begin_frame(struct __pyx
   __pyx_t_6 = __pyx_v_self->current_level;
   __pyx_v_self->start_level = __pyx_t_6;
 
-  /* "devices/ula_accel.pyx":70
+  /* "devices/ula_accel.pyx":71
  *     cpdef begin_frame(self):
  *         self.start_level = self.current_level
  *         self.events = []             # <<<<<<<<<<<<<<
  *         self.frame_start_tstate = self.total_tstates
  * 
 */
-  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 70, __pyx_L1_error)
+  __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 71, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_GIVEREF(__pyx_t_1);
   __Pyx_GOTREF(__pyx_v_self->events);
@@ -3771,7 +3789,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_begin_frame(struct __pyx
   __pyx_v_self->events = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":71
+  /* "devices/ula_accel.pyx":72
  *         self.start_level = self.current_level
  *         self.events = []
  *         self.frame_start_tstate = self.total_tstates             # <<<<<<<<<<<<<<
@@ -3781,7 +3799,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_begin_frame(struct __pyx
   __pyx_t_7 = __pyx_v_self->total_tstates;
   __pyx_v_self->frame_start_tstate = __pyx_t_7;
 
-  /* "devices/ula_accel.pyx":68
+  /* "devices/ula_accel.pyx":69
  *         self.frame_samples = array("h", [0] * self.samples_per_frame)
  * 
  *     cpdef begin_frame(self):             # <<<<<<<<<<<<<<
@@ -3856,7 +3874,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_4begin_frame(struct __p
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("begin_frame", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_begin_frame(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 68, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_begin_frame(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 69, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -3873,7 +3891,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_4begin_frame(struct __p
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":73
+/* "devices/ula_accel.pyx":74
  *         self.frame_start_tstate = self.total_tstates
  * 
  *     cpdef run_until(self, int tstates):             # <<<<<<<<<<<<<<
@@ -3918,14 +3936,14 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_run_until(CYTHON_UNUSED 
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_run_until); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 73, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_run_until); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 74, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_9ULABeeper_7run_until)) {
         __Pyx_XDECREF(__pyx_r);
         __pyx_t_3 = NULL;
         __Pyx_INCREF(__pyx_t_1);
         __pyx_t_4 = __pyx_t_1; 
-        __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_tstates); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 73, __pyx_L1_error)
+        __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_tstates); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 74, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_5);
         __pyx_t_6 = 1;
         #if CYTHON_UNPACK_METHODS
@@ -3945,7 +3963,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_run_until(CYTHON_UNUSED 
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 73, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 74, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -3966,7 +3984,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_run_until(CYTHON_UNUSED 
     #endif
   }
 
-  /* "devices/ula_accel.pyx":74
+  /* "devices/ula_accel.pyx":75
  * 
  *     cpdef run_until(self, int tstates):
  *         _ = tstates             # <<<<<<<<<<<<<<
@@ -3975,7 +3993,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_run_until(CYTHON_UNUSED 
 */
   __pyx_v__ = __pyx_v_tstates;
 
-  /* "devices/ula_accel.pyx":73
+  /* "devices/ula_accel.pyx":74
  *         self.frame_start_tstate = self.total_tstates
  * 
  *     cpdef run_until(self, int tstates):             # <<<<<<<<<<<<<<
@@ -4039,32 +4057,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_tstates,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 73, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 74, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 73, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 74, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "run_until", 0) < (0)) __PYX_ERR(0, 73, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "run_until", 0) < (0)) __PYX_ERR(0, 74, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("run_until", 1, 1, 1, i); __PYX_ERR(0, 73, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("run_until", 1, 1, 1, i); __PYX_ERR(0, 74, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 73, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 74, __pyx_L3_error)
     }
-    __pyx_v_tstates = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_tstates == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 73, __pyx_L3_error)
+    __pyx_v_tstates = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_tstates == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 74, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("run_until", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 73, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("run_until", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 74, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -4094,7 +4112,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_6run_until(struct __pyx
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("run_until", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_run_until(__pyx_v_self, __pyx_v_tstates, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 73, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_run_until(__pyx_v_self, __pyx_v_tstates, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 74, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -4111,7 +4129,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_6run_until(struct __pyx
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":76
+/* "devices/ula_accel.pyx":77
  *         _ = tstates
  * 
  *     cpdef set_level_from_port_value(self, int value, int tstate_in_frame):             # <<<<<<<<<<<<<<
@@ -4160,16 +4178,16 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_set_level_from_port_value); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 76, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_set_level_from_port_value); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 77, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_9ULABeeper_9set_level_from_port_value)) {
         __Pyx_XDECREF(__pyx_r);
         __pyx_t_3 = NULL;
         __Pyx_INCREF(__pyx_t_1);
         __pyx_t_4 = __pyx_t_1; 
-        __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 76, __pyx_L1_error)
+        __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_value); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 77, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_5);
-        __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_tstate_in_frame); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 76, __pyx_L1_error)
+        __pyx_t_6 = __Pyx_PyLong_From_int(__pyx_v_tstate_in_frame); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 77, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_6);
         __pyx_t_7 = 1;
         #if CYTHON_UNPACK_METHODS
@@ -4190,7 +4208,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
           __Pyx_DECREF(__pyx_t_6); __pyx_t_6 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 76, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 77, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -4211,7 +4229,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
     #endif
   }
 
-  /* "devices/ula_accel.pyx":77
+  /* "devices/ula_accel.pyx":78
  * 
  *     cpdef set_level_from_port_value(self, int value, int tstate_in_frame):
  *         cdef int new_level = 1 if (value & 0x10) else 0             # <<<<<<<<<<<<<<
@@ -4226,7 +4244,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
   }
   __pyx_v_new_level = __pyx_t_8;
 
-  /* "devices/ula_accel.pyx":79
+  /* "devices/ula_accel.pyx":80
  *         cdef int new_level = 1 if (value & 0x10) else 0
  * 
  *         if new_level != self.current_level:             # <<<<<<<<<<<<<<
@@ -4236,7 +4254,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
   __pyx_t_9 = (__pyx_v_new_level != __pyx_v_self->current_level);
   if (__pyx_t_9) {
 
-    /* "devices/ula_accel.pyx":80
+    /* "devices/ula_accel.pyx":81
  * 
  *         if new_level != self.current_level:
  *             if tstate_in_frame < 0:             # <<<<<<<<<<<<<<
@@ -4246,7 +4264,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
     __pyx_t_9 = (__pyx_v_tstate_in_frame < 0);
     if (__pyx_t_9) {
 
-      /* "devices/ula_accel.pyx":81
+      /* "devices/ula_accel.pyx":82
  *         if new_level != self.current_level:
  *             if tstate_in_frame < 0:
  *                 tstate_in_frame = 0             # <<<<<<<<<<<<<<
@@ -4255,7 +4273,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
 */
       __pyx_v_tstate_in_frame = 0;
 
-      /* "devices/ula_accel.pyx":80
+      /* "devices/ula_accel.pyx":81
  * 
  *         if new_level != self.current_level:
  *             if tstate_in_frame < 0:             # <<<<<<<<<<<<<<
@@ -4265,7 +4283,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
       goto __pyx_L4;
     }
 
-    /* "devices/ula_accel.pyx":82
+    /* "devices/ula_accel.pyx":83
  *             if tstate_in_frame < 0:
  *                 tstate_in_frame = 0
  *             elif tstate_in_frame > self.tstates_per_frame:             # <<<<<<<<<<<<<<
@@ -4275,7 +4293,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
     __pyx_t_9 = (__pyx_v_tstate_in_frame > __pyx_v_self->tstates_per_frame);
     if (__pyx_t_9) {
 
-      /* "devices/ula_accel.pyx":83
+      /* "devices/ula_accel.pyx":84
  *                 tstate_in_frame = 0
  *             elif tstate_in_frame > self.tstates_per_frame:
  *                 tstate_in_frame = self.tstates_per_frame             # <<<<<<<<<<<<<<
@@ -4285,7 +4303,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
       __pyx_t_8 = __pyx_v_self->tstates_per_frame;
       __pyx_v_tstate_in_frame = __pyx_t_8;
 
-      /* "devices/ula_accel.pyx":82
+      /* "devices/ula_accel.pyx":83
  *             if tstate_in_frame < 0:
  *                 tstate_in_frame = 0
  *             elif tstate_in_frame > self.tstates_per_frame:             # <<<<<<<<<<<<<<
@@ -4295,7 +4313,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
     }
     __pyx_L4:;
 
-    /* "devices/ula_accel.pyx":85
+    /* "devices/ula_accel.pyx":86
  *                 tstate_in_frame = self.tstates_per_frame
  * 
  *             self.events.append((self.frame_start_tstate + tstate_in_frame, new_level))             # <<<<<<<<<<<<<<
@@ -4304,24 +4322,24 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
 */
     if (unlikely(__pyx_v_self->events == Py_None)) {
       PyErr_Format(PyExc_AttributeError, "'NoneType' object has no attribute '%.30s'", "append");
-      __PYX_ERR(0, 85, __pyx_L1_error)
+      __PYX_ERR(0, 86, __pyx_L1_error)
     }
-    __pyx_t_1 = __Pyx_PyLong_From_PY_LONG_LONG((__pyx_v_self->frame_start_tstate + __pyx_v_tstate_in_frame)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 85, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyLong_From_PY_LONG_LONG((__pyx_v_self->frame_start_tstate + __pyx_v_tstate_in_frame)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 86, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_v_new_level); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 85, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_v_new_level); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 86, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 85, __pyx_L1_error)
+    __pyx_t_4 = PyTuple_New(2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 86, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __Pyx_GIVEREF(__pyx_t_1);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_1) != (0)) __PYX_ERR(0, 85, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_t_1) != (0)) __PYX_ERR(0, 86, __pyx_L1_error);
     __Pyx_GIVEREF(__pyx_t_2);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_2) != (0)) __PYX_ERR(0, 85, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_2) != (0)) __PYX_ERR(0, 86, __pyx_L1_error);
     __pyx_t_1 = 0;
     __pyx_t_2 = 0;
-    __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_self->events, __pyx_t_4); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 85, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_PyList_Append(__pyx_v_self->events, __pyx_t_4); if (unlikely(__pyx_t_10 == ((int)-1))) __PYX_ERR(0, 86, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-    /* "devices/ula_accel.pyx":86
+    /* "devices/ula_accel.pyx":87
  * 
  *             self.events.append((self.frame_start_tstate + tstate_in_frame, new_level))
  *             self.current_level = new_level             # <<<<<<<<<<<<<<
@@ -4330,7 +4348,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
 */
     __pyx_v_self->current_level = __pyx_v_new_level;
 
-    /* "devices/ula_accel.pyx":79
+    /* "devices/ula_accel.pyx":80
  *         cdef int new_level = 1 if (value & 0x10) else 0
  * 
  *         if new_level != self.current_level:             # <<<<<<<<<<<<<<
@@ -4339,7 +4357,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_valu
 */
   }
 
-  /* "devices/ula_accel.pyx":76
+  /* "devices/ula_accel.pyx":77
  *         _ = tstates
  * 
  *     cpdef set_level_from_port_value(self, int value, int tstate_in_frame):             # <<<<<<<<<<<<<<
@@ -4405,39 +4423,39 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_value,&__pyx_mstate_global->__pyx_n_u_tstate_in_frame,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 76, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 77, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  2:
         values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 76, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 77, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 76, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 77, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "set_level_from_port_value", 0) < (0)) __PYX_ERR(0, 76, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "set_level_from_port_value", 0) < (0)) __PYX_ERR(0, 77, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 2; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("set_level_from_port_value", 1, 2, 2, i); __PYX_ERR(0, 76, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("set_level_from_port_value", 1, 2, 2, i); __PYX_ERR(0, 77, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 2)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 76, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 77, __pyx_L3_error)
       values[1] = __Pyx_ArgRef_FASTCALL(__pyx_args, 1);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 76, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[1])) __PYX_ERR(0, 77, __pyx_L3_error)
     }
-    __pyx_v_value = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 76, __pyx_L3_error)
-    __pyx_v_tstate_in_frame = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_tstate_in_frame == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 76, __pyx_L3_error)
+    __pyx_v_value = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_value == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 77, __pyx_L3_error)
+    __pyx_v_tstate_in_frame = __Pyx_PyLong_As_int(values[1]); if (unlikely((__pyx_v_tstate_in_frame == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 77, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("set_level_from_port_value", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 76, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("set_level_from_port_value", 1, 2, 2, __pyx_nargs); __PYX_ERR(0, 77, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -4467,7 +4485,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_8set_level_from_port_va
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("set_level_from_port_value", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_value(__pyx_v_self, __pyx_v_value, __pyx_v_tstate_in_frame, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 76, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_set_level_from_port_value(__pyx_v_self, __pyx_v_value, __pyx_v_tstate_in_frame, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 77, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -4484,7 +4502,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_8set_level_from_port_va
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":88
+/* "devices/ula_accel.pyx":89
  *             self.current_level = new_level
  * 
  *     cpdef end_frame(self):             # <<<<<<<<<<<<<<
@@ -4527,7 +4545,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_end_frame(struct __pyx_o
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_end_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 88, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_end_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 89, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_9ULABeeper_11end_frame)) {
         __Pyx_XDECREF(__pyx_r);
@@ -4551,7 +4569,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_end_frame(struct __pyx_o
           __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_4, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 88, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 89, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -4572,7 +4590,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_end_frame(struct __pyx_o
     #endif
   }
 
-  /* "devices/ula_accel.pyx":89
+  /* "devices/ula_accel.pyx":90
  * 
  *     cpdef end_frame(self):
  *         self.total_tstates += self.tstates_per_frame             # <<<<<<<<<<<<<<
@@ -4581,14 +4599,14 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_end_frame(struct __pyx_o
 */
   __pyx_v_self->total_tstates = (__pyx_v_self->total_tstates + __pyx_v_self->tstates_per_frame);
 
-  /* "devices/ula_accel.pyx":90
+  /* "devices/ula_accel.pyx":91
  *     cpdef end_frame(self):
  *         self.total_tstates += self.tstates_per_frame
  *         self.frame_samples = self._render_frame_samples()             # <<<<<<<<<<<<<<
  * 
  *     cpdef get_frame_samples(self):
 */
-  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->__pyx_vtab)->_render_frame_samples(__pyx_v_self); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 90, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->__pyx_vtab)->_render_frame_samples(__pyx_v_self); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 91, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_GIVEREF(__pyx_t_1);
   __Pyx_GOTREF(__pyx_v_self->frame_samples);
@@ -4596,7 +4614,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_end_frame(struct __pyx_o
   __pyx_v_self->frame_samples = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":88
+  /* "devices/ula_accel.pyx":89
  *             self.current_level = new_level
  * 
  *     cpdef end_frame(self):             # <<<<<<<<<<<<<<
@@ -4671,7 +4689,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_10end_frame(struct __py
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("end_frame", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_end_frame(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 88, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_end_frame(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 89, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -4688,7 +4706,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_10end_frame(struct __py
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":92
+/* "devices/ula_accel.pyx":93
  *         self.frame_samples = self._render_frame_samples()
  * 
  *     cpdef get_frame_samples(self):             # <<<<<<<<<<<<<<
@@ -4731,7 +4749,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_get_frame_samples(struct
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_get_frame_samples); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 92, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_get_frame_samples); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 93, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_9ULABeeper_13get_frame_samples)) {
         __Pyx_XDECREF(__pyx_r);
@@ -4755,7 +4773,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_get_frame_samples(struct
           __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_4, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 92, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 93, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -4776,7 +4794,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_get_frame_samples(struct
     #endif
   }
 
-  /* "devices/ula_accel.pyx":93
+  /* "devices/ula_accel.pyx":94
  * 
  *     cpdef get_frame_samples(self):
  *         return self.frame_samples             # <<<<<<<<<<<<<<
@@ -4788,7 +4806,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper_get_frame_samples(struct
   __pyx_r = __pyx_v_self->frame_samples;
   goto __pyx_L0;
 
-  /* "devices/ula_accel.pyx":92
+  /* "devices/ula_accel.pyx":93
  *         self.frame_samples = self._render_frame_samples()
  * 
  *     cpdef get_frame_samples(self):             # <<<<<<<<<<<<<<
@@ -4861,7 +4879,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_12get_frame_samples(str
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("get_frame_samples", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_get_frame_samples(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 92, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_9ULABeeper_get_frame_samples(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 93, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -4878,7 +4896,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_12get_frame_samples(str
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":120
+/* "devices/ula_accel.pyx":121
  * 
  *         out = array("h", [0] * sample_count)
  *         events = sorted(self.events, key=lambda event: event[0])             # <<<<<<<<<<<<<<
@@ -4925,32 +4943,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_event,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 120, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 121, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 120, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 121, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lambda", 0) < (0)) __PYX_ERR(0, 120, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "lambda", 0) < (0)) __PYX_ERR(0, 121, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lambda", 1, 1, 1, i); __PYX_ERR(0, 120, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("lambda", 1, 1, 1, i); __PYX_ERR(0, 121, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 120, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 121, __pyx_L3_error)
     }
     __pyx_v_event = values[0];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("lambda", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 120, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("lambda", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 121, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -4980,7 +4998,7 @@ static PyObject *__pyx_lambda_funcdef_lambda(CYTHON_UNUSED PyObject *__pyx_self,
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("lambda", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_GetItemInt(__pyx_v_event, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_FunctionArgument); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 120, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_v_event, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_FunctionArgument); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 121, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -4997,7 +5015,7 @@ static PyObject *__pyx_lambda_funcdef_lambda(CYTHON_UNUSED PyObject *__pyx_self,
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":95
+/* "devices/ula_accel.pyx":96
  *         return self.frame_samples
  * 
  *     cdef object _render_frame_samples(self):             # <<<<<<<<<<<<<<
@@ -5042,7 +5060,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_render_frame_samples", 0);
 
-  /* "devices/ula_accel.pyx":96
+  /* "devices/ula_accel.pyx":97
  * 
  *     cdef object _render_frame_samples(self):
  *         cdef long long frame_start_sample = self.total_samples_emitted             # <<<<<<<<<<<<<<
@@ -5052,7 +5070,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
   __pyx_t_1 = __pyx_v_self->total_samples_emitted;
   __pyx_v_frame_start_sample = __pyx_t_1;
 
-  /* "devices/ula_accel.pyx":99
+  /* "devices/ula_accel.pyx":100
  *         cdef long long frame_end_sample = (
  *             self.total_tstates * self.sample_rate
  *         ) // self.tstates_per_second             # <<<<<<<<<<<<<<
@@ -5061,7 +5079,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
   __pyx_v_frame_end_sample = ((__pyx_v_self->total_tstates * __pyx_v_self->sample_rate) / __pyx_v_self->tstates_per_second);
 
-  /* "devices/ula_accel.pyx":100
+  /* "devices/ula_accel.pyx":101
  *             self.total_tstates * self.sample_rate
  *         ) // self.tstates_per_second
  *         cdef int sample_count = <int>(frame_end_sample - frame_start_sample)             # <<<<<<<<<<<<<<
@@ -5070,7 +5088,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
   __pyx_v_sample_count = ((int)(__pyx_v_frame_end_sample - __pyx_v_frame_start_sample));
 
-  /* "devices/ula_accel.pyx":116
+  /* "devices/ula_accel.pyx":117
  *         cdef tuple event
  * 
  *         if sample_count <= 0:             # <<<<<<<<<<<<<<
@@ -5080,7 +5098,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
   __pyx_t_2 = (__pyx_v_sample_count <= 0);
   if (__pyx_t_2) {
 
-    /* "devices/ula_accel.pyx":117
+    /* "devices/ula_accel.pyx":118
  * 
  *         if sample_count <= 0:
  *             return array("h")             # <<<<<<<<<<<<<<
@@ -5089,7 +5107,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
     __Pyx_XDECREF(__pyx_r);
     __pyx_t_4 = NULL;
-    __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_array); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 117, __pyx_L1_error)
+    __Pyx_GetModuleGlobalName(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_array); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 118, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
     __pyx_t_6 = 1;
     #if CYTHON_UNPACK_METHODS
@@ -5108,14 +5126,14 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
       __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_5, __pyx_callargs+__pyx_t_6, (2-__pyx_t_6) | (__pyx_t_6*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
       __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 117, __pyx_L1_error)
+      if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 118, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
     }
     __pyx_r = __pyx_t_3;
     __pyx_t_3 = 0;
     goto __pyx_L0;
 
-    /* "devices/ula_accel.pyx":116
+    /* "devices/ula_accel.pyx":117
  *         cdef tuple event
  * 
  *         if sample_count <= 0:             # <<<<<<<<<<<<<<
@@ -5124,7 +5142,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
   }
 
-  /* "devices/ula_accel.pyx":119
+  /* "devices/ula_accel.pyx":120
  *             return array("h")
  * 
  *         out = array("h", [0] * sample_count)             # <<<<<<<<<<<<<<
@@ -5132,15 +5150,15 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
  *         level = self.start_level
 */
   __pyx_t_5 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_array); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 119, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_4, __pyx_mstate_global->__pyx_n_u_array); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 120, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_7 = PyList_New(1 * ((__pyx_v_sample_count<0) ? 0:__pyx_v_sample_count)); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 119, __pyx_L1_error)
+  __pyx_t_7 = PyList_New(1 * ((__pyx_v_sample_count<0) ? 0:__pyx_v_sample_count)); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 120, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   { Py_ssize_t __pyx_temp;
     for (__pyx_temp=0; __pyx_temp < __pyx_v_sample_count; __pyx_temp++) {
       __Pyx_INCREF(__pyx_mstate_global->__pyx_int_0);
       __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_0);
-      if (__Pyx_PyList_SET_ITEM(__pyx_t_7, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 119, __pyx_L1_error);
+      if (__Pyx_PyList_SET_ITEM(__pyx_t_7, __pyx_temp, __pyx_mstate_global->__pyx_int_0) != (0)) __PYX_ERR(0, 120, __pyx_L1_error);
     }
   }
   __pyx_t_6 = 1;
@@ -5161,13 +5179,13 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
     __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 119, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 120, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
   }
   __pyx_v_out = __pyx_t_3;
   __pyx_t_3 = 0;
 
-  /* "devices/ula_accel.pyx":120
+  /* "devices/ula_accel.pyx":121
  * 
  *         out = array("h", [0] * sample_count)
  *         events = sorted(self.events, key=lambda event: event[0])             # <<<<<<<<<<<<<<
@@ -5175,26 +5193,26 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
  *         event_idx = 0
 */
   __pyx_t_4 = NULL;
-  __pyx_t_7 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_21_render_frame_samples_lambda, 0, __pyx_mstate_global->__pyx_n_u_ULABeeper__render_frame_samples, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[0])); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 120, __pyx_L1_error)
+  __pyx_t_7 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_21_render_frame_samples_lambda, 0, __pyx_mstate_global->__pyx_n_u_ULABeeper__render_frame_samples, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[0])); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 121, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_7);
   __pyx_t_6 = 1;
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_4, __pyx_v_self->events};
-    __pyx_t_5 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 120, __pyx_L1_error)
+    __pyx_t_5 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 121, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_5);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_key, __pyx_t_7, __pyx_t_5, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 120, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_key, __pyx_t_7, __pyx_t_5, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 121, __pyx_L1_error)
     __pyx_t_3 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_builtin_sorted, __pyx_callargs+__pyx_t_6, (2-__pyx_t_6) | (__pyx_t_6*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_5);
     __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
     __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
     __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 120, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 121, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
   }
-  if (!(likely(PyList_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_3))) __PYX_ERR(0, 120, __pyx_L1_error)
+  if (!(likely(PyList_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_3))) __PYX_ERR(0, 121, __pyx_L1_error)
   __pyx_v_events = ((PyObject*)__pyx_t_3);
   __pyx_t_3 = 0;
 
-  /* "devices/ula_accel.pyx":121
+  /* "devices/ula_accel.pyx":122
  *         out = array("h", [0] * sample_count)
  *         events = sorted(self.events, key=lambda event: event[0])
  *         level = self.start_level             # <<<<<<<<<<<<<<
@@ -5204,7 +5222,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
   __pyx_t_8 = __pyx_v_self->start_level;
   __pyx_v_level = __pyx_t_8;
 
-  /* "devices/ula_accel.pyx":122
+  /* "devices/ula_accel.pyx":123
  *         events = sorted(self.events, key=lambda event: event[0])
  *         level = self.start_level
  *         event_idx = 0             # <<<<<<<<<<<<<<
@@ -5213,7 +5231,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
   __pyx_v_event_idx = 0;
 
-  /* "devices/ula_accel.pyx":124
+  /* "devices/ula_accel.pyx":125
  *         event_idx = 0
  * 
  *         for i in range(sample_count):             # <<<<<<<<<<<<<<
@@ -5225,7 +5243,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
   for (__pyx_t_10 = 0; __pyx_t_10 < __pyx_t_9; __pyx_t_10+=1) {
     __pyx_v_i = __pyx_t_10;
 
-    /* "devices/ula_accel.pyx":125
+    /* "devices/ula_accel.pyx":126
  * 
  *         for i in range(sample_count):
  *             abs_sample_idx = frame_start_sample + i             # <<<<<<<<<<<<<<
@@ -5234,7 +5252,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
     __pyx_v_abs_sample_idx = (__pyx_v_frame_start_sample + __pyx_v_i);
 
-    /* "devices/ula_accel.pyx":128
+    /* "devices/ula_accel.pyx":129
  *             sample_start_tstate = (
  *                 abs_sample_idx * self.tstates_per_second
  *             ) // self.sample_rate             # <<<<<<<<<<<<<<
@@ -5243,7 +5261,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
     __pyx_v_sample_start_tstate = ((__pyx_v_abs_sample_idx * __pyx_v_self->tstates_per_second) / __pyx_v_self->sample_rate);
 
-    /* "devices/ula_accel.pyx":131
+    /* "devices/ula_accel.pyx":132
  *             sample_end_tstate = (
  *                 (abs_sample_idx + 1) * self.tstates_per_second
  *             ) // self.sample_rate             # <<<<<<<<<<<<<<
@@ -5252,7 +5270,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
     __pyx_v_sample_end_tstate = (((__pyx_v_abs_sample_idx + 1) * __pyx_v_self->tstates_per_second) / __pyx_v_self->sample_rate);
 
-    /* "devices/ula_accel.pyx":133
+    /* "devices/ula_accel.pyx":134
  *             ) // self.sample_rate
  * 
  *             if sample_end_tstate <= sample_start_tstate:             # <<<<<<<<<<<<<<
@@ -5262,7 +5280,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
     __pyx_t_2 = (__pyx_v_sample_end_tstate <= __pyx_v_sample_start_tstate);
     if (__pyx_t_2) {
 
-      /* "devices/ula_accel.pyx":134
+      /* "devices/ula_accel.pyx":135
  * 
  *             if sample_end_tstate <= sample_start_tstate:
  *                 sample_value = self.amplitude if level else -self.amplitude             # <<<<<<<<<<<<<<
@@ -5277,7 +5295,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
       }
       __pyx_v_sample_value = __pyx_t_11;
 
-      /* "devices/ula_accel.pyx":133
+      /* "devices/ula_accel.pyx":134
  *             ) // self.sample_rate
  * 
  *             if sample_end_tstate <= sample_start_tstate:             # <<<<<<<<<<<<<<
@@ -5287,7 +5305,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
       goto __pyx_L6;
     }
 
-    /* "devices/ula_accel.pyx":136
+    /* "devices/ula_accel.pyx":137
  *                 sample_value = self.amplitude if level else -self.amplitude
  *             else:
  *                 accum = 0             # <<<<<<<<<<<<<<
@@ -5297,7 +5315,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
     /*else*/ {
       __pyx_v_accum = 0;
 
-      /* "devices/ula_accel.pyx":137
+      /* "devices/ula_accel.pyx":138
  *             else:
  *                 accum = 0
  *                 current_tstate = sample_start_tstate             # <<<<<<<<<<<<<<
@@ -5306,7 +5324,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
       __pyx_v_current_tstate = __pyx_v_sample_start_tstate;
 
-      /* "devices/ula_accel.pyx":139
+      /* "devices/ula_accel.pyx":140
  *                 current_tstate = sample_start_tstate
  * 
  *                 while event_idx < len(events):             # <<<<<<<<<<<<<<
@@ -5316,13 +5334,13 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
       while (1) {
         if (unlikely(__pyx_v_events == Py_None)) {
           PyErr_SetString(PyExc_TypeError, "object of type 'NoneType' has no len()");
-          __PYX_ERR(0, 139, __pyx_L1_error)
+          __PYX_ERR(0, 140, __pyx_L1_error)
         }
-        __pyx_t_12 = __Pyx_PyList_GET_SIZE(__pyx_v_events); if (unlikely(__pyx_t_12 == ((Py_ssize_t)-1))) __PYX_ERR(0, 139, __pyx_L1_error)
+        __pyx_t_12 = __Pyx_PyList_GET_SIZE(__pyx_v_events); if (unlikely(__pyx_t_12 == ((Py_ssize_t)-1))) __PYX_ERR(0, 140, __pyx_L1_error)
         __pyx_t_2 = (__pyx_v_event_idx < __pyx_t_12);
         if (!__pyx_t_2) break;
 
-        /* "devices/ula_accel.pyx":140
+        /* "devices/ula_accel.pyx":141
  * 
  *                 while event_idx < len(events):
  *                     event = events[event_idx]             # <<<<<<<<<<<<<<
@@ -5331,15 +5349,15 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
         if (unlikely(__pyx_v_events == Py_None)) {
           PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-          __PYX_ERR(0, 140, __pyx_L1_error)
+          __PYX_ERR(0, 141, __pyx_L1_error)
         }
         __pyx_t_3 = __Pyx_PyList_GET_ITEM(__pyx_v_events, __pyx_v_event_idx);
         __Pyx_INCREF(__pyx_t_3);
-        if (!(likely(PyTuple_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("tuple", __pyx_t_3))) __PYX_ERR(0, 140, __pyx_L1_error)
+        if (!(likely(PyTuple_CheckExact(__pyx_t_3))||((__pyx_t_3) == Py_None) || __Pyx_RaiseUnexpectedTypeError("tuple", __pyx_t_3))) __PYX_ERR(0, 141, __pyx_L1_error)
         __Pyx_XDECREF_SET(__pyx_v_event, ((PyObject*)__pyx_t_3));
         __pyx_t_3 = 0;
 
-        /* "devices/ula_accel.pyx":141
+        /* "devices/ula_accel.pyx":142
  *                 while event_idx < len(events):
  *                     event = events[event_idx]
  *                     event_tstate = <long long>event[0]             # <<<<<<<<<<<<<<
@@ -5348,12 +5366,12 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
         if (unlikely(__pyx_v_event == Py_None)) {
           PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-          __PYX_ERR(0, 141, __pyx_L1_error)
+          __PYX_ERR(0, 142, __pyx_L1_error)
         }
-        __pyx_t_1 = __Pyx_PyLong_As_PY_LONG_LONG(__Pyx_PyTuple_GET_ITEM(__pyx_v_event, 0)); if (unlikely((__pyx_t_1 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 141, __pyx_L1_error)
+        __pyx_t_1 = __Pyx_PyLong_As_PY_LONG_LONG(__Pyx_PyTuple_GET_ITEM(__pyx_v_event, 0)); if (unlikely((__pyx_t_1 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 142, __pyx_L1_error)
         __pyx_v_event_tstate = ((PY_LONG_LONG)__pyx_t_1);
 
-        /* "devices/ula_accel.pyx":142
+        /* "devices/ula_accel.pyx":143
  *                     event = events[event_idx]
  *                     event_tstate = <long long>event[0]
  *                     if event_tstate >= sample_end_tstate:             # <<<<<<<<<<<<<<
@@ -5363,7 +5381,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
         __pyx_t_2 = (__pyx_v_event_tstate >= __pyx_v_sample_end_tstate);
         if (__pyx_t_2) {
 
-          /* "devices/ula_accel.pyx":143
+          /* "devices/ula_accel.pyx":144
  *                     event_tstate = <long long>event[0]
  *                     if event_tstate >= sample_end_tstate:
  *                         break             # <<<<<<<<<<<<<<
@@ -5372,7 +5390,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
           goto __pyx_L8_break;
 
-          /* "devices/ula_accel.pyx":142
+          /* "devices/ula_accel.pyx":143
  *                     event = events[event_idx]
  *                     event_tstate = <long long>event[0]
  *                     if event_tstate >= sample_end_tstate:             # <<<<<<<<<<<<<<
@@ -5381,7 +5399,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
         }
 
-        /* "devices/ula_accel.pyx":145
+        /* "devices/ula_accel.pyx":146
  *                         break
  * 
  *                     new_level = <int>event[1]             # <<<<<<<<<<<<<<
@@ -5390,12 +5408,12 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
         if (unlikely(__pyx_v_event == Py_None)) {
           PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-          __PYX_ERR(0, 145, __pyx_L1_error)
+          __PYX_ERR(0, 146, __pyx_L1_error)
         }
-        __pyx_t_11 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v_event, 1)); if (unlikely((__pyx_t_11 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 145, __pyx_L1_error)
+        __pyx_t_11 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v_event, 1)); if (unlikely((__pyx_t_11 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 146, __pyx_L1_error)
         __pyx_v_new_level = ((int)__pyx_t_11);
 
-        /* "devices/ula_accel.pyx":146
+        /* "devices/ula_accel.pyx":147
  * 
  *                     new_level = <int>event[1]
  *                     if event_tstate > current_tstate:             # <<<<<<<<<<<<<<
@@ -5405,7 +5423,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
         __pyx_t_2 = (__pyx_v_event_tstate > __pyx_v_current_tstate);
         if (__pyx_t_2) {
 
-          /* "devices/ula_accel.pyx":148
+          /* "devices/ula_accel.pyx":149
  *                     if event_tstate > current_tstate:
  *                         accum += (event_tstate - current_tstate) * (
  *                             self.amplitude if level else -self.amplitude             # <<<<<<<<<<<<<<
@@ -5419,7 +5437,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
             __pyx_t_11 = (-__pyx_v_self->amplitude);
           }
 
-          /* "devices/ula_accel.pyx":147
+          /* "devices/ula_accel.pyx":148
  *                     new_level = <int>event[1]
  *                     if event_tstate > current_tstate:
  *                         accum += (event_tstate - current_tstate) * (             # <<<<<<<<<<<<<<
@@ -5428,7 +5446,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
           __pyx_v_accum = (__pyx_v_accum + ((__pyx_v_event_tstate - __pyx_v_current_tstate) * __pyx_t_11));
 
-          /* "devices/ula_accel.pyx":146
+          /* "devices/ula_accel.pyx":147
  * 
  *                     new_level = <int>event[1]
  *                     if event_tstate > current_tstate:             # <<<<<<<<<<<<<<
@@ -5437,7 +5455,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
         }
 
-        /* "devices/ula_accel.pyx":150
+        /* "devices/ula_accel.pyx":151
  *                             self.amplitude if level else -self.amplitude
  *                         )
  *                     current_tstate = event_tstate             # <<<<<<<<<<<<<<
@@ -5446,7 +5464,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
         __pyx_v_current_tstate = __pyx_v_event_tstate;
 
-        /* "devices/ula_accel.pyx":151
+        /* "devices/ula_accel.pyx":152
  *                         )
  *                     current_tstate = event_tstate
  *                     level = new_level             # <<<<<<<<<<<<<<
@@ -5455,7 +5473,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
         __pyx_v_level = __pyx_v_new_level;
 
-        /* "devices/ula_accel.pyx":152
+        /* "devices/ula_accel.pyx":153
  *                     current_tstate = event_tstate
  *                     level = new_level
  *                     event_idx += 1             # <<<<<<<<<<<<<<
@@ -5466,7 +5484,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
       }
       __pyx_L8_break:;
 
-      /* "devices/ula_accel.pyx":154
+      /* "devices/ula_accel.pyx":155
  *                     event_idx += 1
  * 
  *                 if sample_end_tstate > current_tstate:             # <<<<<<<<<<<<<<
@@ -5476,7 +5494,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
       __pyx_t_2 = (__pyx_v_sample_end_tstate > __pyx_v_current_tstate);
       if (__pyx_t_2) {
 
-        /* "devices/ula_accel.pyx":156
+        /* "devices/ula_accel.pyx":157
  *                 if sample_end_tstate > current_tstate:
  *                     accum += (sample_end_tstate - current_tstate) * (
  *                         self.amplitude if level else -self.amplitude             # <<<<<<<<<<<<<<
@@ -5490,7 +5508,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
           __pyx_t_11 = (-__pyx_v_self->amplitude);
         }
 
-        /* "devices/ula_accel.pyx":155
+        /* "devices/ula_accel.pyx":156
  * 
  *                 if sample_end_tstate > current_tstate:
  *                     accum += (sample_end_tstate - current_tstate) * (             # <<<<<<<<<<<<<<
@@ -5499,7 +5517,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
         __pyx_v_accum = (__pyx_v_accum + ((__pyx_v_sample_end_tstate - __pyx_v_current_tstate) * __pyx_t_11));
 
-        /* "devices/ula_accel.pyx":154
+        /* "devices/ula_accel.pyx":155
  *                     event_idx += 1
  * 
  *                 if sample_end_tstate > current_tstate:             # <<<<<<<<<<<<<<
@@ -5508,7 +5526,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
       }
 
-      /* "devices/ula_accel.pyx":159
+      /* "devices/ula_accel.pyx":160
  *                     )
  * 
  *                 sample_value = accum // (sample_end_tstate - sample_start_tstate)             # <<<<<<<<<<<<<<
@@ -5519,7 +5537,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
     }
     __pyx_L6:;
 
-    /* "devices/ula_accel.pyx":161
+    /* "devices/ula_accel.pyx":162
  *                 sample_value = accum // (sample_end_tstate - sample_start_tstate)
  * 
  *             self.filter_state_1 += (sample_value - self.filter_state_1) * 0.45             # <<<<<<<<<<<<<<
@@ -5528,7 +5546,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
     __pyx_v_self->filter_state_1 = (__pyx_v_self->filter_state_1 + ((__pyx_v_sample_value - __pyx_v_self->filter_state_1) * 0.45));
 
-    /* "devices/ula_accel.pyx":162
+    /* "devices/ula_accel.pyx":163
  * 
  *             self.filter_state_1 += (sample_value - self.filter_state_1) * 0.45
  *             self.filter_state_2 += (self.filter_state_1 - self.filter_state_2) * 0.2             # <<<<<<<<<<<<<<
@@ -5537,20 +5555,20 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
     __pyx_v_self->filter_state_2 = (__pyx_v_self->filter_state_2 + ((__pyx_v_self->filter_state_1 - __pyx_v_self->filter_state_2) * 0.2));
 
-    /* "devices/ula_accel.pyx":163
+    /* "devices/ula_accel.pyx":164
  *             self.filter_state_1 += (sample_value - self.filter_state_1) * 0.45
  *             self.filter_state_2 += (self.filter_state_1 - self.filter_state_2) * 0.2
  *             out[i] = int(self.filter_state_2)             # <<<<<<<<<<<<<<
  * 
  *         self.total_samples_emitted = frame_end_sample
 */
-    __pyx_t_3 = PyLong_FromDouble(__pyx_v_self->filter_state_2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 163, __pyx_L1_error)
+    __pyx_t_3 = PyLong_FromDouble(__pyx_v_self->filter_state_2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 164, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
-    if (unlikely((__Pyx_SetItemInt(__pyx_v_out, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 163, __pyx_L1_error)
+    if (unlikely((__Pyx_SetItemInt(__pyx_v_out, __pyx_v_i, __pyx_t_3, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 164, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   }
 
-  /* "devices/ula_accel.pyx":165
+  /* "devices/ula_accel.pyx":166
  *             out[i] = int(self.filter_state_2)
  * 
  *         self.total_samples_emitted = frame_end_sample             # <<<<<<<<<<<<<<
@@ -5559,7 +5577,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
 */
   __pyx_v_self->total_samples_emitted = __pyx_v_frame_end_sample;
 
-  /* "devices/ula_accel.pyx":166
+  /* "devices/ula_accel.pyx":167
  * 
  *         self.total_samples_emitted = frame_end_sample
  *         return out             # <<<<<<<<<<<<<<
@@ -5571,7 +5589,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
   __pyx_r = __pyx_v_out;
   goto __pyx_L0;
 
-  /* "devices/ula_accel.pyx":95
+  /* "devices/ula_accel.pyx":96
  *         return self.frame_samples
  * 
  *     cdef object _render_frame_samples(self):             # <<<<<<<<<<<<<<
@@ -5596,7 +5614,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples(st
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":13
+/* "devices/ula_accel.pyx":14
  * 
  * cdef class ULABeeper:
  *     cdef public object ula             # <<<<<<<<<<<<<<
@@ -5697,7 +5715,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_3ula_4__del__(struct __pyx_ob
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":14
+/* "devices/ula_accel.pyx":15
  * cdef class ULABeeper:
  *     cdef public object ula
  *     cdef public object machine             # <<<<<<<<<<<<<<
@@ -5798,7 +5816,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_7machine_4__del__(struct __py
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":15
+/* "devices/ula_accel.pyx":16
  *     cdef public object ula
  *     cdef public object machine
  *     cdef public int sample_rate             # <<<<<<<<<<<<<<
@@ -5830,7 +5848,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_11sample_rate___get__(s
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->sample_rate); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 15, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->sample_rate); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 16, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -5868,7 +5886,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_11sample_rate_2__set__(struct
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 15, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 16, __pyx_L1_error)
   __pyx_v_self->sample_rate = __pyx_t_1;
 
   /* function exit code */
@@ -5881,7 +5899,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_11sample_rate_2__set__(struct
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":16
+/* "devices/ula_accel.pyx":17
  *     cdef public object machine
  *     cdef public int sample_rate
  *     cdef public int amplitude             # <<<<<<<<<<<<<<
@@ -5913,7 +5931,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_9amplitude___get__(stru
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->amplitude); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 16, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->amplitude); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 17, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -5951,7 +5969,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_9amplitude_2__set__(struct __
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 16, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 17, __pyx_L1_error)
   __pyx_v_self->amplitude = __pyx_t_1;
 
   /* function exit code */
@@ -5964,7 +5982,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_9amplitude_2__set__(struct __
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":17
+/* "devices/ula_accel.pyx":18
  *     cdef public int sample_rate
  *     cdef public int amplitude
  *     cdef public int tstates_per_frame             # <<<<<<<<<<<<<<
@@ -5996,7 +6014,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_17tstates_per_frame___g
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->tstates_per_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 17, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->tstates_per_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 18, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6034,7 +6052,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_17tstates_per_frame_2__set__(
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 17, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 18, __pyx_L1_error)
   __pyx_v_self->tstates_per_frame = __pyx_t_1;
 
   /* function exit code */
@@ -6047,7 +6065,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_17tstates_per_frame_2__set__(
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":18
+/* "devices/ula_accel.pyx":19
  *     cdef public int amplitude
  *     cdef public int tstates_per_frame
  *     cdef public int tstates_per_second             # <<<<<<<<<<<<<<
@@ -6079,7 +6097,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_18tstates_per_second___
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->tstates_per_second); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 18, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->tstates_per_second); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 19, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6117,7 +6135,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_18tstates_per_second_2__set__
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 18, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 19, __pyx_L1_error)
   __pyx_v_self->tstates_per_second = __pyx_t_1;
 
   /* function exit code */
@@ -6130,7 +6148,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_18tstates_per_second_2__set__
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":19
+/* "devices/ula_accel.pyx":20
  *     cdef public int tstates_per_frame
  *     cdef public int tstates_per_second
  *     cdef public int samples_per_frame             # <<<<<<<<<<<<<<
@@ -6162,7 +6180,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_17samples_per_frame___g
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->samples_per_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 19, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->samples_per_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6200,7 +6218,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_17samples_per_frame_2__set__(
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 19, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 20, __pyx_L1_error)
   __pyx_v_self->samples_per_frame = __pyx_t_1;
 
   /* function exit code */
@@ -6213,7 +6231,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_17samples_per_frame_2__set__(
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":20
+/* "devices/ula_accel.pyx":21
  *     cdef public int tstates_per_second
  *     cdef public int samples_per_frame
  *     cdef public int current_level             # <<<<<<<<<<<<<<
@@ -6245,7 +6263,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_13current_level___get__
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->current_level); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 20, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->current_level); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6283,7 +6301,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_13current_level_2__set__(stru
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 20, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 21, __pyx_L1_error)
   __pyx_v_self->current_level = __pyx_t_1;
 
   /* function exit code */
@@ -6296,7 +6314,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_13current_level_2__set__(stru
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":21
+/* "devices/ula_accel.pyx":22
  *     cdef public int samples_per_frame
  *     cdef public int current_level
  *     cdef public int start_level             # <<<<<<<<<<<<<<
@@ -6328,7 +6346,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_11start_level___get__(s
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->start_level); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 21, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->start_level); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 22, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6366,7 +6384,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_11start_level_2__set__(struct
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 21, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 22, __pyx_L1_error)
   __pyx_v_self->start_level = __pyx_t_1;
 
   /* function exit code */
@@ -6379,7 +6397,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_11start_level_2__set__(struct
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":22
+/* "devices/ula_accel.pyx":23
  *     cdef public int current_level
  *     cdef public int start_level
  *     cdef public list events             # <<<<<<<<<<<<<<
@@ -6443,7 +6461,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_6events_2__set__(struct __pyx
   __Pyx_RefNannySetupContext("__set__", 0);
   __pyx_t_1 = __pyx_v_value;
   __Pyx_INCREF(__pyx_t_1);
-  if (!(likely(PyList_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_1))) __PYX_ERR(0, 22, __pyx_L1_error)
+  if (!(likely(PyList_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_1))) __PYX_ERR(0, 23, __pyx_L1_error)
   __Pyx_GIVEREF(__pyx_t_1);
   __Pyx_GOTREF(__pyx_v_self->events);
   __Pyx_DECREF(__pyx_v_self->events);
@@ -6493,7 +6511,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_6events_4__del__(struct __pyx
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":23
+/* "devices/ula_accel.pyx":24
  *     cdef public int start_level
  *     cdef public list events
  *     cdef public long long frame_start_tstate             # <<<<<<<<<<<<<<
@@ -6525,7 +6543,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_18frame_start_tstate___
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_self->frame_start_tstate); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 23, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_self->frame_start_tstate); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 24, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6563,7 +6581,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_18frame_start_tstate_2__set__
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_v_value); if (unlikely((__pyx_t_1 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 23, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_v_value); if (unlikely((__pyx_t_1 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 24, __pyx_L1_error)
   __pyx_v_self->frame_start_tstate = __pyx_t_1;
 
   /* function exit code */
@@ -6576,7 +6594,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_18frame_start_tstate_2__set__
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":24
+/* "devices/ula_accel.pyx":25
  *     cdef public list events
  *     cdef public long long frame_start_tstate
  *     cdef public long long total_tstates             # <<<<<<<<<<<<<<
@@ -6608,7 +6626,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_13total_tstates___get__
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_self->total_tstates); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 24, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_self->total_tstates); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 25, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6646,7 +6664,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_13total_tstates_2__set__(stru
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_v_value); if (unlikely((__pyx_t_1 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 24, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_v_value); if (unlikely((__pyx_t_1 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 25, __pyx_L1_error)
   __pyx_v_self->total_tstates = __pyx_t_1;
 
   /* function exit code */
@@ -6659,7 +6677,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_13total_tstates_2__set__(stru
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":25
+/* "devices/ula_accel.pyx":26
  *     cdef public long long frame_start_tstate
  *     cdef public long long total_tstates
  *     cdef public long long total_samples_emitted             # <<<<<<<<<<<<<<
@@ -6691,7 +6709,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_21total_samples_emitted
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_self->total_samples_emitted); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 25, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_PY_LONG_LONG(__pyx_v_self->total_samples_emitted); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 26, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6729,7 +6747,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_21total_samples_emitted_2__se
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_v_value); if (unlikely((__pyx_t_1 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 25, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_PY_LONG_LONG(__pyx_v_value); if (unlikely((__pyx_t_1 == (PY_LONG_LONG)-1) && PyErr_Occurred())) __PYX_ERR(0, 26, __pyx_L1_error)
   __pyx_v_self->total_samples_emitted = __pyx_t_1;
 
   /* function exit code */
@@ -6742,7 +6760,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_21total_samples_emitted_2__se
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":26
+/* "devices/ula_accel.pyx":27
  *     cdef public long long total_tstates
  *     cdef public long long total_samples_emitted
  *     cdef public double filter_state_1             # <<<<<<<<<<<<<<
@@ -6774,7 +6792,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_14filter_state_1___get_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->filter_state_1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 26, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->filter_state_1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 27, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6812,7 +6830,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_14filter_state_1_2__set__(str
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyFloat_AsDouble(__pyx_v_value); if (unlikely((__pyx_t_1 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 26, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyFloat_AsDouble(__pyx_v_value); if (unlikely((__pyx_t_1 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 27, __pyx_L1_error)
   __pyx_v_self->filter_state_1 = __pyx_t_1;
 
   /* function exit code */
@@ -6825,7 +6843,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_14filter_state_1_2__set__(str
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":27
+/* "devices/ula_accel.pyx":28
  *     cdef public long long total_samples_emitted
  *     cdef public double filter_state_1
  *     cdef public double filter_state_2             # <<<<<<<<<<<<<<
@@ -6857,7 +6875,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_14filter_state_2___get_
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->filter_state_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 27, __pyx_L1_error)
+  __pyx_t_1 = PyFloat_FromDouble(__pyx_v_self->filter_state_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 28, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -6895,7 +6913,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_14filter_state_2_2__set__(str
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyFloat_AsDouble(__pyx_v_value); if (unlikely((__pyx_t_1 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 27, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyFloat_AsDouble(__pyx_v_value); if (unlikely((__pyx_t_1 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 28, __pyx_L1_error)
   __pyx_v_self->filter_state_2 = __pyx_t_1;
 
   /* function exit code */
@@ -6908,7 +6926,7 @@ static int __pyx_pf_7devices_9ula_accel_9ULABeeper_14filter_state_2_2__set__(str
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":28
+/* "devices/ula_accel.pyx":29
  *     cdef public double filter_state_1
  *     cdef public double filter_state_2
  *     cdef public object frame_samples             # <<<<<<<<<<<<<<
@@ -7527,12 +7545,12 @@ static PyObject *__pyx_pf_7devices_9ula_accel_9ULABeeper_16__setstate_cython__(s
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":211
+/* "devices/ula_accel.pyx":218
  *     )
  * 
  *     def __init__(self, machine):             # <<<<<<<<<<<<<<
+ *         cdef object profile
  *         self.machine = machine
- *         self.ram = <RAMBlock>machine.ram
 */
 
 /* Python wrapper */
@@ -7557,32 +7575,32 @@ static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_1__init__(PyObject *__p
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_machine,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_VARARGS(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 211, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 218, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 211, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 218, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < (0)) __PYX_ERR(0, 211, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "__init__", 0) < (0)) __PYX_ERR(0, 218, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, i); __PYX_ERR(0, 211, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, i); __PYX_ERR(0, 218, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_VARARGS(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 211, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 218, __pyx_L3_error)
     }
     __pyx_v_machine = values[0];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 211, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("__init__", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 218, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -7604,21 +7622,25 @@ static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_1__init__(PyObject *__p
 }
 
 static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA___init__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_machine) {
+  PyObject *__pyx_v_profile = 0;
   int __pyx_r;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
   PyObject *__pyx_t_2 = NULL;
-  size_t __pyx_t_3;
+  PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
-  PyObject *__pyx_t_5 = NULL;
+  size_t __pyx_t_5;
+  int __pyx_t_6;
+  int __pyx_t_7;
+  int __pyx_t_8;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__init__", 0);
 
-  /* "devices/ula_accel.pyx":212
- * 
+  /* "devices/ula_accel.pyx":220
  *     def __init__(self, machine):
+ *         cdef object profile
  *         self.machine = machine             # <<<<<<<<<<<<<<
  *         self.ram = <RAMBlock>machine.ram
  *         self.last_tstates = 0
@@ -7629,14 +7651,14 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA___init__(struct __pyx_o
   __Pyx_DECREF(__pyx_v_self->machine);
   __pyx_v_self->machine = __pyx_v_machine;
 
-  /* "devices/ula_accel.pyx":213
- *     def __init__(self, machine):
+  /* "devices/ula_accel.pyx":221
+ *         cdef object profile
  *         self.machine = machine
  *         self.ram = <RAMBlock>machine.ram             # <<<<<<<<<<<<<<
  *         self.last_tstates = 0
  *         self.flash_phase = False
 */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_machine, __pyx_mstate_global->__pyx_n_u_ram); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 213, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_machine, __pyx_mstate_global->__pyx_n_u_ram); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 221, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_t_2 = __pyx_t_1;
   __Pyx_INCREF(__pyx_t_2);
@@ -7647,7 +7669,7 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA___init__(struct __pyx_o
   __pyx_v_self->ram = ((struct __pyx_obj_3cpu_3z80_6memory_RAMBlock *)__pyx_t_2);
   __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":214
+  /* "devices/ula_accel.pyx":222
  *         self.machine = machine
  *         self.ram = <RAMBlock>machine.ram
  *         self.last_tstates = 0             # <<<<<<<<<<<<<<
@@ -7656,68 +7678,250 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA___init__(struct __pyx_o
 */
   __pyx_v_self->last_tstates = 0;
 
-  /* "devices/ula_accel.pyx":215
+  /* "devices/ula_accel.pyx":223
  *         self.ram = <RAMBlock>machine.ram
  *         self.last_tstates = 0
  *         self.flash_phase = False             # <<<<<<<<<<<<<<
  *         self.flash_counter = 0
- * 
+ *         profile = get_display_profile(getattr(machine, "display_profile_name", "default"))
 */
   __pyx_v_self->flash_phase = 0;
 
-  /* "devices/ula_accel.pyx":216
+  /* "devices/ula_accel.pyx":224
  *         self.last_tstates = 0
  *         self.flash_phase = False
  *         self.flash_counter = 0             # <<<<<<<<<<<<<<
- * 
- *         self.framebuffer = self._make_blank_frame((0, 0, 0))
+ *         profile = get_display_profile(getattr(machine, "display_profile_name", "default"))
+ *         self.border_left = profile.spectrum_border_left or self.BORDER_LEFT
 */
   __pyx_v_self->flash_counter = 0;
 
-  /* "devices/ula_accel.pyx":218
+  /* "devices/ula_accel.pyx":225
+ *         self.flash_phase = False
  *         self.flash_counter = 0
+ *         profile = get_display_profile(getattr(machine, "display_profile_name", "default"))             # <<<<<<<<<<<<<<
+ *         self.border_left = profile.spectrum_border_left or self.BORDER_LEFT
+ *         self.border_right = profile.spectrum_border_right or self.BORDER_RIGHT
+*/
+  __pyx_t_1 = NULL;
+  __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_get_display_profile); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 225, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_4 = __Pyx_GetAttr3(__pyx_v_machine, __pyx_mstate_global->__pyx_n_u_display_profile_name, __pyx_mstate_global->__pyx_n_u_default); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 225, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __pyx_t_5 = 1;
+  #if CYTHON_UNPACK_METHODS
+  if (unlikely(PyMethod_Check(__pyx_t_3))) {
+    __pyx_t_1 = PyMethod_GET_SELF(__pyx_t_3);
+    assert(__pyx_t_1);
+    PyObject* __pyx__function = PyMethod_GET_FUNCTION(__pyx_t_3);
+    __Pyx_INCREF(__pyx_t_1);
+    __Pyx_INCREF(__pyx__function);
+    __Pyx_DECREF_SET(__pyx_t_3, __pyx__function);
+    __pyx_t_5 = 0;
+  }
+  #endif
+  {
+    PyObject *__pyx_callargs[2] = {__pyx_t_1, __pyx_t_4};
+    __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_3, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+    __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
+    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 225, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+  }
+  __pyx_v_profile = __pyx_t_2;
+  __pyx_t_2 = 0;
+
+  /* "devices/ula_accel.pyx":226
+ *         self.flash_counter = 0
+ *         profile = get_display_profile(getattr(machine, "display_profile_name", "default"))
+ *         self.border_left = profile.spectrum_border_left or self.BORDER_LEFT             # <<<<<<<<<<<<<<
+ *         self.border_right = profile.spectrum_border_right or self.BORDER_RIGHT
+ *         self.border_top = profile.spectrum_border_top or self.BORDER_TOP
+*/
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_profile, __pyx_mstate_global->__pyx_n_u_spectrum_border_left); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 226, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 226, __pyx_L1_error)
+  if (!__pyx_t_7) {
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  } else {
+    __pyx_t_8 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 226, __pyx_L1_error)
+    __pyx_t_6 = __pyx_t_8;
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    goto __pyx_L3_bool_binop_done;
+  }
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_BORDER_LEFT); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 226, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_8 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 226, __pyx_L1_error)
+  __pyx_t_6 = __pyx_t_8;
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_L3_bool_binop_done:;
+  __pyx_v_self->border_left = __pyx_t_6;
+
+  /* "devices/ula_accel.pyx":227
+ *         profile = get_display_profile(getattr(machine, "display_profile_name", "default"))
+ *         self.border_left = profile.spectrum_border_left or self.BORDER_LEFT
+ *         self.border_right = profile.spectrum_border_right or self.BORDER_RIGHT             # <<<<<<<<<<<<<<
+ *         self.border_top = profile.spectrum_border_top or self.BORDER_TOP
+ *         self.border_bottom = profile.spectrum_border_bottom or self.BORDER_BOTTOM
+*/
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_profile, __pyx_mstate_global->__pyx_n_u_spectrum_border_right); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 227, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 227, __pyx_L1_error)
+  if (!__pyx_t_7) {
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  } else {
+    __pyx_t_8 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 227, __pyx_L1_error)
+    __pyx_t_6 = __pyx_t_8;
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    goto __pyx_L5_bool_binop_done;
+  }
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_BORDER_RIGHT); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 227, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_8 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 227, __pyx_L1_error)
+  __pyx_t_6 = __pyx_t_8;
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_L5_bool_binop_done:;
+  __pyx_v_self->border_right = __pyx_t_6;
+
+  /* "devices/ula_accel.pyx":228
+ *         self.border_left = profile.spectrum_border_left or self.BORDER_LEFT
+ *         self.border_right = profile.spectrum_border_right or self.BORDER_RIGHT
+ *         self.border_top = profile.spectrum_border_top or self.BORDER_TOP             # <<<<<<<<<<<<<<
+ *         self.border_bottom = profile.spectrum_border_bottom or self.BORDER_BOTTOM
+ *         self.frame_width = self.SCREEN_WIDTH + self.border_left + self.border_right
+*/
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_profile, __pyx_mstate_global->__pyx_n_u_spectrum_border_top); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 228, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 228, __pyx_L1_error)
+  if (!__pyx_t_7) {
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  } else {
+    __pyx_t_8 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 228, __pyx_L1_error)
+    __pyx_t_6 = __pyx_t_8;
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    goto __pyx_L7_bool_binop_done;
+  }
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_BORDER_TOP); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 228, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_8 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 228, __pyx_L1_error)
+  __pyx_t_6 = __pyx_t_8;
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_L7_bool_binop_done:;
+  __pyx_v_self->border_top = __pyx_t_6;
+
+  /* "devices/ula_accel.pyx":229
+ *         self.border_right = profile.spectrum_border_right or self.BORDER_RIGHT
+ *         self.border_top = profile.spectrum_border_top or self.BORDER_TOP
+ *         self.border_bottom = profile.spectrum_border_bottom or self.BORDER_BOTTOM             # <<<<<<<<<<<<<<
+ *         self.frame_width = self.SCREEN_WIDTH + self.border_left + self.border_right
+ *         self.frame_height = self.SCREEN_HEIGHT + self.border_top + self.border_bottom
+*/
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_profile, __pyx_mstate_global->__pyx_n_u_spectrum_border_bottom); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 229, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_7 = __Pyx_PyObject_IsTrue(__pyx_t_2); if (unlikely((__pyx_t_7 < 0))) __PYX_ERR(0, 229, __pyx_L1_error)
+  if (!__pyx_t_7) {
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  } else {
+    __pyx_t_8 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 229, __pyx_L1_error)
+    __pyx_t_6 = __pyx_t_8;
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    goto __pyx_L9_bool_binop_done;
+  }
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_BORDER_BOTTOM); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 229, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_8 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_8 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 229, __pyx_L1_error)
+  __pyx_t_6 = __pyx_t_8;
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_L9_bool_binop_done:;
+  __pyx_v_self->border_bottom = __pyx_t_6;
+
+  /* "devices/ula_accel.pyx":230
+ *         self.border_top = profile.spectrum_border_top or self.BORDER_TOP
+ *         self.border_bottom = profile.spectrum_border_bottom or self.BORDER_BOTTOM
+ *         self.frame_width = self.SCREEN_WIDTH + self.border_left + self.border_right             # <<<<<<<<<<<<<<
+ *         self.frame_height = self.SCREEN_HEIGHT + self.border_top + self.border_bottom
  * 
- *         self.framebuffer = self._make_blank_frame((0, 0, 0))             # <<<<<<<<<<<<<<
+*/
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_SCREEN_WIDTH); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 230, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_3 = __Pyx_PyLong_From_int(__pyx_v_self->border_left); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 230, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_4 = PyNumber_Add(__pyx_t_2, __pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 230, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_3 = __Pyx_PyLong_From_int(__pyx_v_self->border_right); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 230, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_2 = PyNumber_Add(__pyx_t_4, __pyx_t_3); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 230, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 230, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_v_self->frame_width = __pyx_t_6;
+
+  /* "devices/ula_accel.pyx":231
+ *         self.border_bottom = profile.spectrum_border_bottom or self.BORDER_BOTTOM
+ *         self.frame_width = self.SCREEN_WIDTH + self.border_left + self.border_right
+ *         self.frame_height = self.SCREEN_HEIGHT + self.border_top + self.border_bottom             # <<<<<<<<<<<<<<
+ * 
+ *         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
+*/
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_SCREEN_HEIGHT); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 231, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_3 = __Pyx_PyLong_From_int(__pyx_v_self->border_top); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 231, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_4 = PyNumber_Add(__pyx_t_2, __pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 231, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_3 = __Pyx_PyLong_From_int(__pyx_v_self->border_bottom); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 231, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_2 = PyNumber_Add(__pyx_t_4, __pyx_t_3); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 231, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 231, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_v_self->frame_height = __pyx_t_6;
+
+  /* "devices/ula_accel.pyx":233
+ *         self.frame_height = self.SCREEN_HEIGHT + self.border_top + self.border_bottom
+ * 
+ *         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))             # <<<<<<<<<<<<<<
  *         self.beeper = ULABeeper(self, tstates_per_frame=machine.TSTATES_PER_FRAME)
  * 
 */
-  __pyx_t_1 = ((PyObject *)__pyx_v_self);
-  __Pyx_INCREF(__pyx_t_1);
-  __pyx_t_3 = 0;
-  {
-    PyObject *__pyx_callargs[2] = {__pyx_t_1, __pyx_mstate_global->__pyx_tuple[0]};
-    __pyx_t_2 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_make_blank_frame, __pyx_callargs+__pyx_t_3, (2-__pyx_t_3) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-    __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
-    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 218, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_2);
-  }
+  __pyx_t_2 = ((struct __pyx_vtabstruct_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self->__pyx_vtab)->_make_blank_frame_rgb24(__pyx_v_self, __pyx_mstate_global->__pyx_tuple[0]); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 233, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
   __Pyx_GIVEREF(__pyx_t_2);
-  __Pyx_GOTREF(__pyx_v_self->framebuffer);
-  __Pyx_DECREF(__pyx_v_self->framebuffer);
-  __pyx_v_self->framebuffer = __pyx_t_2;
+  __Pyx_GOTREF(__pyx_v_self->framebuffer_rgb24);
+  __Pyx_DECREF(__pyx_v_self->framebuffer_rgb24);
+  __pyx_v_self->framebuffer_rgb24 = __pyx_t_2;
   __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":219
+  /* "devices/ula_accel.pyx":234
  * 
- *         self.framebuffer = self._make_blank_frame((0, 0, 0))
+ *         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
  *         self.beeper = ULABeeper(self, tstates_per_frame=machine.TSTATES_PER_FRAME)             # <<<<<<<<<<<<<<
  * 
  *     cpdef reset(self):
 */
-  __pyx_t_1 = NULL;
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_machine, __pyx_mstate_global->__pyx_n_u_TSTATES_PER_FRAME); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 219, __pyx_L1_error)
+  __pyx_t_3 = NULL;
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_machine, __pyx_mstate_global->__pyx_n_u_TSTATES_PER_FRAME); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 234, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_3 = 1;
+  __pyx_t_5 = 1;
   {
-    PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_1, ((PyObject *)__pyx_v_self)};
-    __pyx_t_5 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 219, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_5);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_tstates_per_frame, __pyx_t_4, __pyx_t_5, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 219, __pyx_L1_error)
-    __pyx_t_2 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_callargs+__pyx_t_3, (2-__pyx_t_3) | (__pyx_t_3*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_5);
-    __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
+    PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_3, ((PyObject *)__pyx_v_self)};
+    __pyx_t_1 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 234, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_tstates_per_frame, __pyx_t_4, __pyx_t_1, __pyx_callargs+2, 0) < (0)) __PYX_ERR(0, 234, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_Object_Vectorcall_CallFromBuilder((PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_1);
+    __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 219, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
+    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 234, __pyx_L1_error)
     __Pyx_GOTREF((PyObject *)__pyx_t_2);
   }
   __Pyx_GIVEREF((PyObject *)__pyx_t_2);
@@ -7726,12 +7930,12 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA___init__(struct __pyx_o
   __pyx_v_self->beeper = ((struct __pyx_obj_7devices_9ula_accel_ULABeeper *)__pyx_t_2);
   __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":211
+  /* "devices/ula_accel.pyx":218
  *     )
  * 
  *     def __init__(self, machine):             # <<<<<<<<<<<<<<
+ *         cdef object profile
  *         self.machine = machine
- *         self.ram = <RAMBlock>machine.ram
 */
 
   /* function exit code */
@@ -7740,16 +7944,17 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA___init__(struct __pyx_o
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
+  __Pyx_XDECREF(__pyx_t_3);
   __Pyx_XDECREF(__pyx_t_4);
-  __Pyx_XDECREF(__pyx_t_5);
   __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.__init__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = -1;
   __pyx_L0:;
+  __Pyx_XDECREF(__pyx_v_profile);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":221
+/* "devices/ula_accel.pyx":236
  *         self.beeper = ULABeeper(self, tstates_per_frame=machine.TSTATES_PER_FRAME)
  * 
  *     cpdef reset(self):             # <<<<<<<<<<<<<<
@@ -7792,7 +7997,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_reset(struct __pyx
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_reset); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 221, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_reset); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 236, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_3reset)) {
         __Pyx_XDECREF(__pyx_r);
@@ -7816,7 +8021,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_reset(struct __pyx
           __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_4, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 221, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 236, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -7837,7 +8042,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_reset(struct __pyx
     #endif
   }
 
-  /* "devices/ula_accel.pyx":222
+  /* "devices/ula_accel.pyx":237
  * 
  *     cpdef reset(self):
  *         self.last_tstates = 0             # <<<<<<<<<<<<<<
@@ -7846,59 +8051,51 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_reset(struct __pyx
 */
   __pyx_v_self->last_tstates = 0;
 
-  /* "devices/ula_accel.pyx":223
+  /* "devices/ula_accel.pyx":238
  *     cpdef reset(self):
  *         self.last_tstates = 0
  *         self.flash_phase = False             # <<<<<<<<<<<<<<
  *         self.flash_counter = 0
- *         self.framebuffer = self._make_blank_frame((0, 0, 0))
+ *         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
 */
   __pyx_v_self->flash_phase = 0;
 
-  /* "devices/ula_accel.pyx":224
+  /* "devices/ula_accel.pyx":239
  *         self.last_tstates = 0
  *         self.flash_phase = False
  *         self.flash_counter = 0             # <<<<<<<<<<<<<<
- *         self.framebuffer = self._make_blank_frame((0, 0, 0))
+ *         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
  *         self.beeper.reset()
 */
   __pyx_v_self->flash_counter = 0;
 
-  /* "devices/ula_accel.pyx":225
+  /* "devices/ula_accel.pyx":240
  *         self.flash_phase = False
  *         self.flash_counter = 0
- *         self.framebuffer = self._make_blank_frame((0, 0, 0))             # <<<<<<<<<<<<<<
+ *         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))             # <<<<<<<<<<<<<<
  *         self.beeper.reset()
  * 
 */
-  __pyx_t_2 = ((PyObject *)__pyx_v_self);
-  __Pyx_INCREF(__pyx_t_2);
-  __pyx_t_5 = 0;
-  {
-    PyObject *__pyx_callargs[2] = {__pyx_t_2, __pyx_mstate_global->__pyx_tuple[0]};
-    __pyx_t_1 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_make_blank_frame, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-    __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 225, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_1);
-  }
+  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self->__pyx_vtab)->_make_blank_frame_rgb24(__pyx_v_self, __pyx_mstate_global->__pyx_tuple[0]); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 240, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
   __Pyx_GIVEREF(__pyx_t_1);
-  __Pyx_GOTREF(__pyx_v_self->framebuffer);
-  __Pyx_DECREF(__pyx_v_self->framebuffer);
-  __pyx_v_self->framebuffer = __pyx_t_1;
+  __Pyx_GOTREF(__pyx_v_self->framebuffer_rgb24);
+  __Pyx_DECREF(__pyx_v_self->framebuffer_rgb24);
+  __pyx_v_self->framebuffer_rgb24 = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":226
+  /* "devices/ula_accel.pyx":241
  *         self.flash_counter = 0
- *         self.framebuffer = self._make_blank_frame((0, 0, 0))
+ *         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
  *         self.beeper.reset()             # <<<<<<<<<<<<<<
  * 
  *     cpdef run_until(self, int tstates):
 */
-  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->beeper->__pyx_vtab)->reset(__pyx_v_self->beeper, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 226, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->beeper->__pyx_vtab)->reset(__pyx_v_self->beeper, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 241, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":221
+  /* "devices/ula_accel.pyx":236
  *         self.beeper = ULABeeper(self, tstates_per_frame=machine.TSTATES_PER_FRAME)
  * 
  *     cpdef reset(self):             # <<<<<<<<<<<<<<
@@ -7973,7 +8170,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_2reset(struct __p
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("reset", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_reset(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 221, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_reset(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 236, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -7990,7 +8187,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_2reset(struct __p
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":228
+/* "devices/ula_accel.pyx":243
  *         self.beeper.reset()
  * 
  *     cpdef run_until(self, int tstates):             # <<<<<<<<<<<<<<
@@ -8034,14 +8231,14 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_run_until(struct _
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_run_until); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 228, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_run_until); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 243, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_5run_until)) {
         __Pyx_XDECREF(__pyx_r);
         __pyx_t_3 = NULL;
         __Pyx_INCREF(__pyx_t_1);
         __pyx_t_4 = __pyx_t_1; 
-        __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_tstates); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 228, __pyx_L1_error)
+        __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_tstates); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 243, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_5);
         __pyx_t_6 = 1;
         #if CYTHON_UNPACK_METHODS
@@ -8061,7 +8258,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_run_until(struct _
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 228, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 243, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -8082,7 +8279,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_run_until(struct _
     #endif
   }
 
-  /* "devices/ula_accel.pyx":229
+  /* "devices/ula_accel.pyx":244
  * 
  *     cpdef run_until(self, int tstates):
  *         self.last_tstates = tstates             # <<<<<<<<<<<<<<
@@ -8091,18 +8288,18 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_run_until(struct _
 */
   __pyx_v_self->last_tstates = __pyx_v_tstates;
 
-  /* "devices/ula_accel.pyx":230
+  /* "devices/ula_accel.pyx":245
  *     cpdef run_until(self, int tstates):
  *         self.last_tstates = tstates
  *         self.beeper.run_until(tstates)             # <<<<<<<<<<<<<<
  * 
  *     cpdef end_frame(self):
 */
-  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->beeper->__pyx_vtab)->run_until(__pyx_v_self->beeper, __pyx_v_tstates, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 230, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->beeper->__pyx_vtab)->run_until(__pyx_v_self->beeper, __pyx_v_tstates, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 245, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":228
+  /* "devices/ula_accel.pyx":243
  *         self.beeper.reset()
  * 
  *     cpdef run_until(self, int tstates):             # <<<<<<<<<<<<<<
@@ -8166,32 +8363,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_tstates,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 228, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 243, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 228, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 243, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "run_until", 0) < (0)) __PYX_ERR(0, 228, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "run_until", 0) < (0)) __PYX_ERR(0, 243, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("run_until", 1, 1, 1, i); __PYX_ERR(0, 228, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("run_until", 1, 1, 1, i); __PYX_ERR(0, 243, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 228, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 243, __pyx_L3_error)
     }
-    __pyx_v_tstates = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_tstates == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 228, __pyx_L3_error)
+    __pyx_v_tstates = __Pyx_PyLong_As_int(values[0]); if (unlikely((__pyx_v_tstates == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 243, __pyx_L3_error)
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("run_until", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 228, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("run_until", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 243, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -8221,7 +8418,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_4run_until(struct
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("run_until", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_run_until(__pyx_v_self, __pyx_v_tstates, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 228, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_run_until(__pyx_v_self, __pyx_v_tstates, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 243, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -8238,7 +8435,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_4run_until(struct
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":232
+/* "devices/ula_accel.pyx":247
  *         self.beeper.run_until(tstates)
  * 
  *     cpdef end_frame(self):             # <<<<<<<<<<<<<<
@@ -8282,7 +8479,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_end_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 232, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_end_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 247, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_7end_frame)) {
         __Pyx_XDECREF(__pyx_r);
@@ -8306,7 +8503,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
           __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_4, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 232, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 247, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -8327,7 +8524,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
     #endif
   }
 
-  /* "devices/ula_accel.pyx":233
+  /* "devices/ula_accel.pyx":248
  * 
  *     cpdef end_frame(self):
  *         self.flash_counter += 1             # <<<<<<<<<<<<<<
@@ -8336,7 +8533,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
 */
   __pyx_v_self->flash_counter = (__pyx_v_self->flash_counter + 1);
 
-  /* "devices/ula_accel.pyx":234
+  /* "devices/ula_accel.pyx":249
  *     cpdef end_frame(self):
  *         self.flash_counter += 1
  *         if self.flash_counter >= 16:             # <<<<<<<<<<<<<<
@@ -8346,7 +8543,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
   __pyx_t_6 = (__pyx_v_self->flash_counter >= 16);
   if (__pyx_t_6) {
 
-    /* "devices/ula_accel.pyx":235
+    /* "devices/ula_accel.pyx":250
  *         self.flash_counter += 1
  *         if self.flash_counter >= 16:
  *             self.flash_counter = 0             # <<<<<<<<<<<<<<
@@ -8355,7 +8552,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
 */
     __pyx_v_self->flash_counter = 0;
 
-    /* "devices/ula_accel.pyx":236
+    /* "devices/ula_accel.pyx":251
  *         if self.flash_counter >= 16:
  *             self.flash_counter = 0
  *             self.flash_phase = not self.flash_phase             # <<<<<<<<<<<<<<
@@ -8364,7 +8561,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
 */
     __pyx_v_self->flash_phase = (!__pyx_v_self->flash_phase);
 
-    /* "devices/ula_accel.pyx":234
+    /* "devices/ula_accel.pyx":249
  *     cpdef end_frame(self):
  *         self.flash_counter += 1
  *         if self.flash_counter >= 16:             # <<<<<<<<<<<<<<
@@ -8373,14 +8570,14 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
 */
   }
 
-  /* "devices/ula_accel.pyx":238
+  /* "devices/ula_accel.pyx":253
  *             self.flash_phase = not self.flash_phase
  * 
  *         self.machine.cpu.interrupt()             # <<<<<<<<<<<<<<
- *         self.framebuffer = self.render_frame()
+ *         self.framebuffer_rgb24 = self.render_frame()
  *         self.beeper.end_frame()
 */
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->machine, __pyx_mstate_global->__pyx_n_u_cpu); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 238, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->machine, __pyx_mstate_global->__pyx_n_u_cpu); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 253, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __pyx_t_2 = __pyx_t_4;
   __Pyx_INCREF(__pyx_t_2);
@@ -8390,38 +8587,38 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(struct _
     __pyx_t_1 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_interrupt, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 238, __pyx_L1_error)
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 253, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
   }
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":239
+  /* "devices/ula_accel.pyx":254
  * 
  *         self.machine.cpu.interrupt()
- *         self.framebuffer = self.render_frame()             # <<<<<<<<<<<<<<
+ *         self.framebuffer_rgb24 = self.render_frame()             # <<<<<<<<<<<<<<
  *         self.beeper.end_frame()
  * 
 */
-  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self->__pyx_vtab)->render_frame(__pyx_v_self, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 239, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self->__pyx_vtab)->render_frame(__pyx_v_self, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 254, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_GIVEREF(__pyx_t_1);
-  __Pyx_GOTREF(__pyx_v_self->framebuffer);
-  __Pyx_DECREF(__pyx_v_self->framebuffer);
-  __pyx_v_self->framebuffer = __pyx_t_1;
+  __Pyx_GOTREF(__pyx_v_self->framebuffer_rgb24);
+  __Pyx_DECREF(__pyx_v_self->framebuffer_rgb24);
+  __pyx_v_self->framebuffer_rgb24 = __pyx_t_1;
   __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":240
+  /* "devices/ula_accel.pyx":255
  *         self.machine.cpu.interrupt()
- *         self.framebuffer = self.render_frame()
+ *         self.framebuffer_rgb24 = self.render_frame()
  *         self.beeper.end_frame()             # <<<<<<<<<<<<<<
  * 
  *     cpdef render_frame(self):
 */
-  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->beeper->__pyx_vtab)->end_frame(__pyx_v_self->beeper, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 240, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->beeper->__pyx_vtab)->end_frame(__pyx_v_self->beeper, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 255, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":232
+  /* "devices/ula_accel.pyx":247
  *         self.beeper.run_until(tstates)
  * 
  *     cpdef end_frame(self):             # <<<<<<<<<<<<<<
@@ -8496,7 +8693,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_6end_frame(struct
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("end_frame", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 232, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_end_frame(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 247, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -8513,12 +8710,12 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_6end_frame(struct
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":242
+/* "devices/ula_accel.pyx":257
  *         self.beeper.end_frame()
  * 
  *     cpdef render_frame(self):             # <<<<<<<<<<<<<<
  *         cdef int border_index = self.machine.border_color & 0x07
- *         cdef list frame = self._make_blank_frame(self.PALETTE[border_index])
+ *         cdef tuple border_rgb = self.PALETTE[border_index]
 */
 
 static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_9render_frame(PyObject *__pyx_v_self, 
@@ -8530,7 +8727,8 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
 ); /*proto*/
 static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, int __pyx_skip_dispatch) {
   int __pyx_v_border_index;
-  PyObject *__pyx_v_frame = 0;
+  PyObject *__pyx_v_border_rgb = 0;
+  PyObject *__pyx_v_out = 0;
   int __pyx_v_y;
   int __pyx_v_bitmap_row_addr;
   int __pyx_v_attr_row_addr;
@@ -8543,10 +8741,10 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
   int __pyx_v_dst_x_base;
   int __pyx_v_bit;
   int __pyx_v_pixel_on;
-  PyObject *__pyx_v_frame_row = 0;
   PyObject *__pyx_v_ink_rgb = 0;
   PyObject *__pyx_v_paper_rgb = 0;
   PyObject *__pyx_v_tmp = 0;
+  int __pyx_v_pixel_index;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -8561,7 +8759,8 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
   int __pyx_t_10;
   int __pyx_t_11;
   int __pyx_t_12;
-  int __pyx_t_13;
+  unsigned char __pyx_t_13;
+  long __pyx_t_14;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -8582,7 +8781,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_render_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 242, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_render_frame); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 257, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_9render_frame)) {
         __Pyx_XDECREF(__pyx_r);
@@ -8606,7 +8805,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
           __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_4, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 242, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 257, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -8627,134 +8826,108 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
     #endif
   }
 
-  /* "devices/ula_accel.pyx":243
+  /* "devices/ula_accel.pyx":258
  * 
  *     cpdef render_frame(self):
  *         cdef int border_index = self.machine.border_color & 0x07             # <<<<<<<<<<<<<<
- *         cdef list frame = self._make_blank_frame(self.PALETTE[border_index])
- *         cdef int y
+ *         cdef tuple border_rgb = self.PALETTE[border_index]
+ *         cdef bytearray out = self._make_blank_frame_rgb24(border_rgb)
 */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->machine, __pyx_mstate_global->__pyx_n_u_border_color); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 243, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_v_self->machine, __pyx_mstate_global->__pyx_n_u_border_color); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 258, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyLong_AndObjC(__pyx_t_1, __pyx_mstate_global->__pyx_int_7, 0x07, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 243, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyLong_AndObjC(__pyx_t_1, __pyx_mstate_global->__pyx_int_7, 0x07, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 258, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 243, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_6 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 258, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_v_border_index = __pyx_t_6;
 
-  /* "devices/ula_accel.pyx":244
+  /* "devices/ula_accel.pyx":259
  *     cpdef render_frame(self):
  *         cdef int border_index = self.machine.border_color & 0x07
- *         cdef list frame = self._make_blank_frame(self.PALETTE[border_index])             # <<<<<<<<<<<<<<
+ *         cdef tuple border_rgb = self.PALETTE[border_index]             # <<<<<<<<<<<<<<
+ *         cdef bytearray out = self._make_blank_frame_rgb24(border_rgb)
+ *         cdef int y
+*/
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_PALETTE); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 259, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_2, __pyx_v_border_index, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 259, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  if (!(likely(PyTuple_CheckExact(__pyx_t_1))||((__pyx_t_1) == Py_None) || __Pyx_RaiseUnexpectedTypeError("tuple", __pyx_t_1))) __PYX_ERR(0, 259, __pyx_L1_error)
+  __pyx_v_border_rgb = ((PyObject*)__pyx_t_1);
+  __pyx_t_1 = 0;
+
+  /* "devices/ula_accel.pyx":260
+ *         cdef int border_index = self.machine.border_color & 0x07
+ *         cdef tuple border_rgb = self.PALETTE[border_index]
+ *         cdef bytearray out = self._make_blank_frame_rgb24(border_rgb)             # <<<<<<<<<<<<<<
  *         cdef int y
  *         cdef int bitmap_row_addr
 */
-  __pyx_t_1 = ((PyObject *)__pyx_v_self);
-  __Pyx_INCREF(__pyx_t_1);
-  __pyx_t_4 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_PALETTE); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 244, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_4, __pyx_v_border_index, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 244, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_3);
-  __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __pyx_t_5 = 0;
-  {
-    PyObject *__pyx_callargs[2] = {__pyx_t_1, __pyx_t_3};
-    __pyx_t_2 = __Pyx_PyObject_FastCallMethod((PyObject*)__pyx_mstate_global->__pyx_n_u_make_blank_frame, __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-    __Pyx_XDECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 244, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_2);
-  }
-  if (!(likely(PyList_CheckExact(__pyx_t_2))||((__pyx_t_2) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_2))) __PYX_ERR(0, 244, __pyx_L1_error)
-  __pyx_v_frame = ((PyObject*)__pyx_t_2);
-  __pyx_t_2 = 0;
+  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self->__pyx_vtab)->_make_blank_frame_rgb24(__pyx_v_self, __pyx_v_border_rgb); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 260, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_v_out = ((PyObject*)__pyx_t_1);
+  __pyx_t_1 = 0;
 
-  /* "devices/ula_accel.pyx":262
- *         cdef object tmp
+  /* "devices/ula_accel.pyx":278
+ *         cdef int pixel_index
  * 
  *         for y in range(self.SCREEN_HEIGHT):             # <<<<<<<<<<<<<<
  *             bitmap_row_addr = self._zx_bitmap_row_address(y) - 0x4000
  *             attr_row_addr = self.SCREEN_ATTR_BASE + ((y >> 3) * 32) - 0x4000
 */
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_SCREEN_HEIGHT); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 262, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_7 = __Pyx_PyIndex_AsSsize_t(__pyx_t_2); if (unlikely((__pyx_t_7 == (Py_ssize_t)-1) && PyErr_Occurred())) __PYX_ERR(0, 262, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_SCREEN_HEIGHT); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 278, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_t_7 = __Pyx_PyIndex_AsSsize_t(__pyx_t_1); if (unlikely((__pyx_t_7 == (Py_ssize_t)-1) && PyErr_Occurred())) __PYX_ERR(0, 278, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __pyx_t_8 = __pyx_t_7;
   for (__pyx_t_6 = 0; __pyx_t_6 < __pyx_t_8; __pyx_t_6+=1) {
     __pyx_v_y = __pyx_t_6;
 
-    /* "devices/ula_accel.pyx":263
+    /* "devices/ula_accel.pyx":279
  * 
  *         for y in range(self.SCREEN_HEIGHT):
  *             bitmap_row_addr = self._zx_bitmap_row_address(y) - 0x4000             # <<<<<<<<<<<<<<
  *             attr_row_addr = self.SCREEN_ATTR_BASE + ((y >> 3) * 32) - 0x4000
- *             dst_y = self.BORDER_TOP + y
+ *             dst_y = self.border_top + y
 */
-    __pyx_t_9 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA__zx_bitmap_row_address(__pyx_v_self, __pyx_v_y); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 263, __pyx_L1_error)
+    __pyx_t_9 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA__zx_bitmap_row_address(__pyx_v_self, __pyx_v_y); if (unlikely(PyErr_Occurred())) __PYX_ERR(0, 279, __pyx_L1_error)
     __pyx_v_bitmap_row_addr = (__pyx_t_9 - 0x4000);
 
-    /* "devices/ula_accel.pyx":264
+    /* "devices/ula_accel.pyx":280
  *         for y in range(self.SCREEN_HEIGHT):
  *             bitmap_row_addr = self._zx_bitmap_row_address(y) - 0x4000
  *             attr_row_addr = self.SCREEN_ATTR_BASE + ((y >> 3) * 32) - 0x4000             # <<<<<<<<<<<<<<
- *             dst_y = self.BORDER_TOP + y
- *             frame_row = frame[dst_y]
-*/
-    __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_SCREEN_ATTR_BASE); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 264, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_3 = __Pyx_PyLong_From_long(((__pyx_v_y >> 3) * 32)); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 264, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_1 = PyNumber_Add(__pyx_t_2, __pyx_t_3); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 264, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_1);
-    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_t_3 = __Pyx_PyLong_SubtractObjC(__pyx_t_1, __pyx_mstate_global->__pyx_int_16384, 0x4000, 0, 0); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 264, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_3);
-    __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_9 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_9 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 264, __pyx_L1_error)
-    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    __pyx_v_attr_row_addr = __pyx_t_9;
-
-    /* "devices/ula_accel.pyx":265
- *             bitmap_row_addr = self._zx_bitmap_row_address(y) - 0x4000
- *             attr_row_addr = self.SCREEN_ATTR_BASE + ((y >> 3) * 32) - 0x4000
- *             dst_y = self.BORDER_TOP + y             # <<<<<<<<<<<<<<
- *             frame_row = frame[dst_y]
+ *             dst_y = self.border_top + y
  * 
 */
-    __pyx_t_3 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_BORDER_TOP); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 265, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_y); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 265, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_SCREEN_ATTR_BASE); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 280, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
-    __pyx_t_2 = PyNumber_Add(__pyx_t_3, __pyx_t_1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 265, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyLong_From_long(((__pyx_v_y >> 3) * 32)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 280, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
-    __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+    __pyx_t_4 = PyNumber_Add(__pyx_t_1, __pyx_t_2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 280, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_4);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-    __pyx_t_9 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_9 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 265, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    __pyx_v_dst_y = __pyx_t_9;
+    __pyx_t_2 = __Pyx_PyLong_SubtractObjC(__pyx_t_4, __pyx_mstate_global->__pyx_int_16384, 0x4000, 0, 0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 280, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+    __pyx_t_9 = __Pyx_PyLong_As_int(__pyx_t_2); if (unlikely((__pyx_t_9 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 280, __pyx_L1_error)
+    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+    __pyx_v_attr_row_addr = __pyx_t_9;
 
-    /* "devices/ula_accel.pyx":266
+    /* "devices/ula_accel.pyx":281
+ *             bitmap_row_addr = self._zx_bitmap_row_address(y) - 0x4000
  *             attr_row_addr = self.SCREEN_ATTR_BASE + ((y >> 3) * 32) - 0x4000
- *             dst_y = self.BORDER_TOP + y
- *             frame_row = frame[dst_y]             # <<<<<<<<<<<<<<
+ *             dst_y = self.border_top + y             # <<<<<<<<<<<<<<
  * 
  *             for x_char in range(32):
 */
-    if (unlikely(__pyx_v_frame == Py_None)) {
-      PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-      __PYX_ERR(0, 266, __pyx_L1_error)
-    }
-    __pyx_t_2 = __Pyx_PyList_GET_ITEM(__pyx_v_frame, __pyx_v_dst_y);
-    __Pyx_INCREF(__pyx_t_2);
-    if (!(likely(PyList_CheckExact(__pyx_t_2))||((__pyx_t_2) == Py_None) || __Pyx_RaiseUnexpectedTypeError("list", __pyx_t_2))) __PYX_ERR(0, 266, __pyx_L1_error)
-    __Pyx_XDECREF_SET(__pyx_v_frame_row, ((PyObject*)__pyx_t_2));
-    __pyx_t_2 = 0;
+    __pyx_v_dst_y = (__pyx_v_self->border_top + __pyx_v_y);
 
-    /* "devices/ula_accel.pyx":268
- *             frame_row = frame[dst_y]
+    /* "devices/ula_accel.pyx":283
+ *             dst_y = self.border_top + y
  * 
  *             for x_char in range(32):             # <<<<<<<<<<<<<<
  *                 bitmap_byte = self.ram.data[bitmap_row_addr + x_char]
@@ -8763,7 +8936,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
     for (__pyx_t_9 = 0; __pyx_t_9 < 32; __pyx_t_9+=1) {
       __pyx_v_x_char = __pyx_t_9;
 
-      /* "devices/ula_accel.pyx":269
+      /* "devices/ula_accel.pyx":284
  * 
  *             for x_char in range(32):
  *                 bitmap_byte = self.ram.data[bitmap_row_addr + x_char]             # <<<<<<<<<<<<<<
@@ -8772,7 +8945,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
 */
       __pyx_v_bitmap_byte = (__pyx_v_self->ram->__pyx_base.data[(__pyx_v_bitmap_row_addr + __pyx_v_x_char)]);
 
-      /* "devices/ula_accel.pyx":270
+      /* "devices/ula_accel.pyx":285
  *             for x_char in range(32):
  *                 bitmap_byte = self.ram.data[bitmap_row_addr + x_char]
  *                 attr = self.ram.data[attr_row_addr + x_char]             # <<<<<<<<<<<<<<
@@ -8781,7 +8954,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
 */
       __pyx_v_attr = (__pyx_v_self->ram->__pyx_base.data[(__pyx_v_attr_row_addr + __pyx_v_x_char)]);
 
-      /* "devices/ula_accel.pyx":272
+      /* "devices/ula_accel.pyx":287
  *                 attr = self.ram.data[attr_row_addr + x_char]
  * 
  *                 ink_idx = attr & 0x07             # <<<<<<<<<<<<<<
@@ -8790,7 +8963,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
 */
       __pyx_v_ink_idx = (__pyx_v_attr & 0x07);
 
-      /* "devices/ula_accel.pyx":273
+      /* "devices/ula_accel.pyx":288
  * 
  *                 ink_idx = attr & 0x07
  *                 paper_idx = (attr >> 3) & 0x07             # <<<<<<<<<<<<<<
@@ -8799,7 +8972,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
 */
       __pyx_v_paper_idx = ((__pyx_v_attr >> 3) & 0x07);
 
-      /* "devices/ula_accel.pyx":275
+      /* "devices/ula_accel.pyx":290
  *                 paper_idx = (attr >> 3) & 0x07
  * 
  *                 if attr & 0x40:             # <<<<<<<<<<<<<<
@@ -8809,7 +8982,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
       __pyx_t_10 = ((__pyx_v_attr & 0x40) != 0);
       if (__pyx_t_10) {
 
-        /* "devices/ula_accel.pyx":276
+        /* "devices/ula_accel.pyx":291
  * 
  *                 if attr & 0x40:
  *                     ink_idx += 8             # <<<<<<<<<<<<<<
@@ -8818,7 +8991,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
 */
         __pyx_v_ink_idx = (__pyx_v_ink_idx + 8);
 
-        /* "devices/ula_accel.pyx":277
+        /* "devices/ula_accel.pyx":292
  *                 if attr & 0x40:
  *                     ink_idx += 8
  *                     paper_idx += 8             # <<<<<<<<<<<<<<
@@ -8827,7 +9000,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
 */
         __pyx_v_paper_idx = (__pyx_v_paper_idx + 8);
 
-        /* "devices/ula_accel.pyx":275
+        /* "devices/ula_accel.pyx":290
  *                 paper_idx = (attr >> 3) & 0x07
  * 
  *                 if attr & 0x40:             # <<<<<<<<<<<<<<
@@ -8836,7 +9009,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
 */
       }
 
-      /* "devices/ula_accel.pyx":279
+      /* "devices/ula_accel.pyx":294
  *                     paper_idx += 8
  * 
  *                 if (attr & 0x80) and self.flash_phase:             # <<<<<<<<<<<<<<
@@ -8853,19 +9026,19 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
       __pyx_L9_bool_binop_done:;
       if (__pyx_t_10) {
 
-        /* "devices/ula_accel.pyx":280
+        /* "devices/ula_accel.pyx":295
  * 
  *                 if (attr & 0x80) and self.flash_phase:
  *                     tmp = ink_idx             # <<<<<<<<<<<<<<
  *                     ink_idx = paper_idx
  *                     paper_idx = <int>tmp
 */
-        __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_v_ink_idx); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 280, __pyx_L1_error)
+        __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_v_ink_idx); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 295, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_2);
         __Pyx_XDECREF_SET(__pyx_v_tmp, __pyx_t_2);
         __pyx_t_2 = 0;
 
-        /* "devices/ula_accel.pyx":281
+        /* "devices/ula_accel.pyx":296
  *                 if (attr & 0x80) and self.flash_phase:
  *                     tmp = ink_idx
  *                     ink_idx = paper_idx             # <<<<<<<<<<<<<<
@@ -8874,17 +9047,17 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
 */
         __pyx_v_ink_idx = __pyx_v_paper_idx;
 
-        /* "devices/ula_accel.pyx":282
+        /* "devices/ula_accel.pyx":297
  *                     tmp = ink_idx
  *                     ink_idx = paper_idx
  *                     paper_idx = <int>tmp             # <<<<<<<<<<<<<<
  * 
  *                 ink_rgb = self.PALETTE[ink_idx]
 */
-        __pyx_t_12 = __Pyx_PyLong_As_int(__pyx_v_tmp); if (unlikely((__pyx_t_12 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 282, __pyx_L1_error)
+        __pyx_t_12 = __Pyx_PyLong_As_int(__pyx_v_tmp); if (unlikely((__pyx_t_12 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 297, __pyx_L1_error)
         __pyx_v_paper_idx = ((int)__pyx_t_12);
 
-        /* "devices/ula_accel.pyx":279
+        /* "devices/ula_accel.pyx":294
  *                     paper_idx += 8
  * 
  *                 if (attr & 0x80) and self.flash_phase:             # <<<<<<<<<<<<<<
@@ -8893,118 +9066,229 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
 */
       }
 
-      /* "devices/ula_accel.pyx":284
+      /* "devices/ula_accel.pyx":299
  *                     paper_idx = <int>tmp
  * 
  *                 ink_rgb = self.PALETTE[ink_idx]             # <<<<<<<<<<<<<<
  *                 paper_rgb = self.PALETTE[paper_idx]
- *                 dst_x_base = self.BORDER_LEFT + (x_char * 8)
+ *                 dst_x_base = self.border_left + (x_char * 8)
 */
-      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_PALETTE); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 284, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_PALETTE); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 299, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_1 = __Pyx_GetItemInt(__pyx_t_2, __pyx_v_ink_idx, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 284, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_1);
+      __pyx_t_4 = __Pyx_GetItemInt(__pyx_t_2, __pyx_v_ink_idx, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 299, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      __Pyx_XDECREF_SET(__pyx_v_ink_rgb, __pyx_t_1);
-      __pyx_t_1 = 0;
+      if (!(likely(PyTuple_CheckExact(__pyx_t_4))||((__pyx_t_4) == Py_None) || __Pyx_RaiseUnexpectedTypeError("tuple", __pyx_t_4))) __PYX_ERR(0, 299, __pyx_L1_error)
+      __Pyx_XDECREF_SET(__pyx_v_ink_rgb, ((PyObject*)__pyx_t_4));
+      __pyx_t_4 = 0;
 
-      /* "devices/ula_accel.pyx":285
+      /* "devices/ula_accel.pyx":300
  * 
  *                 ink_rgb = self.PALETTE[ink_idx]
  *                 paper_rgb = self.PALETTE[paper_idx]             # <<<<<<<<<<<<<<
- *                 dst_x_base = self.BORDER_LEFT + (x_char * 8)
+ *                 dst_x_base = self.border_left + (x_char * 8)
  * 
 */
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_PALETTE); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 285, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_1);
-      __pyx_t_2 = __Pyx_GetItemInt(__pyx_t_1, __pyx_v_paper_idx, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 285, __pyx_L1_error)
+      __pyx_t_4 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_PALETTE); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 300, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
+      __pyx_t_2 = __Pyx_GetItemInt(__pyx_t_4, __pyx_v_paper_idx, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 300, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_2);
-      __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      __Pyx_XDECREF_SET(__pyx_v_paper_rgb, __pyx_t_2);
+      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+      if (!(likely(PyTuple_CheckExact(__pyx_t_2))||((__pyx_t_2) == Py_None) || __Pyx_RaiseUnexpectedTypeError("tuple", __pyx_t_2))) __PYX_ERR(0, 300, __pyx_L1_error)
+      __Pyx_XDECREF_SET(__pyx_v_paper_rgb, ((PyObject*)__pyx_t_2));
       __pyx_t_2 = 0;
 
-      /* "devices/ula_accel.pyx":286
+      /* "devices/ula_accel.pyx":301
  *                 ink_rgb = self.PALETTE[ink_idx]
  *                 paper_rgb = self.PALETTE[paper_idx]
- *                 dst_x_base = self.BORDER_LEFT + (x_char * 8)             # <<<<<<<<<<<<<<
+ *                 dst_x_base = self.border_left + (x_char * 8)             # <<<<<<<<<<<<<<
  * 
  *                 for bit in range(8):
 */
-      __pyx_t_2 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_BORDER_LEFT); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 286, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_2);
-      __pyx_t_1 = __Pyx_PyLong_From_long((__pyx_v_x_char * 8)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 286, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_1);
-      __pyx_t_3 = PyNumber_Add(__pyx_t_2, __pyx_t_1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 286, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_3);
-      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-      __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-      __pyx_t_12 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_12 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 286, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-      __pyx_v_dst_x_base = __pyx_t_12;
+      __pyx_v_dst_x_base = (__pyx_v_self->border_left + (__pyx_v_x_char * 8));
 
-      /* "devices/ula_accel.pyx":288
- *                 dst_x_base = self.BORDER_LEFT + (x_char * 8)
+      /* "devices/ula_accel.pyx":303
+ *                 dst_x_base = self.border_left + (x_char * 8)
  * 
  *                 for bit in range(8):             # <<<<<<<<<<<<<<
  *                     pixel_on = (bitmap_byte >> (7 - bit)) & 1
- *                     frame_row[dst_x_base + bit] = ink_rgb if pixel_on else paper_rgb
+ *                     pixel_index = ((dst_y * self.frame_width) + dst_x_base + bit) * 3
 */
       for (__pyx_t_12 = 0; __pyx_t_12 < 8; __pyx_t_12+=1) {
         __pyx_v_bit = __pyx_t_12;
 
-        /* "devices/ula_accel.pyx":289
+        /* "devices/ula_accel.pyx":304
  * 
  *                 for bit in range(8):
  *                     pixel_on = (bitmap_byte >> (7 - bit)) & 1             # <<<<<<<<<<<<<<
- *                     frame_row[dst_x_base + bit] = ink_rgb if pixel_on else paper_rgb
- * 
+ *                     pixel_index = ((dst_y * self.frame_width) + dst_x_base + bit) * 3
+ *                     if pixel_on:
 */
         __pyx_v_pixel_on = ((__pyx_v_bitmap_byte >> (7 - __pyx_v_bit)) & 1);
 
-        /* "devices/ula_accel.pyx":290
+        /* "devices/ula_accel.pyx":305
  *                 for bit in range(8):
  *                     pixel_on = (bitmap_byte >> (7 - bit)) & 1
- *                     frame_row[dst_x_base + bit] = ink_rgb if pixel_on else paper_rgb             # <<<<<<<<<<<<<<
- * 
- *         return frame
+ *                     pixel_index = ((dst_y * self.frame_width) + dst_x_base + bit) * 3             # <<<<<<<<<<<<<<
+ *                     if pixel_on:
+ *                         out[pixel_index] = ink_rgb[0]
+*/
+        __pyx_v_pixel_index = ((((__pyx_v_dst_y * __pyx_v_self->frame_width) + __pyx_v_dst_x_base) + __pyx_v_bit) * 3);
+
+        /* "devices/ula_accel.pyx":306
+ *                     pixel_on = (bitmap_byte >> (7 - bit)) & 1
+ *                     pixel_index = ((dst_y * self.frame_width) + dst_x_base + bit) * 3
+ *                     if pixel_on:             # <<<<<<<<<<<<<<
+ *                         out[pixel_index] = ink_rgb[0]
+ *                         out[pixel_index + 1] = ink_rgb[1]
 */
         __pyx_t_10 = (__pyx_v_pixel_on != 0);
         if (__pyx_t_10) {
-          __Pyx_INCREF(__pyx_v_ink_rgb);
-          __pyx_t_3 = __pyx_v_ink_rgb;
-        } else {
-          __Pyx_INCREF(__pyx_v_paper_rgb);
-          __pyx_t_3 = __pyx_v_paper_rgb;
+
+          /* "devices/ula_accel.pyx":307
+ *                     pixel_index = ((dst_y * self.frame_width) + dst_x_base + bit) * 3
+ *                     if pixel_on:
+ *                         out[pixel_index] = ink_rgb[0]             # <<<<<<<<<<<<<<
+ *                         out[pixel_index + 1] = ink_rgb[1]
+ *                         out[pixel_index + 2] = ink_rgb[2]
+*/
+          if (unlikely(__pyx_v_ink_rgb == Py_None)) {
+            PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+            __PYX_ERR(0, 307, __pyx_L1_error)
+          }
+          __pyx_t_13 = __Pyx_PyLong_As_unsigned_char(__Pyx_PyTuple_GET_ITEM(__pyx_v_ink_rgb, 0)); if (unlikely((__pyx_t_13 == (unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 307, __pyx_L1_error)
+          if (unlikely((__Pyx_SetItemInt_ByteArray(__pyx_v_out, __pyx_v_pixel_index, __pyx_t_13, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 307, __pyx_L1_error)
+
+          /* "devices/ula_accel.pyx":308
+ *                     if pixel_on:
+ *                         out[pixel_index] = ink_rgb[0]
+ *                         out[pixel_index + 1] = ink_rgb[1]             # <<<<<<<<<<<<<<
+ *                         out[pixel_index + 2] = ink_rgb[2]
+ *                     else:
+*/
+          if (unlikely(__pyx_v_ink_rgb == Py_None)) {
+            PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+            __PYX_ERR(0, 308, __pyx_L1_error)
+          }
+          __pyx_t_13 = __Pyx_PyLong_As_unsigned_char(__Pyx_PyTuple_GET_ITEM(__pyx_v_ink_rgb, 1)); if (unlikely((__pyx_t_13 == (unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 308, __pyx_L1_error)
+          __pyx_t_14 = (__pyx_v_pixel_index + 1);
+          if (unlikely((__Pyx_SetItemInt_ByteArray(__pyx_v_out, __pyx_t_14, __pyx_t_13, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 308, __pyx_L1_error)
+
+          /* "devices/ula_accel.pyx":309
+ *                         out[pixel_index] = ink_rgb[0]
+ *                         out[pixel_index + 1] = ink_rgb[1]
+ *                         out[pixel_index + 2] = ink_rgb[2]             # <<<<<<<<<<<<<<
+ *                     else:
+ *                         out[pixel_index] = paper_rgb[0]
+*/
+          if (unlikely(__pyx_v_ink_rgb == Py_None)) {
+            PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+            __PYX_ERR(0, 309, __pyx_L1_error)
+          }
+          __pyx_t_13 = __Pyx_PyLong_As_unsigned_char(__Pyx_PyTuple_GET_ITEM(__pyx_v_ink_rgb, 2)); if (unlikely((__pyx_t_13 == (unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 309, __pyx_L1_error)
+          __pyx_t_14 = (__pyx_v_pixel_index + 2);
+          if (unlikely((__Pyx_SetItemInt_ByteArray(__pyx_v_out, __pyx_t_14, __pyx_t_13, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 309, __pyx_L1_error)
+
+          /* "devices/ula_accel.pyx":306
+ *                     pixel_on = (bitmap_byte >> (7 - bit)) & 1
+ *                     pixel_index = ((dst_y * self.frame_width) + dst_x_base + bit) * 3
+ *                     if pixel_on:             # <<<<<<<<<<<<<<
+ *                         out[pixel_index] = ink_rgb[0]
+ *                         out[pixel_index + 1] = ink_rgb[1]
+*/
+          goto __pyx_L13;
         }
-        if (unlikely(__pyx_v_frame_row == Py_None)) {
-          PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
-          __PYX_ERR(0, 290, __pyx_L1_error)
+
+        /* "devices/ula_accel.pyx":311
+ *                         out[pixel_index + 2] = ink_rgb[2]
+ *                     else:
+ *                         out[pixel_index] = paper_rgb[0]             # <<<<<<<<<<<<<<
+ *                         out[pixel_index + 1] = paper_rgb[1]
+ *                         out[pixel_index + 2] = paper_rgb[2]
+*/
+        /*else*/ {
+          if (unlikely(__pyx_v_paper_rgb == Py_None)) {
+            PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+            __PYX_ERR(0, 311, __pyx_L1_error)
+          }
+          __pyx_t_13 = __Pyx_PyLong_As_unsigned_char(__Pyx_PyTuple_GET_ITEM(__pyx_v_paper_rgb, 0)); if (unlikely((__pyx_t_13 == (unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 311, __pyx_L1_error)
+          if (unlikely((__Pyx_SetItemInt_ByteArray(__pyx_v_out, __pyx_v_pixel_index, __pyx_t_13, int, 1, __Pyx_PyLong_From_int, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 311, __pyx_L1_error)
+
+          /* "devices/ula_accel.pyx":312
+ *                     else:
+ *                         out[pixel_index] = paper_rgb[0]
+ *                         out[pixel_index + 1] = paper_rgb[1]             # <<<<<<<<<<<<<<
+ *                         out[pixel_index + 2] = paper_rgb[2]
+ * 
+*/
+          if (unlikely(__pyx_v_paper_rgb == Py_None)) {
+            PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+            __PYX_ERR(0, 312, __pyx_L1_error)
+          }
+          __pyx_t_13 = __Pyx_PyLong_As_unsigned_char(__Pyx_PyTuple_GET_ITEM(__pyx_v_paper_rgb, 1)); if (unlikely((__pyx_t_13 == (unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 312, __pyx_L1_error)
+          __pyx_t_14 = (__pyx_v_pixel_index + 1);
+          if (unlikely((__Pyx_SetItemInt_ByteArray(__pyx_v_out, __pyx_t_14, __pyx_t_13, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 312, __pyx_L1_error)
+
+          /* "devices/ula_accel.pyx":313
+ *                         out[pixel_index] = paper_rgb[0]
+ *                         out[pixel_index + 1] = paper_rgb[1]
+ *                         out[pixel_index + 2] = paper_rgb[2]             # <<<<<<<<<<<<<<
+ * 
+ *         self.framebuffer_rgb24 = bytes(out)
+*/
+          if (unlikely(__pyx_v_paper_rgb == Py_None)) {
+            PyErr_SetString(PyExc_TypeError, "'NoneType' object is not subscriptable");
+            __PYX_ERR(0, 313, __pyx_L1_error)
+          }
+          __pyx_t_13 = __Pyx_PyLong_As_unsigned_char(__Pyx_PyTuple_GET_ITEM(__pyx_v_paper_rgb, 2)); if (unlikely((__pyx_t_13 == (unsigned char)-1) && PyErr_Occurred())) __PYX_ERR(0, 313, __pyx_L1_error)
+          __pyx_t_14 = (__pyx_v_pixel_index + 2);
+          if (unlikely((__Pyx_SetItemInt_ByteArray(__pyx_v_out, __pyx_t_14, __pyx_t_13, long, 1, __Pyx_PyLong_From_long, 0, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 313, __pyx_L1_error)
         }
-        __pyx_t_13 = (__pyx_v_dst_x_base + __pyx_v_bit);
-        if (unlikely((__Pyx_SetItemInt(__pyx_v_frame_row, __pyx_t_13, __pyx_t_3, int, 1, __Pyx_PyLong_From_int, 1, 0, 0, 1, __Pyx_ReferenceSharing_OwnStrongReference) < 0))) __PYX_ERR(0, 290, __pyx_L1_error)
-        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __pyx_L13:;
       }
     }
   }
 
-  /* "devices/ula_accel.pyx":292
- *                     frame_row[dst_x_base + bit] = ink_rgb if pixel_on else paper_rgb
+  /* "devices/ula_accel.pyx":315
+ *                         out[pixel_index + 2] = paper_rgb[2]
  * 
- *         return frame             # <<<<<<<<<<<<<<
+ *         self.framebuffer_rgb24 = bytes(out)             # <<<<<<<<<<<<<<
+ *         return self.framebuffer_rgb24
+ * 
+*/
+  __pyx_t_4 = NULL;
+  __pyx_t_5 = 1;
+  {
+    PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_out};
+    __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)(&PyBytes_Type), __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+    __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+    if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 315, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_2);
+  }
+  __Pyx_GIVEREF(__pyx_t_2);
+  __Pyx_GOTREF(__pyx_v_self->framebuffer_rgb24);
+  __Pyx_DECREF(__pyx_v_self->framebuffer_rgb24);
+  __pyx_v_self->framebuffer_rgb24 = __pyx_t_2;
+  __pyx_t_2 = 0;
+
+  /* "devices/ula_accel.pyx":316
+ * 
+ *         self.framebuffer_rgb24 = bytes(out)
+ *         return self.framebuffer_rgb24             # <<<<<<<<<<<<<<
  * 
  *     cpdef get_frame_samples(self):
 */
   __Pyx_XDECREF(__pyx_r);
-  __Pyx_INCREF(__pyx_v_frame);
-  __pyx_r = __pyx_v_frame;
+  __Pyx_INCREF(__pyx_v_self->framebuffer_rgb24);
+  __pyx_r = __pyx_v_self->framebuffer_rgb24;
   goto __pyx_L0;
 
-  /* "devices/ula_accel.pyx":242
+  /* "devices/ula_accel.pyx":257
  *         self.beeper.end_frame()
  * 
  *     cpdef render_frame(self):             # <<<<<<<<<<<<<<
  *         cdef int border_index = self.machine.border_color & 0x07
- *         cdef list frame = self._make_blank_frame(self.PALETTE[border_index])
+ *         cdef tuple border_rgb = self.PALETTE[border_index]
 */
 
   /* function exit code */
@@ -9016,8 +9300,8 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(struc
   __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.render_frame", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = 0;
   __pyx_L0:;
-  __Pyx_XDECREF(__pyx_v_frame);
-  __Pyx_XDECREF(__pyx_v_frame_row);
+  __Pyx_XDECREF(__pyx_v_border_rgb);
+  __Pyx_XDECREF(__pyx_v_out);
   __Pyx_XDECREF(__pyx_v_ink_rgb);
   __Pyx_XDECREF(__pyx_v_paper_rgb);
   __Pyx_XDECREF(__pyx_v_tmp);
@@ -9077,7 +9361,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_8render_frame(str
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("render_frame", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 242, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 257, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -9094,8 +9378,8 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_8render_frame(str
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":294
- *         return frame
+/* "devices/ula_accel.pyx":318
+ *         return self.framebuffer_rgb24
  * 
  *     cpdef get_frame_samples(self):             # <<<<<<<<<<<<<<
  *         return self.beeper.get_frame_samples()
@@ -9137,7 +9421,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_get_frame_samples(
     if (unlikely(!__Pyx_object_dict_version_matches(((PyObject *)__pyx_v_self), __pyx_tp_dict_version, __pyx_obj_dict_version))) {
       PY_UINT64_T __pyx_typedict_guard = __Pyx_get_tp_dict_version(((PyObject *)__pyx_v_self));
       #endif
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_get_frame_samples); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 294, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_get_frame_samples); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 318, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       if (!__Pyx_IsSameCFunction(__pyx_t_1, (void(*)(void)) __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11get_frame_samples)) {
         __Pyx_XDECREF(__pyx_r);
@@ -9161,7 +9445,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_get_frame_samples(
           __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)__pyx_t_4, __pyx_callargs+__pyx_t_5, (1-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
           __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
           __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 294, __pyx_L1_error)
+          if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 318, __pyx_L1_error)
           __Pyx_GOTREF(__pyx_t_2);
         }
         __pyx_r = __pyx_t_2;
@@ -9182,7 +9466,7 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_get_frame_samples(
     #endif
   }
 
-  /* "devices/ula_accel.pyx":295
+  /* "devices/ula_accel.pyx":319
  * 
  *     cpdef get_frame_samples(self):
  *         return self.beeper.get_frame_samples()             # <<<<<<<<<<<<<<
@@ -9190,14 +9474,14 @@ static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA_get_frame_samples(
  *     cdef inline int _zx_bitmap_row_address(self, int y):
 */
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->beeper->__pyx_vtab)->get_frame_samples(__pyx_v_self->beeper, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 295, __pyx_L1_error)
+  __pyx_t_1 = ((struct __pyx_vtabstruct_7devices_9ula_accel_ULABeeper *)__pyx_v_self->beeper->__pyx_vtab)->get_frame_samples(__pyx_v_self->beeper, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 319, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "devices/ula_accel.pyx":294
- *         return frame
+  /* "devices/ula_accel.pyx":318
+ *         return self.framebuffer_rgb24
  * 
  *     cpdef get_frame_samples(self):             # <<<<<<<<<<<<<<
  *         return self.beeper.get_frame_samples()
@@ -9269,7 +9553,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_10get_frame_sampl
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("get_frame_samples", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_get_frame_samples(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 294, __pyx_L1_error)
+  __pyx_t_1 = __pyx_f_7devices_9ula_accel_14Spectrum48KULA_get_frame_samples(__pyx_v_self, 1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 318, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -9286,7 +9570,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_10get_frame_sampl
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":297
+/* "devices/ula_accel.pyx":321
  *         return self.beeper.get_frame_samples()
  * 
  *     cdef inline int _zx_bitmap_row_address(self, int y):             # <<<<<<<<<<<<<<
@@ -9306,63 +9590,63 @@ static CYTHON_INLINE int __pyx_f_7devices_9ula_accel_14Spectrum48KULA__zx_bitmap
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("_zx_bitmap_row_address", 0);
 
-  /* "devices/ula_accel.pyx":299
+  /* "devices/ula_accel.pyx":323
  *     cdef inline int _zx_bitmap_row_address(self, int y):
  *         return (
  *             self.SCREEN_BITMAP_BASE             # <<<<<<<<<<<<<<
  *             + ((y & 0xC0) << 5)
  *             + ((y & 0x07) << 8)
 */
-  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_SCREEN_BITMAP_BASE); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 299, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_SCREEN_BITMAP_BASE); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 323, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
 
-  /* "devices/ula_accel.pyx":300
+  /* "devices/ula_accel.pyx":324
  *         return (
  *             self.SCREEN_BITMAP_BASE
  *             + ((y & 0xC0) << 5)             # <<<<<<<<<<<<<<
  *             + ((y & 0x07) << 8)
  *             + ((y & 0x38) << 2)
 */
-  __pyx_t_2 = __Pyx_PyLong_From_long(((__pyx_v_y & 0xC0) << 5)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 300, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyLong_From_long(((__pyx_v_y & 0xC0) << 5)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 324, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = PyNumber_Add(__pyx_t_1, __pyx_t_2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 300, __pyx_L1_error)
+  __pyx_t_3 = PyNumber_Add(__pyx_t_1, __pyx_t_2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 324, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":301
+  /* "devices/ula_accel.pyx":325
  *             self.SCREEN_BITMAP_BASE
  *             + ((y & 0xC0) << 5)
  *             + ((y & 0x07) << 8)             # <<<<<<<<<<<<<<
  *             + ((y & 0x38) << 2)
  *         )
 */
-  __pyx_t_2 = __Pyx_PyLong_From_long(((__pyx_v_y & 0x07) << 8)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 301, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyLong_From_long(((__pyx_v_y & 0x07) << 8)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 325, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_1 = PyNumber_Add(__pyx_t_3, __pyx_t_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 301, __pyx_L1_error)
+  __pyx_t_1 = PyNumber_Add(__pyx_t_3, __pyx_t_2); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 325, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":302
+  /* "devices/ula_accel.pyx":326
  *             + ((y & 0xC0) << 5)
  *             + ((y & 0x07) << 8)
  *             + ((y & 0x38) << 2)             # <<<<<<<<<<<<<<
  *         )
  * 
 */
-  __pyx_t_2 = __Pyx_PyLong_From_long(((__pyx_v_y & 0x38) << 2)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 302, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyLong_From_long(((__pyx_v_y & 0x38) << 2)); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 326, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = PyNumber_Add(__pyx_t_1, __pyx_t_2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 302, __pyx_L1_error)
+  __pyx_t_3 = PyNumber_Add(__pyx_t_1, __pyx_t_2); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 326, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_4 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 302, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyLong_As_int(__pyx_t_3); if (unlikely((__pyx_t_4 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 326, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_r = __pyx_t_4;
   goto __pyx_L0;
 
-  /* "devices/ula_accel.pyx":297
+  /* "devices/ula_accel.pyx":321
  *         return self.beeper.get_frame_samples()
  * 
  *     cdef inline int _zx_bitmap_row_address(self, int y):             # <<<<<<<<<<<<<<
@@ -9382,102 +9666,14 @@ static CYTHON_INLINE int __pyx_f_7devices_9ula_accel_14Spectrum48KULA__zx_bitmap
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":305
+/* "devices/ula_accel.pyx":329
  *         )
  * 
- *     def _make_blank_frame(self, rgb):             # <<<<<<<<<<<<<<
- *         return [
- *             [rgb for _ in range(self.FRAME_WIDTH)]
+ *     cdef bytearray _make_blank_frame_rgb24(self, tuple rgb):             # <<<<<<<<<<<<<<
+ *         return bytearray(bytes(rgb) * (self.frame_width * self.frame_height))
 */
 
-/* Python wrapper */
-static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13_make_blank_frame(PyObject *__pyx_v_self, 
-#if CYTHON_METH_FASTCALL
-PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
-#else
-PyObject *__pyx_args, PyObject *__pyx_kwds
-#endif
-); /*proto*/
-static PyMethodDef __pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_13_make_blank_frame = {"_make_blank_frame", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13_make_blank_frame, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13_make_blank_frame(PyObject *__pyx_v_self, 
-#if CYTHON_METH_FASTCALL
-PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
-#else
-PyObject *__pyx_args, PyObject *__pyx_kwds
-#endif
-) {
-  PyObject *__pyx_v_rgb = 0;
-  #if !CYTHON_METH_FASTCALL
-  CYTHON_UNUSED Py_ssize_t __pyx_nargs;
-  #endif
-  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
-  PyObject* values[1] = {0};
-  int __pyx_lineno = 0;
-  const char *__pyx_filename = NULL;
-  int __pyx_clineno = 0;
-  PyObject *__pyx_r = 0;
-  __Pyx_RefNannyDeclarations
-  __Pyx_RefNannySetupContext("_make_blank_frame (wrapper)", 0);
-  #if !CYTHON_METH_FASTCALL
-  #if CYTHON_ASSUME_SAFE_SIZE
-  __pyx_nargs = PyTuple_GET_SIZE(__pyx_args);
-  #else
-  __pyx_nargs = PyTuple_Size(__pyx_args); if (unlikely(__pyx_nargs < 0)) return NULL;
-  #endif
-  #endif
-  __pyx_kwvalues = __Pyx_KwValues_FASTCALL(__pyx_args, __pyx_nargs);
-  {
-    PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_rgb,0};
-    const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 305, __pyx_L3_error)
-    if (__pyx_kwds_len > 0) {
-      switch (__pyx_nargs) {
-        case  1:
-        values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 305, __pyx_L3_error)
-        CYTHON_FALLTHROUGH;
-        case  0: break;
-        default: goto __pyx_L5_argtuple_error;
-      }
-      const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "_make_blank_frame", 0) < (0)) __PYX_ERR(0, 305, __pyx_L3_error)
-      for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("_make_blank_frame", 1, 1, 1, i); __PYX_ERR(0, 305, __pyx_L3_error) }
-      }
-    } else if (unlikely(__pyx_nargs != 1)) {
-      goto __pyx_L5_argtuple_error;
-    } else {
-      values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 305, __pyx_L3_error)
-    }
-    __pyx_v_rgb = values[0];
-  }
-  goto __pyx_L6_skip;
-  __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("_make_blank_frame", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 305, __pyx_L3_error)
-  __pyx_L6_skip:;
-  goto __pyx_L4_argument_unpacking_done;
-  __pyx_L3_error:;
-  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
-    Py_XDECREF(values[__pyx_temp]);
-  }
-  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA._make_blank_frame", __pyx_clineno, __pyx_lineno, __pyx_filename);
-  __Pyx_RefNannyFinishContext();
-  return NULL;
-  __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12_make_blank_frame(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), __pyx_v_rgb);
-
-  /* function exit code */
-  for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
-    Py_XDECREF(values[__pyx_temp]);
-  }
-  __Pyx_RefNannyFinishContext();
-  return __pyx_r;
-}
-
-static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12_make_blank_frame(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_rgb) {
-  CYTHON_UNUSED PyObject *__pyx_7genexpr__pyx_v__ = NULL;
-  CYTHON_UNUSED PyObject *__pyx_8genexpr1__pyx_v__ = NULL;
+static PyObject *__pyx_f_7devices_9ula_accel_14Spectrum48KULA__make_blank_frame_rgb24(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_rgb) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -9485,144 +9681,48 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12_make_blank_fra
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
   size_t __pyx_t_5;
-  PyObject *(*__pyx_t_6)(PyObject *);
-  PyObject *__pyx_t_7 = NULL;
-  PyObject *__pyx_t_8 = NULL;
-  PyObject *(*__pyx_t_9)(PyObject *);
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __Pyx_RefNannySetupContext("_make_blank_frame", 0);
+  __Pyx_RefNannySetupContext("_make_blank_frame_rgb24", 0);
 
-  /* "devices/ula_accel.pyx":306
+  /* "devices/ula_accel.pyx":330
  * 
- *     def _make_blank_frame(self, rgb):
- *         return [             # <<<<<<<<<<<<<<
- *             [rgb for _ in range(self.FRAME_WIDTH)]
- *             for _ in range(self.FRAME_HEIGHT)
+ *     cdef bytearray _make_blank_frame_rgb24(self, tuple rgb):
+ *         return bytearray(bytes(rgb) * (self.frame_width * self.frame_height))             # <<<<<<<<<<<<<<
 */
   __Pyx_XDECREF(__pyx_r);
-  { /* enter inner scope */
-    __pyx_t_1 = PyList_New(0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 306, __pyx_L5_error)
-    __Pyx_GOTREF(__pyx_t_1);
-
-    /* "devices/ula_accel.pyx":308
- *         return [
- *             [rgb for _ in range(self.FRAME_WIDTH)]
- *             for _ in range(self.FRAME_HEIGHT)             # <<<<<<<<<<<<<<
- *         ]
-*/
-    __pyx_t_3 = NULL;
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_FRAME_HEIGHT); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 308, __pyx_L5_error)
-    __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_5 = 1;
-    {
-      PyObject *__pyx_callargs[2] = {__pyx_t_3, __pyx_t_4};
-      __pyx_t_2 = __Pyx_PyObject_FastCall((PyObject*)(&PyRange_Type), __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-      __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
-      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-      if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 308, __pyx_L5_error)
-      __Pyx_GOTREF(__pyx_t_2);
-    }
-    __pyx_t_4 = PyObject_GetIter(__pyx_t_2); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 308, __pyx_L5_error)
-    __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_6 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_4); if (unlikely(!__pyx_t_6)) __PYX_ERR(0, 308, __pyx_L5_error)
-    __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    for (;;) {
-      {
-        __pyx_t_2 = __pyx_t_6(__pyx_t_4);
-        if (unlikely(!__pyx_t_2)) {
-          PyObject* exc_type = PyErr_Occurred();
-          if (exc_type) {
-            if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 308, __pyx_L5_error)
-            PyErr_Clear();
-          }
-          break;
-        }
-      }
-      __Pyx_GOTREF(__pyx_t_2);
-      __Pyx_XDECREF_SET(__pyx_7genexpr__pyx_v__, __pyx_t_2);
-      __pyx_t_2 = 0;
-      { /* enter inner scope */
-
-        /* "devices/ula_accel.pyx":307
- *     def _make_blank_frame(self, rgb):
- *         return [
- *             [rgb for _ in range(self.FRAME_WIDTH)]             # <<<<<<<<<<<<<<
- *             for _ in range(self.FRAME_HEIGHT)
- *         ]
-*/
-        __pyx_t_2 = PyList_New(0); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 307, __pyx_L10_error)
-        __Pyx_GOTREF(__pyx_t_2);
-        __pyx_t_7 = NULL;
-        __pyx_t_8 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_FRAME_WIDTH); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 307, __pyx_L10_error)
-        __Pyx_GOTREF(__pyx_t_8);
-        __pyx_t_5 = 1;
-        {
-          PyObject *__pyx_callargs[2] = {__pyx_t_7, __pyx_t_8};
-          __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(&PyRange_Type), __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
-          __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
-          __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-          if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 307, __pyx_L10_error)
-          __Pyx_GOTREF(__pyx_t_3);
-        }
-        __pyx_t_8 = PyObject_GetIter(__pyx_t_3); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 307, __pyx_L10_error)
-        __Pyx_GOTREF(__pyx_t_8);
-        __pyx_t_9 = (CYTHON_COMPILING_IN_LIMITED_API) ? PyIter_Next : __Pyx_PyObject_GetIterNextFunc(__pyx_t_8); if (unlikely(!__pyx_t_9)) __PYX_ERR(0, 307, __pyx_L10_error)
-        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-        for (;;) {
-          {
-            __pyx_t_3 = __pyx_t_9(__pyx_t_8);
-            if (unlikely(!__pyx_t_3)) {
-              PyObject* exc_type = PyErr_Occurred();
-              if (exc_type) {
-                if (unlikely(!__Pyx_PyErr_GivenExceptionMatches(exc_type, PyExc_StopIteration))) __PYX_ERR(0, 307, __pyx_L10_error)
-                PyErr_Clear();
-              }
-              break;
-            }
-          }
-          __Pyx_GOTREF(__pyx_t_3);
-          __Pyx_XDECREF_SET(__pyx_8genexpr1__pyx_v__, __pyx_t_3);
-          __pyx_t_3 = 0;
-          if (unlikely(__Pyx_ListComp_Append(__pyx_t_2, (PyObject*)__pyx_v_rgb))) __PYX_ERR(0, 307, __pyx_L10_error)
-        }
-        __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-        __Pyx_XDECREF(__pyx_8genexpr1__pyx_v__); __pyx_8genexpr1__pyx_v__ = 0;
-        goto __pyx_L14_exit_scope;
-        __pyx_L10_error:;
-        __Pyx_XDECREF(__pyx_8genexpr1__pyx_v__); __pyx_8genexpr1__pyx_v__ = 0;
-        goto __pyx_L5_error;
-        __pyx_L14_exit_scope:;
-      } /* exit inner scope */
-      if (unlikely(__Pyx_ListComp_Append(__pyx_t_1, (PyObject*)__pyx_t_2))) __PYX_ERR(0, 306, __pyx_L5_error)
-      __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-
-      /* "devices/ula_accel.pyx":308
- *         return [
- *             [rgb for _ in range(self.FRAME_WIDTH)]
- *             for _ in range(self.FRAME_HEIGHT)             # <<<<<<<<<<<<<<
- *         ]
-*/
-    }
+  __pyx_t_2 = NULL;
+  __pyx_t_4 = NULL;
+  __pyx_t_5 = 1;
+  {
+    PyObject *__pyx_callargs[2] = {__pyx_t_4, __pyx_v_rgb};
+    __pyx_t_3 = __Pyx_PyObject_FastCall((PyObject*)(&PyBytes_Type), __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+    __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 330, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_3);
+  }
+  __pyx_t_4 = __Pyx_PySequence_Multiply(__pyx_t_3, (__pyx_v_self->frame_width * __pyx_v_self->frame_height)); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 330, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_4);
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_5 = 1;
+  {
+    PyObject *__pyx_callargs[2] = {__pyx_t_2, __pyx_t_4};
+    __pyx_t_1 = __Pyx_PyObject_FastCall((PyObject*)(&PyByteArray_Type), __pyx_callargs+__pyx_t_5, (2-__pyx_t_5) | (__pyx_t_5*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
+    __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __Pyx_XDECREF(__pyx_7genexpr__pyx_v__); __pyx_7genexpr__pyx_v__ = 0;
-    goto __pyx_L16_exit_scope;
-    __pyx_L5_error:;
-    __Pyx_XDECREF(__pyx_7genexpr__pyx_v__); __pyx_7genexpr__pyx_v__ = 0;
-    goto __pyx_L1_error;
-    __pyx_L16_exit_scope:;
-  } /* exit inner scope */
-  __pyx_r = __pyx_t_1;
+    if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 330, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_1);
+  }
+  __pyx_r = ((PyObject*)__pyx_t_1);
   __pyx_t_1 = 0;
   goto __pyx_L0;
 
-  /* "devices/ula_accel.pyx":305
+  /* "devices/ula_accel.pyx":329
  *         )
  * 
- *     def _make_blank_frame(self, rgb):             # <<<<<<<<<<<<<<
- *         return [
- *             [rgb for _ in range(self.FRAME_WIDTH)]
+ *     cdef bytearray _make_blank_frame_rgb24(self, tuple rgb):             # <<<<<<<<<<<<<<
+ *         return bytearray(bytes(rgb) * (self.frame_width * self.frame_height))
 */
 
   /* function exit code */
@@ -9631,19 +9731,15 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12_make_blank_fra
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
   __Pyx_XDECREF(__pyx_t_4);
-  __Pyx_XDECREF(__pyx_t_7);
-  __Pyx_XDECREF(__pyx_t_8);
-  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA._make_blank_frame", __pyx_clineno, __pyx_lineno, __pyx_filename);
-  __pyx_r = NULL;
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA._make_blank_frame_rgb24", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = 0;
   __pyx_L0:;
-  __Pyx_XDECREF(__pyx_7genexpr__pyx_v__);
-  __Pyx_XDECREF(__pyx_8genexpr1__pyx_v__);
   __Pyx_XGIVEREF(__pyx_r);
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":170
+/* "devices/ula_accel.pyx":171
  * 
  * cdef class Spectrum48KULA:
  *     cdef public object machine             # <<<<<<<<<<<<<<
@@ -9744,7 +9840,7 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_7machine_4__del__(struc
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":172
+/* "devices/ula_accel.pyx":173
  *     cdef public object machine
  *     cdef RAMBlock ram
  *     cdef public int last_tstates             # <<<<<<<<<<<<<<
@@ -9776,7 +9872,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12last_tstates___
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->last_tstates); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 172, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->last_tstates); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 173, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -9814,7 +9910,7 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12last_tstates_2__set__
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 172, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 173, __pyx_L1_error)
   __pyx_v_self->last_tstates = __pyx_t_1;
 
   /* function exit code */
@@ -9827,12 +9923,12 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12last_tstates_2__set__
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":173
+/* "devices/ula_accel.pyx":174
  *     cdef RAMBlock ram
  *     cdef public int last_tstates
  *     cdef public bint flash_phase             # <<<<<<<<<<<<<<
  *     cdef public int flash_counter
- *     cdef public object framebuffer
+ *     cdef public object framebuffer_rgb24
 */
 
 /* Python wrapper */
@@ -9859,7 +9955,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11flash_phase___g
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->flash_phase); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 173, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyBool_FromLong(__pyx_v_self->flash_phase); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 174, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -9897,7 +9993,7 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11flash_phase_2__set__(
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 173, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 174, __pyx_L1_error)
   __pyx_v_self->flash_phase = __pyx_t_1;
 
   /* function exit code */
@@ -9910,11 +10006,11 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11flash_phase_2__set__(
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":174
+/* "devices/ula_accel.pyx":175
  *     cdef public int last_tstates
  *     cdef public bint flash_phase
  *     cdef public int flash_counter             # <<<<<<<<<<<<<<
- *     cdef public object framebuffer
+ *     cdef public object framebuffer_rgb24
  *     cdef public ULABeeper beeper
 */
 
@@ -9942,7 +10038,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13flash_counter__
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->flash_counter); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 174, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->flash_counter); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 175, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
   __pyx_r = __pyx_t_1;
   __pyx_t_1 = 0;
@@ -9980,7 +10076,7 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13flash_counter_2__set_
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
-  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 174, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 175, __pyx_L1_error)
   __pyx_v_self->flash_counter = __pyx_t_1;
 
   /* function exit code */
@@ -9993,36 +10089,36 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13flash_counter_2__set_
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":175
+/* "devices/ula_accel.pyx":176
  *     cdef public bint flash_phase
  *     cdef public int flash_counter
- *     cdef public object framebuffer             # <<<<<<<<<<<<<<
+ *     cdef public object framebuffer_rgb24             # <<<<<<<<<<<<<<
  *     cdef public ULABeeper beeper
- * 
+ *     cdef public int border_left
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_1__get__(PyObject *__pyx_v_self); /*proto*/
-static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_1__get__(PyObject *__pyx_v_self) {
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_1__get__(PyObject *__pyx_v_self); /*proto*/
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_1__get__(PyObject *__pyx_v_self) {
   CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
   PyObject *__pyx_r = 0;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__get__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
-  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer___get__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24___get__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__get__", 0);
   __Pyx_XDECREF(__pyx_r);
-  __Pyx_INCREF(__pyx_v_self->framebuffer);
-  __pyx_r = __pyx_v_self->framebuffer;
+  __Pyx_INCREF(__pyx_v_self->framebuffer_rgb24);
+  __pyx_r = __pyx_v_self->framebuffer_rgb24;
   goto __pyx_L0;
 
   /* function exit code */
@@ -10033,29 +10129,29 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer___g
 }
 
 /* Python wrapper */
-static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
-static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
   CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
   int __pyx_r;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
-  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_2__set__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), ((PyObject *)__pyx_v_value));
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_2__set__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), ((PyObject *)__pyx_v_value));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value) {
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value) {
   int __pyx_r;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__set__", 0);
   __Pyx_INCREF(__pyx_v_value);
   __Pyx_GIVEREF(__pyx_v_value);
-  __Pyx_GOTREF(__pyx_v_self->framebuffer);
-  __Pyx_DECREF(__pyx_v_self->framebuffer);
-  __pyx_v_self->framebuffer = __pyx_v_value;
+  __Pyx_GOTREF(__pyx_v_self->framebuffer_rgb24);
+  __Pyx_DECREF(__pyx_v_self->framebuffer_rgb24);
+  __pyx_v_self->framebuffer_rgb24 = __pyx_v_value;
 
   /* function exit code */
   __pyx_r = 0;
@@ -10064,29 +10160,29 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_2__set__(
 }
 
 /* Python wrapper */
-static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_5__del__(PyObject *__pyx_v_self); /*proto*/
-static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_5__del__(PyObject *__pyx_v_self) {
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_5__del__(PyObject *__pyx_v_self); /*proto*/
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_5__del__(PyObject *__pyx_v_self) {
   CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
   int __pyx_r;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__del__ (wrapper)", 0);
   __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
-  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_4__del__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_4__del__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_4__del__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_4__del__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
   int __pyx_r;
   __Pyx_RefNannyDeclarations
   __Pyx_RefNannySetupContext("__del__", 0);
   __Pyx_INCREF(Py_None);
   __Pyx_GIVEREF(Py_None);
-  __Pyx_GOTREF(__pyx_v_self->framebuffer);
-  __Pyx_DECREF(__pyx_v_self->framebuffer);
-  __pyx_v_self->framebuffer = Py_None;
+  __Pyx_GOTREF(__pyx_v_self->framebuffer_rgb24);
+  __Pyx_DECREF(__pyx_v_self->framebuffer_rgb24);
+  __pyx_v_self->framebuffer_rgb24 = Py_None;
 
   /* function exit code */
   __pyx_r = 0;
@@ -10094,12 +10190,12 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_4__del__(
   return __pyx_r;
 }
 
-/* "devices/ula_accel.pyx":176
+/* "devices/ula_accel.pyx":177
  *     cdef public int flash_counter
- *     cdef public object framebuffer
+ *     cdef public object framebuffer_rgb24
  *     cdef public ULABeeper beeper             # <<<<<<<<<<<<<<
- * 
- *     SCREEN_WIDTH = 256
+ *     cdef public int border_left
+ *     cdef public int border_right
 */
 
 /* Python wrapper */
@@ -10158,7 +10254,7 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_6beeper_2__set__(struct
   __Pyx_RefNannySetupContext("__set__", 0);
   __pyx_t_1 = __pyx_v_value;
   __Pyx_INCREF(__pyx_t_1);
-  if (!(likely(((__pyx_t_1) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_1, __pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper))))) __PYX_ERR(0, 176, __pyx_L1_error)
+  if (!(likely(((__pyx_t_1) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_1, __pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper))))) __PYX_ERR(0, 177, __pyx_L1_error)
   __Pyx_GIVEREF(__pyx_t_1);
   __Pyx_GOTREF((PyObject *)__pyx_v_self->beeper);
   __Pyx_DECREF((PyObject *)__pyx_v_self->beeper);
@@ -10208,6 +10304,504 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_6beeper_4__del__(struct
   return __pyx_r;
 }
 
+/* "devices/ula_accel.pyx":178
+ *     cdef public object framebuffer_rgb24
+ *     cdef public ULABeeper beeper
+ *     cdef public int border_left             # <<<<<<<<<<<<<<
+ *     cdef public int border_right
+ *     cdef public int border_top
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11border_left_1__get__(PyObject *__pyx_v_self); /*proto*/
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11border_left_1__get__(PyObject *__pyx_v_self) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__get__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11border_left___get__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11border_left___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("__get__", 0);
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->border_left); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 178, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.border_left.__get__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11border_left_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11border_left_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  int __pyx_r;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11border_left_2__set__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), ((PyObject *)__pyx_v_value));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11border_left_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value) {
+  int __pyx_r;
+  int __pyx_t_1;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 178, __pyx_L1_error)
+  __pyx_v_self->border_left = __pyx_t_1;
+
+  /* function exit code */
+  __pyx_r = 0;
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.border_left.__set__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = -1;
+  __pyx_L0:;
+  return __pyx_r;
+}
+
+/* "devices/ula_accel.pyx":179
+ *     cdef public ULABeeper beeper
+ *     cdef public int border_left
+ *     cdef public int border_right             # <<<<<<<<<<<<<<
+ *     cdef public int border_top
+ *     cdef public int border_bottom
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12border_right_1__get__(PyObject *__pyx_v_self); /*proto*/
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12border_right_1__get__(PyObject *__pyx_v_self) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__get__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12border_right___get__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12border_right___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("__get__", 0);
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->border_right); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 179, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.border_right.__get__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12border_right_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12border_right_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  int __pyx_r;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12border_right_2__set__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), ((PyObject *)__pyx_v_value));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12border_right_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value) {
+  int __pyx_r;
+  int __pyx_t_1;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 179, __pyx_L1_error)
+  __pyx_v_self->border_right = __pyx_t_1;
+
+  /* function exit code */
+  __pyx_r = 0;
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.border_right.__set__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = -1;
+  __pyx_L0:;
+  return __pyx_r;
+}
+
+/* "devices/ula_accel.pyx":180
+ *     cdef public int border_left
+ *     cdef public int border_right
+ *     cdef public int border_top             # <<<<<<<<<<<<<<
+ *     cdef public int border_bottom
+ *     cdef public int frame_width
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_10border_top_1__get__(PyObject *__pyx_v_self); /*proto*/
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_10border_top_1__get__(PyObject *__pyx_v_self) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__get__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_10border_top___get__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_10border_top___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("__get__", 0);
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->border_top); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 180, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.border_top.__get__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_10border_top_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_10border_top_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  int __pyx_r;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_10border_top_2__set__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), ((PyObject *)__pyx_v_value));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_10border_top_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value) {
+  int __pyx_r;
+  int __pyx_t_1;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 180, __pyx_L1_error)
+  __pyx_v_self->border_top = __pyx_t_1;
+
+  /* function exit code */
+  __pyx_r = 0;
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.border_top.__set__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = -1;
+  __pyx_L0:;
+  return __pyx_r;
+}
+
+/* "devices/ula_accel.pyx":181
+ *     cdef public int border_right
+ *     cdef public int border_top
+ *     cdef public int border_bottom             # <<<<<<<<<<<<<<
+ *     cdef public int frame_width
+ *     cdef public int frame_height
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13border_bottom_1__get__(PyObject *__pyx_v_self); /*proto*/
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13border_bottom_1__get__(PyObject *__pyx_v_self) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__get__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13border_bottom___get__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13border_bottom___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("__get__", 0);
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->border_bottom); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 181, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.border_bottom.__get__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13border_bottom_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13border_bottom_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  int __pyx_r;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13border_bottom_2__set__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), ((PyObject *)__pyx_v_value));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_13border_bottom_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value) {
+  int __pyx_r;
+  int __pyx_t_1;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 181, __pyx_L1_error)
+  __pyx_v_self->border_bottom = __pyx_t_1;
+
+  /* function exit code */
+  __pyx_r = 0;
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.border_bottom.__set__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = -1;
+  __pyx_L0:;
+  return __pyx_r;
+}
+
+/* "devices/ula_accel.pyx":182
+ *     cdef public int border_top
+ *     cdef public int border_bottom
+ *     cdef public int frame_width             # <<<<<<<<<<<<<<
+ *     cdef public int frame_height
+ * 
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11frame_width_1__get__(PyObject *__pyx_v_self); /*proto*/
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11frame_width_1__get__(PyObject *__pyx_v_self) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__get__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11frame_width___get__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11frame_width___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("__get__", 0);
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->frame_width); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 182, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.frame_width.__get__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11frame_width_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11frame_width_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  int __pyx_r;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11frame_width_2__set__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), ((PyObject *)__pyx_v_value));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_11frame_width_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value) {
+  int __pyx_r;
+  int __pyx_t_1;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 182, __pyx_L1_error)
+  __pyx_v_self->frame_width = __pyx_t_1;
+
+  /* function exit code */
+  __pyx_r = 0;
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.frame_width.__set__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = -1;
+  __pyx_L0:;
+  return __pyx_r;
+}
+
+/* "devices/ula_accel.pyx":183
+ *     cdef public int border_bottom
+ *     cdef public int frame_width
+ *     cdef public int frame_height             # <<<<<<<<<<<<<<
+ * 
+ *     SCREEN_WIDTH = 256
+*/
+
+/* Python wrapper */
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12frame_height_1__get__(PyObject *__pyx_v_self); /*proto*/
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12frame_height_1__get__(PyObject *__pyx_v_self) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  PyObject *__pyx_r = 0;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__get__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12frame_height___get__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12frame_height___get__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
+  PyObject *__pyx_r = NULL;
+  __Pyx_RefNannyDeclarations
+  PyObject *__pyx_t_1 = NULL;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __Pyx_RefNannySetupContext("__get__", 0);
+  __Pyx_XDECREF(__pyx_r);
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->frame_height); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 183, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_1);
+  __pyx_r = __pyx_t_1;
+  __pyx_t_1 = 0;
+  goto __pyx_L0;
+
+  /* function exit code */
+  __pyx_L1_error:;
+  __Pyx_XDECREF(__pyx_t_1);
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.frame_height.__get__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = NULL;
+  __pyx_L0:;
+  __Pyx_XGIVEREF(__pyx_r);
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+/* Python wrapper */
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12frame_height_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value); /*proto*/
+static int __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12frame_height_3__set__(PyObject *__pyx_v_self, PyObject *__pyx_v_value) {
+  CYTHON_UNUSED PyObject *const *__pyx_kwvalues;
+  int __pyx_r;
+  __Pyx_RefNannyDeclarations
+  __Pyx_RefNannySetupContext("__set__ (wrapper)", 0);
+  __pyx_kwvalues = __Pyx_KwValues_VARARGS(__pyx_args, __pyx_nargs);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12frame_height_2__set__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), ((PyObject *)__pyx_v_value));
+
+  /* function exit code */
+  __Pyx_RefNannyFinishContext();
+  return __pyx_r;
+}
+
+static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12frame_height_2__set__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v_value) {
+  int __pyx_r;
+  int __pyx_t_1;
+  int __pyx_lineno = 0;
+  const char *__pyx_filename = NULL;
+  int __pyx_clineno = 0;
+  __pyx_t_1 = __Pyx_PyLong_As_int(__pyx_v_value); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 183, __pyx_L1_error)
+  __pyx_v_self->frame_height = __pyx_t_1;
+
+  /* function exit code */
+  __pyx_r = 0;
+  goto __pyx_L0;
+  __pyx_L1_error:;
+  __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.frame_height.__set__", __pyx_clineno, __pyx_lineno, __pyx_filename);
+  __pyx_r = -1;
+  __pyx_L0:;
+  return __pyx_r;
+}
+
 /* "(tree fragment)":1
  * def __reduce_cython__(self):             # <<<<<<<<<<<<<<
  *     cdef tuple state
@@ -10215,15 +10809,15 @@ static int __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_6beeper_4__del__(struct
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_15__reduce_cython__(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13__reduce_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-static PyMethodDef __pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_15__reduce_cython__ = {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_15__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_15__reduce_cython__(PyObject *__pyx_v_self, 
+static PyMethodDef __pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_13__reduce_cython__ = {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13__reduce_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -10249,14 +10843,14 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   const Py_ssize_t __pyx_kwds_len = unlikely(__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
   if (unlikely(__pyx_kwds_len < 0)) return NULL;
   if (unlikely(__pyx_kwds_len > 0)) {__Pyx_RejectKeywords("__reduce_cython__", __pyx_kwds); return NULL;}
-  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__reduce_cython__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12__reduce_cython__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self));
 
   /* function exit code */
   __Pyx_RefNannyFinishContext();
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__reduce_cython__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_12__reduce_cython__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self) {
   PyObject *__pyx_v_state = 0;
   PyObject *__pyx_v__dict = 0;
   int __pyx_v_use_setstate;
@@ -10266,8 +10860,14 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__reduce_cython
   PyObject *__pyx_t_2 = NULL;
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
-  int __pyx_t_5;
-  int __pyx_t_6;
+  PyObject *__pyx_t_5 = NULL;
+  PyObject *__pyx_t_6 = NULL;
+  PyObject *__pyx_t_7 = NULL;
+  PyObject *__pyx_t_8 = NULL;
+  PyObject *__pyx_t_9 = NULL;
+  PyObject *__pyx_t_10 = NULL;
+  int __pyx_t_11;
+  int __pyx_t_12;
   int __pyx_lineno = 0;
   const char *__pyx_filename = NULL;
   int __pyx_clineno = 0;
@@ -10276,71 +10876,101 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__reduce_cython
   /* "(tree fragment)":5
  *     cdef object _dict
  *     cdef bint use_setstate
- *     state = (self.beeper, self.flash_counter, self.flash_phase, self.framebuffer, self.last_tstates, self.machine, self.ram)             # <<<<<<<<<<<<<<
+ *     state = (self.beeper, self.border_bottom, self.border_left, self.border_right, self.border_top, self.flash_counter, self.flash_phase, self.frame_height, self.frame_width, self.framebuffer_rgb24, self.last_tstates, self.machine, self.ram)             # <<<<<<<<<<<<<<
  *     _dict = getattr(self, '__dict__', None)
  *     if _dict is not None and _dict:
 */
-  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->flash_counter); if (unlikely(!__pyx_t_1)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyLong_From_int(__pyx_v_self->border_bottom); if (unlikely(!__pyx_t_1)) __PYX_ERR(1, 5, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyBool_FromLong(__pyx_v_self->flash_phase); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyLong_From_int(__pyx_v_self->border_left); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 5, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_PyLong_From_int(__pyx_v_self->last_tstates); if (unlikely(!__pyx_t_3)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyLong_From_int(__pyx_v_self->border_right); if (unlikely(!__pyx_t_3)) __PYX_ERR(1, 5, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_4 = PyTuple_New(7); if (unlikely(!__pyx_t_4)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyLong_From_int(__pyx_v_self->border_top); if (unlikely(!__pyx_t_4)) __PYX_ERR(1, 5, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
+  __pyx_t_5 = __Pyx_PyLong_From_int(__pyx_v_self->flash_counter); if (unlikely(!__pyx_t_5)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_5);
+  __pyx_t_6 = __Pyx_PyBool_FromLong(__pyx_v_self->flash_phase); if (unlikely(!__pyx_t_6)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_6);
+  __pyx_t_7 = __Pyx_PyLong_From_int(__pyx_v_self->frame_height); if (unlikely(!__pyx_t_7)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_7);
+  __pyx_t_8 = __Pyx_PyLong_From_int(__pyx_v_self->frame_width); if (unlikely(!__pyx_t_8)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_8);
+  __pyx_t_9 = __Pyx_PyLong_From_int(__pyx_v_self->last_tstates); if (unlikely(!__pyx_t_9)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_9);
+  __pyx_t_10 = PyTuple_New(13); if (unlikely(!__pyx_t_10)) __PYX_ERR(1, 5, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_10);
   __Pyx_INCREF((PyObject *)__pyx_v_self->beeper);
   __Pyx_GIVEREF((PyObject *)__pyx_v_self->beeper);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, ((PyObject *)__pyx_v_self->beeper)) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 0, ((PyObject *)__pyx_v_self->beeper)) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
   __Pyx_GIVEREF(__pyx_t_1);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_t_1) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_t_1) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
   __Pyx_GIVEREF(__pyx_t_2);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_t_2) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
-  __Pyx_INCREF(__pyx_v_self->framebuffer);
-  __Pyx_GIVEREF(__pyx_v_self->framebuffer);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 3, __pyx_v_self->framebuffer) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 2, __pyx_t_2) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
   __Pyx_GIVEREF(__pyx_t_3);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 4, __pyx_t_3) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 3, __pyx_t_3) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_4);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 4, __pyx_t_4) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_5);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 5, __pyx_t_5) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_6);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 6, __pyx_t_6) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_7);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 7, __pyx_t_7) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_8);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 8, __pyx_t_8) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  __Pyx_INCREF(__pyx_v_self->framebuffer_rgb24);
+  __Pyx_GIVEREF(__pyx_v_self->framebuffer_rgb24);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 9, __pyx_v_self->framebuffer_rgb24) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  __Pyx_GIVEREF(__pyx_t_9);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 10, __pyx_t_9) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
   __Pyx_INCREF(__pyx_v_self->machine);
   __Pyx_GIVEREF(__pyx_v_self->machine);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 5, __pyx_v_self->machine) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 11, __pyx_v_self->machine) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
   __Pyx_INCREF((PyObject *)__pyx_v_self->ram);
   __Pyx_GIVEREF((PyObject *)__pyx_v_self->ram);
-  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 6, ((PyObject *)__pyx_v_self->ram)) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
+  if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 12, ((PyObject *)__pyx_v_self->ram)) != (0)) __PYX_ERR(1, 5, __pyx_L1_error);
   __pyx_t_1 = 0;
   __pyx_t_2 = 0;
   __pyx_t_3 = 0;
-  __pyx_v_state = ((PyObject*)__pyx_t_4);
   __pyx_t_4 = 0;
+  __pyx_t_5 = 0;
+  __pyx_t_6 = 0;
+  __pyx_t_7 = 0;
+  __pyx_t_8 = 0;
+  __pyx_t_9 = 0;
+  __pyx_v_state = ((PyObject*)__pyx_t_10);
+  __pyx_t_10 = 0;
 
   /* "(tree fragment)":6
  *     cdef bint use_setstate
- *     state = (self.beeper, self.flash_counter, self.flash_phase, self.framebuffer, self.last_tstates, self.machine, self.ram)
+ *     state = (self.beeper, self.border_bottom, self.border_left, self.border_right, self.border_top, self.flash_counter, self.flash_phase, self.frame_height, self.frame_width, self.framebuffer_rgb24, self.last_tstates, self.machine, self.ram)
  *     _dict = getattr(self, '__dict__', None)             # <<<<<<<<<<<<<<
  *     if _dict is not None and _dict:
  *         state += (_dict,)
 */
-  __pyx_t_4 = __Pyx_GetAttr3(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_dict, Py_None); if (unlikely(!__pyx_t_4)) __PYX_ERR(1, 6, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_4);
-  __pyx_v__dict = __pyx_t_4;
-  __pyx_t_4 = 0;
+  __pyx_t_10 = __Pyx_GetAttr3(((PyObject *)__pyx_v_self), __pyx_mstate_global->__pyx_n_u_dict, Py_None); if (unlikely(!__pyx_t_10)) __PYX_ERR(1, 6, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_10);
+  __pyx_v__dict = __pyx_t_10;
+  __pyx_t_10 = 0;
 
   /* "(tree fragment)":7
- *     state = (self.beeper, self.flash_counter, self.flash_phase, self.framebuffer, self.last_tstates, self.machine, self.ram)
+ *     state = (self.beeper, self.border_bottom, self.border_left, self.border_right, self.border_top, self.flash_counter, self.flash_phase, self.frame_height, self.frame_width, self.framebuffer_rgb24, self.last_tstates, self.machine, self.ram)
  *     _dict = getattr(self, '__dict__', None)
  *     if _dict is not None and _dict:             # <<<<<<<<<<<<<<
  *         state += (_dict,)
  *         use_setstate = True
 */
-  __pyx_t_6 = (__pyx_v__dict != Py_None);
-  if (__pyx_t_6) {
+  __pyx_t_12 = (__pyx_v__dict != Py_None);
+  if (__pyx_t_12) {
   } else {
-    __pyx_t_5 = __pyx_t_6;
+    __pyx_t_11 = __pyx_t_12;
     goto __pyx_L4_bool_binop_done;
   }
-  __pyx_t_6 = __Pyx_PyObject_IsTrue(__pyx_v__dict); if (unlikely((__pyx_t_6 < 0))) __PYX_ERR(1, 7, __pyx_L1_error)
-  __pyx_t_5 = __pyx_t_6;
+  __pyx_t_12 = __Pyx_PyObject_IsTrue(__pyx_v__dict); if (unlikely((__pyx_t_12 < 0))) __PYX_ERR(1, 7, __pyx_L1_error)
+  __pyx_t_11 = __pyx_t_12;
   __pyx_L4_bool_binop_done:;
-  if (__pyx_t_5) {
+  if (__pyx_t_11) {
 
     /* "(tree fragment)":8
  *     _dict = getattr(self, '__dict__', None)
@@ -10349,28 +10979,28 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__reduce_cython
  *         use_setstate = True
  *     else:
 */
-    __pyx_t_4 = PyTuple_New(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(1, 8, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_4);
+    __pyx_t_10 = PyTuple_New(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(1, 8, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
     __Pyx_INCREF(__pyx_v__dict);
     __Pyx_GIVEREF(__pyx_v__dict);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, __pyx_v__dict) != (0)) __PYX_ERR(1, 8, __pyx_L1_error);
-    __pyx_t_3 = PyNumber_InPlaceAdd(__pyx_v_state, __pyx_t_4); if (unlikely(!__pyx_t_3)) __PYX_ERR(1, 8, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_3);
-    __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    __Pyx_DECREF_SET(__pyx_v_state, ((PyObject*)__pyx_t_3));
-    __pyx_t_3 = 0;
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 0, __pyx_v__dict) != (0)) __PYX_ERR(1, 8, __pyx_L1_error);
+    __pyx_t_9 = PyNumber_InPlaceAdd(__pyx_v_state, __pyx_t_10); if (unlikely(!__pyx_t_9)) __PYX_ERR(1, 8, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_9);
+    __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
+    __Pyx_DECREF_SET(__pyx_v_state, ((PyObject*)__pyx_t_9));
+    __pyx_t_9 = 0;
 
     /* "(tree fragment)":9
  *     if _dict is not None and _dict:
  *         state += (_dict,)
  *         use_setstate = True             # <<<<<<<<<<<<<<
  *     else:
- *         use_setstate = self.beeper is not None or self.framebuffer is not None or self.machine is not None or self.ram is not None
+ *         use_setstate = self.beeper is not None or self.framebuffer_rgb24 is not None or self.machine is not None or self.ram is not None
 */
     __pyx_v_use_setstate = 1;
 
     /* "(tree fragment)":7
- *     state = (self.beeper, self.flash_counter, self.flash_phase, self.framebuffer, self.last_tstates, self.machine, self.ram)
+ *     state = (self.beeper, self.border_bottom, self.border_left, self.border_right, self.border_top, self.flash_counter, self.flash_phase, self.frame_height, self.frame_width, self.framebuffer_rgb24, self.last_tstates, self.machine, self.ram)
  *     _dict = getattr(self, '__dict__', None)
  *     if _dict is not None and _dict:             # <<<<<<<<<<<<<<
  *         state += (_dict,)
@@ -10382,122 +11012,122 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__reduce_cython
   /* "(tree fragment)":11
  *         use_setstate = True
  *     else:
- *         use_setstate = self.beeper is not None or self.framebuffer is not None or self.machine is not None or self.ram is not None             # <<<<<<<<<<<<<<
+ *         use_setstate = self.beeper is not None or self.framebuffer_rgb24 is not None or self.machine is not None or self.ram is not None             # <<<<<<<<<<<<<<
  *     if use_setstate:
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, None), state
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, None), state
 */
   /*else*/ {
-    __pyx_t_6 = (((PyObject *)__pyx_v_self->beeper) != Py_None);
-    if (!__pyx_t_6) {
+    __pyx_t_12 = (((PyObject *)__pyx_v_self->beeper) != Py_None);
+    if (!__pyx_t_12) {
     } else {
-      __pyx_t_5 = __pyx_t_6;
+      __pyx_t_11 = __pyx_t_12;
       goto __pyx_L6_bool_binop_done;
     }
-    __pyx_t_6 = (__pyx_v_self->framebuffer != Py_None);
-    if (!__pyx_t_6) {
+    __pyx_t_12 = (__pyx_v_self->framebuffer_rgb24 != Py_None);
+    if (!__pyx_t_12) {
     } else {
-      __pyx_t_5 = __pyx_t_6;
+      __pyx_t_11 = __pyx_t_12;
       goto __pyx_L6_bool_binop_done;
     }
-    __pyx_t_6 = (__pyx_v_self->machine != Py_None);
-    if (!__pyx_t_6) {
+    __pyx_t_12 = (__pyx_v_self->machine != Py_None);
+    if (!__pyx_t_12) {
     } else {
-      __pyx_t_5 = __pyx_t_6;
+      __pyx_t_11 = __pyx_t_12;
       goto __pyx_L6_bool_binop_done;
     }
-    __pyx_t_6 = (((PyObject *)__pyx_v_self->ram) != Py_None);
-    __pyx_t_5 = __pyx_t_6;
+    __pyx_t_12 = (((PyObject *)__pyx_v_self->ram) != Py_None);
+    __pyx_t_11 = __pyx_t_12;
     __pyx_L6_bool_binop_done:;
-    __pyx_v_use_setstate = __pyx_t_5;
+    __pyx_v_use_setstate = __pyx_t_11;
   }
   __pyx_L3:;
 
   /* "(tree fragment)":12
  *     else:
- *         use_setstate = self.beeper is not None or self.framebuffer is not None or self.machine is not None or self.ram is not None
+ *         use_setstate = self.beeper is not None or self.framebuffer_rgb24 is not None or self.machine is not None or self.ram is not None
  *     if use_setstate:             # <<<<<<<<<<<<<<
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, None), state
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, None), state
  *     else:
 */
   if (__pyx_v_use_setstate) {
 
     /* "(tree fragment)":13
- *         use_setstate = self.beeper is not None or self.framebuffer is not None or self.machine is not None or self.ram is not None
+ *         use_setstate = self.beeper is not None or self.framebuffer_rgb24 is not None or self.machine is not None or self.ram is not None
  *     if use_setstate:
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, None), state             # <<<<<<<<<<<<<<
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, None), state             # <<<<<<<<<<<<<<
  *     else:
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, state)
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, state)
 */
     __Pyx_XDECREF(__pyx_r);
-    __Pyx_GetModuleGlobalName(__pyx_t_3, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_Spectrum48KULA); if (unlikely(!__pyx_t_3)) __PYX_ERR(1, 13, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_3);
-    __pyx_t_4 = PyTuple_New(3); if (unlikely(!__pyx_t_4)) __PYX_ERR(1, 13, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_4);
+    __Pyx_GetModuleGlobalName(__pyx_t_9, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_Spectrum48KULA); if (unlikely(!__pyx_t_9)) __PYX_ERR(1, 13, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_9);
+    __pyx_t_10 = PyTuple_New(3); if (unlikely(!__pyx_t_10)) __PYX_ERR(1, 13, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
     __Pyx_INCREF(((PyObject *)Py_TYPE(((PyObject *)__pyx_v_self))));
     __Pyx_GIVEREF(((PyObject *)Py_TYPE(((PyObject *)__pyx_v_self))));
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, ((PyObject *)Py_TYPE(((PyObject *)__pyx_v_self)))) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
-    __Pyx_INCREF(__pyx_mstate_global->__pyx_int_124065692);
-    __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_124065692);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_mstate_global->__pyx_int_124065692) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 0, ((PyObject *)Py_TYPE(((PyObject *)__pyx_v_self)))) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
+    __Pyx_INCREF(__pyx_mstate_global->__pyx_int_149647251);
+    __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_149647251);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_mstate_global->__pyx_int_149647251) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
     __Pyx_INCREF(Py_None);
     __Pyx_GIVEREF(Py_None);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, Py_None) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
-    __pyx_t_2 = PyTuple_New(3); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 13, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_2);
-    __Pyx_GIVEREF(__pyx_t_3);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_2, 0, __pyx_t_3) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
-    __Pyx_GIVEREF(__pyx_t_4);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_2, 1, __pyx_t_4) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 2, Py_None) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
+    __pyx_t_8 = PyTuple_New(3); if (unlikely(!__pyx_t_8)) __PYX_ERR(1, 13, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    __Pyx_GIVEREF(__pyx_t_9);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 0, __pyx_t_9) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
+    __Pyx_GIVEREF(__pyx_t_10);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 1, __pyx_t_10) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_state);
     __Pyx_GIVEREF(__pyx_v_state);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_2, 2, __pyx_v_state) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
-    __pyx_t_3 = 0;
-    __pyx_t_4 = 0;
-    __pyx_r = __pyx_t_2;
-    __pyx_t_2 = 0;
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_8, 2, __pyx_v_state) != (0)) __PYX_ERR(1, 13, __pyx_L1_error);
+    __pyx_t_9 = 0;
+    __pyx_t_10 = 0;
+    __pyx_r = __pyx_t_8;
+    __pyx_t_8 = 0;
     goto __pyx_L0;
 
     /* "(tree fragment)":12
  *     else:
- *         use_setstate = self.beeper is not None or self.framebuffer is not None or self.machine is not None or self.ram is not None
+ *         use_setstate = self.beeper is not None or self.framebuffer_rgb24 is not None or self.machine is not None or self.ram is not None
  *     if use_setstate:             # <<<<<<<<<<<<<<
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, None), state
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, None), state
  *     else:
 */
   }
 
   /* "(tree fragment)":15
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, None), state
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, None), state
  *     else:
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, state)             # <<<<<<<<<<<<<<
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, state)             # <<<<<<<<<<<<<<
  * def __setstate_cython__(self, __pyx_state):
  *     __pyx_unpickle_Spectrum48KULA__set_state(self, __pyx_state)
 */
   /*else*/ {
     __Pyx_XDECREF(__pyx_r);
-    __Pyx_GetModuleGlobalName(__pyx_t_2, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_Spectrum48KULA); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 15, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_2);
-    __pyx_t_4 = PyTuple_New(3); if (unlikely(!__pyx_t_4)) __PYX_ERR(1, 15, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_4);
+    __Pyx_GetModuleGlobalName(__pyx_t_8, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_Spectrum48KULA); if (unlikely(!__pyx_t_8)) __PYX_ERR(1, 15, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_8);
+    __pyx_t_10 = PyTuple_New(3); if (unlikely(!__pyx_t_10)) __PYX_ERR(1, 15, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_10);
     __Pyx_INCREF(((PyObject *)Py_TYPE(((PyObject *)__pyx_v_self))));
     __Pyx_GIVEREF(((PyObject *)Py_TYPE(((PyObject *)__pyx_v_self))));
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 0, ((PyObject *)Py_TYPE(((PyObject *)__pyx_v_self)))) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
-    __Pyx_INCREF(__pyx_mstate_global->__pyx_int_124065692);
-    __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_124065692);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 1, __pyx_mstate_global->__pyx_int_124065692) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 0, ((PyObject *)Py_TYPE(((PyObject *)__pyx_v_self)))) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
+    __Pyx_INCREF(__pyx_mstate_global->__pyx_int_149647251);
+    __Pyx_GIVEREF(__pyx_mstate_global->__pyx_int_149647251);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 1, __pyx_mstate_global->__pyx_int_149647251) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
     __Pyx_INCREF(__pyx_v_state);
     __Pyx_GIVEREF(__pyx_v_state);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_4, 2, __pyx_v_state) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
-    __pyx_t_3 = PyTuple_New(2); if (unlikely(!__pyx_t_3)) __PYX_ERR(1, 15, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_3);
-    __Pyx_GIVEREF(__pyx_t_2);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_2) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
-    __Pyx_GIVEREF(__pyx_t_4);
-    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_3, 1, __pyx_t_4) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
-    __pyx_t_2 = 0;
-    __pyx_t_4 = 0;
-    __pyx_r = __pyx_t_3;
-    __pyx_t_3 = 0;
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_10, 2, __pyx_v_state) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
+    __pyx_t_9 = PyTuple_New(2); if (unlikely(!__pyx_t_9)) __PYX_ERR(1, 15, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_9);
+    __Pyx_GIVEREF(__pyx_t_8);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_9, 0, __pyx_t_8) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
+    __Pyx_GIVEREF(__pyx_t_10);
+    if (__Pyx_PyTuple_SET_ITEM(__pyx_t_9, 1, __pyx_t_10) != (0)) __PYX_ERR(1, 15, __pyx_L1_error);
+    __pyx_t_8 = 0;
+    __pyx_t_10 = 0;
+    __pyx_r = __pyx_t_9;
+    __pyx_t_9 = 0;
     goto __pyx_L0;
   }
 
@@ -10513,6 +11143,12 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__reduce_cython
   __Pyx_XDECREF(__pyx_t_2);
   __Pyx_XDECREF(__pyx_t_3);
   __Pyx_XDECREF(__pyx_t_4);
+  __Pyx_XDECREF(__pyx_t_5);
+  __Pyx_XDECREF(__pyx_t_6);
+  __Pyx_XDECREF(__pyx_t_7);
+  __Pyx_XDECREF(__pyx_t_8);
+  __Pyx_XDECREF(__pyx_t_9);
+  __Pyx_XDECREF(__pyx_t_10);
   __Pyx_AddTraceback("devices.ula_accel.Spectrum48KULA.__reduce_cython__", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
@@ -10525,21 +11161,21 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__reduce_cython
 
 /* "(tree fragment)":16
  *     else:
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, state)
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, state)
  * def __setstate_cython__(self, __pyx_state):             # <<<<<<<<<<<<<<
  *     __pyx_unpickle_Spectrum48KULA__set_state(self, __pyx_state)
 */
 
 /* Python wrapper */
-static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17__setstate_cython__(PyObject *__pyx_v_self, 
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_15__setstate_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
 PyObject *__pyx_args, PyObject *__pyx_kwds
 #endif
 ); /*proto*/
-static PyMethodDef __pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_17__setstate_cython__ = {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
-static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17__setstate_cython__(PyObject *__pyx_v_self, 
+static PyMethodDef __pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_15__setstate_cython__ = {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_15__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0};
+static PyObject *__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_15__setstate_cython__(PyObject *__pyx_v_self, 
 #if CYTHON_METH_FASTCALL
 PyObject *const *__pyx_args, Py_ssize_t __pyx_nargs, PyObject *__pyx_kwds
 #else
@@ -10605,7 +11241,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   __Pyx_RefNannyFinishContext();
   return NULL;
   __pyx_L4_argument_unpacking_done:;
-  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_16__setstate_cython__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), __pyx_v___pyx_state);
+  __pyx_r = __pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__setstate_cython__(((struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *)__pyx_v_self), __pyx_v___pyx_state);
 
   /* function exit code */
   for (Py_ssize_t __pyx_temp=0; __pyx_temp < (Py_ssize_t)(sizeof(values)/sizeof(values[0])); ++__pyx_temp) {
@@ -10615,7 +11251,7 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_16__setstate_cython__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v___pyx_state) {
+static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_14__setstate_cython__(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v_self, PyObject *__pyx_v___pyx_state) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -10626,7 +11262,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_16__setstate_cyth
   __Pyx_RefNannySetupContext("__setstate_cython__", 0);
 
   /* "(tree fragment)":17
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, state)
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, state)
  * def __setstate_cython__(self, __pyx_state):
  *     __pyx_unpickle_Spectrum48KULA__set_state(self, __pyx_state)             # <<<<<<<<<<<<<<
 */
@@ -10644,7 +11280,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_14Spectrum48KULA_16__setstate_cyth
 
   /* "(tree fragment)":16
  *     else:
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, state)
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, state)
  * def __setstate_cython__(self, __pyx_state):             # <<<<<<<<<<<<<<
  *     __pyx_unpickle_Spectrum48KULA__set_state(self, __pyx_state)
 */
@@ -11005,7 +11641,7 @@ static PyObject *__pyx_f_7devices_9ula_accel___pyx_unpickle_ULABeeper__set_state
  *     int __Pyx_UpdateUnpickledDict(object, object, Py_ssize_t) except -1
  * def __pyx_unpickle_Spectrum48KULA(__pyx_type, long __pyx_checksum, tuple __pyx_state):             # <<<<<<<<<<<<<<
  *     cdef object __pyx_result
- *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x765179c, 0x81b9891, 0x625aa1b, b'beeper, flash_counter, flash_phase, framebuffer, last_tstates, machine, ram')
+ *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x8eb6f93, 0xfe0b050, 0x43b16c1, b'beeper, border_bottom, border_left, border_right, border_top, flash_counter, flash_phase, frame_height, frame_width, framebuffer_rgb24, last_tstates, machine, ram')
 */
 
 /* Python wrapper */
@@ -11136,15 +11772,15 @@ static PyObject *__pyx_pf_7devices_9ula_accel_2__pyx_unpickle_Spectrum48KULA(CYT
   /* "(tree fragment)":6
  * def __pyx_unpickle_Spectrum48KULA(__pyx_type, long __pyx_checksum, tuple __pyx_state):
  *     cdef object __pyx_result
- *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x765179c, 0x81b9891, 0x625aa1b, b'beeper, flash_counter, flash_phase, framebuffer, last_tstates, machine, ram')             # <<<<<<<<<<<<<<
+ *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x8eb6f93, 0xfe0b050, 0x43b16c1, b'beeper, border_bottom, border_left, border_right, border_top, flash_counter, flash_phase, frame_height, frame_width, framebuffer_rgb24, last_tstates, machine, ram')             # <<<<<<<<<<<<<<
  *     __pyx_result = Spectrum48KULA.__new__(__pyx_type)
  *     if __pyx_state is not None:
 */
-  __pyx_t_1 = __Pyx_CheckUnpickleChecksum(__pyx_v___pyx_checksum, 0x765179c, 0x81b9891, 0x625aa1b, __pyx_k_beeper_flash_counter_flash_phase); if (unlikely(__pyx_t_1 == ((int)-1))) __PYX_ERR(1, 6, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_CheckUnpickleChecksum(__pyx_v___pyx_checksum, 0x8eb6f93, 0xfe0b050, 0x43b16c1, __pyx_k_beeper_border_bottom_border_left); if (unlikely(__pyx_t_1 == ((int)-1))) __PYX_ERR(1, 6, __pyx_L1_error)
 
   /* "(tree fragment)":7
  *     cdef object __pyx_result
- *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x765179c, 0x81b9891, 0x625aa1b, b'beeper, flash_counter, flash_phase, framebuffer, last_tstates, machine, ram')
+ *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x8eb6f93, 0xfe0b050, 0x43b16c1, b'beeper, border_bottom, border_left, border_right, border_top, flash_counter, flash_phase, frame_height, frame_width, framebuffer_rgb24, last_tstates, machine, ram')
  *     __pyx_result = Spectrum48KULA.__new__(__pyx_type)             # <<<<<<<<<<<<<<
  *     if __pyx_state is not None:
  *         __pyx_unpickle_Spectrum48KULA__set_state(<Spectrum48KULA> __pyx_result, __pyx_state)
@@ -11163,7 +11799,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_2__pyx_unpickle_Spectrum48KULA(CYT
   __pyx_t_2 = 0;
 
   /* "(tree fragment)":8
- *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x765179c, 0x81b9891, 0x625aa1b, b'beeper, flash_counter, flash_phase, framebuffer, last_tstates, machine, ram')
+ *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x8eb6f93, 0xfe0b050, 0x43b16c1, b'beeper, border_bottom, border_left, border_right, border_top, flash_counter, flash_phase, frame_height, frame_width, framebuffer_rgb24, last_tstates, machine, ram')
  *     __pyx_result = Spectrum48KULA.__new__(__pyx_type)
  *     if __pyx_state is not None:             # <<<<<<<<<<<<<<
  *         __pyx_unpickle_Spectrum48KULA__set_state(<Spectrum48KULA> __pyx_result, __pyx_state)
@@ -11188,7 +11824,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_2__pyx_unpickle_Spectrum48KULA(CYT
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
     /* "(tree fragment)":8
- *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x765179c, 0x81b9891, 0x625aa1b, b'beeper, flash_counter, flash_phase, framebuffer, last_tstates, machine, ram')
+ *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x8eb6f93, 0xfe0b050, 0x43b16c1, b'beeper, border_bottom, border_left, border_right, border_top, flash_counter, flash_phase, frame_height, frame_width, framebuffer_rgb24, last_tstates, machine, ram')
  *     __pyx_result = Spectrum48KULA.__new__(__pyx_type)
  *     if __pyx_state is not None:             # <<<<<<<<<<<<<<
  *         __pyx_unpickle_Spectrum48KULA__set_state(<Spectrum48KULA> __pyx_result, __pyx_state)
@@ -11201,7 +11837,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_2__pyx_unpickle_Spectrum48KULA(CYT
  *         __pyx_unpickle_Spectrum48KULA__set_state(<Spectrum48KULA> __pyx_result, __pyx_state)
  *     return __pyx_result             # <<<<<<<<<<<<<<
  * cdef __pyx_unpickle_Spectrum48KULA__set_state(Spectrum48KULA __pyx_result, __pyx_state: tuple):
- *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.flash_counter = __pyx_state[1]; __pyx_result.flash_phase = __pyx_state[2]; __pyx_result.framebuffer = __pyx_state[3]; __pyx_result.last_tstates = __pyx_state[4]; __pyx_result.machine = __pyx_state[5]; __pyx_result.ram = __pyx_state[6]
+ *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.border_bottom = __pyx_state[1]; __pyx_result.border_left = __pyx_state[2]; __pyx_result.border_right = __pyx_state[3]; __pyx_result.border_top = __pyx_state[4]; __pyx_result.flash_counter = __pyx_state[5]; __pyx_result.flash_phase = __pyx_state[6]; __pyx_result.frame_height = __pyx_state[7]; __pyx_result.frame_width = __pyx_state[8]; __pyx_result.framebuffer_rgb24 = __pyx_state[9]; __pyx_result.last_tstates = __pyx_state[10]; __pyx_result.machine = __pyx_state[11]; __pyx_result.ram = __pyx_state[12]
 */
   __Pyx_XDECREF(__pyx_r);
   __Pyx_INCREF(__pyx_v___pyx_result);
@@ -11213,7 +11849,7 @@ static PyObject *__pyx_pf_7devices_9ula_accel_2__pyx_unpickle_Spectrum48KULA(CYT
  *     int __Pyx_UpdateUnpickledDict(object, object, Py_ssize_t) except -1
  * def __pyx_unpickle_Spectrum48KULA(__pyx_type, long __pyx_checksum, tuple __pyx_state):             # <<<<<<<<<<<<<<
  *     cdef object __pyx_result
- *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x765179c, 0x81b9891, 0x625aa1b, b'beeper, flash_counter, flash_phase, framebuffer, last_tstates, machine, ram')
+ *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x8eb6f93, 0xfe0b050, 0x43b16c1, b'beeper, border_bottom, border_left, border_right, border_top, flash_counter, flash_phase, frame_height, frame_width, framebuffer_rgb24, last_tstates, machine, ram')
 */
 
   /* function exit code */
@@ -11233,8 +11869,8 @@ static PyObject *__pyx_pf_7devices_9ula_accel_2__pyx_unpickle_Spectrum48KULA(CYT
  *         __pyx_unpickle_Spectrum48KULA__set_state(<Spectrum48KULA> __pyx_result, __pyx_state)
  *     return __pyx_result
  * cdef __pyx_unpickle_Spectrum48KULA__set_state(Spectrum48KULA __pyx_result, __pyx_state: tuple):             # <<<<<<<<<<<<<<
- *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.flash_counter = __pyx_state[1]; __pyx_result.flash_phase = __pyx_state[2]; __pyx_result.framebuffer = __pyx_state[3]; __pyx_result.last_tstates = __pyx_state[4]; __pyx_result.machine = __pyx_state[5]; __pyx_result.ram = __pyx_state[6]
- *     __Pyx_UpdateUnpickledDict(__pyx_result, __pyx_state, 7)
+ *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.border_bottom = __pyx_state[1]; __pyx_result.border_left = __pyx_state[2]; __pyx_result.border_right = __pyx_state[3]; __pyx_result.border_top = __pyx_state[4]; __pyx_result.flash_counter = __pyx_state[5]; __pyx_result.flash_phase = __pyx_state[6]; __pyx_result.frame_height = __pyx_state[7]; __pyx_result.frame_width = __pyx_state[8]; __pyx_result.framebuffer_rgb24 = __pyx_state[9]; __pyx_result.last_tstates = __pyx_state[10]; __pyx_result.machine = __pyx_state[11]; __pyx_result.ram = __pyx_state[12]
+ *     __Pyx_UpdateUnpickledDict(__pyx_result, __pyx_state, 13)
 */
 
 static PyObject *__pyx_f_7devices_9ula_accel___pyx_unpickle_Spectrum48KULA__set_state(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *__pyx_v___pyx_result, PyObject *__pyx_v___pyx_state) {
@@ -11251,8 +11887,8 @@ static PyObject *__pyx_f_7devices_9ula_accel___pyx_unpickle_Spectrum48KULA__set_
   /* "(tree fragment)":12
  *     return __pyx_result
  * cdef __pyx_unpickle_Spectrum48KULA__set_state(Spectrum48KULA __pyx_result, __pyx_state: tuple):
- *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.flash_counter = __pyx_state[1]; __pyx_result.flash_phase = __pyx_state[2]; __pyx_result.framebuffer = __pyx_state[3]; __pyx_result.last_tstates = __pyx_state[4]; __pyx_result.machine = __pyx_state[5]; __pyx_result.ram = __pyx_state[6]             # <<<<<<<<<<<<<<
- *     __Pyx_UpdateUnpickledDict(__pyx_result, __pyx_state, 7)
+ *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.border_bottom = __pyx_state[1]; __pyx_result.border_left = __pyx_state[2]; __pyx_result.border_right = __pyx_state[3]; __pyx_result.border_top = __pyx_state[4]; __pyx_result.flash_counter = __pyx_state[5]; __pyx_result.flash_phase = __pyx_state[6]; __pyx_result.frame_height = __pyx_state[7]; __pyx_result.frame_width = __pyx_state[8]; __pyx_result.framebuffer_rgb24 = __pyx_state[9]; __pyx_result.last_tstates = __pyx_state[10]; __pyx_result.machine = __pyx_state[11]; __pyx_result.ram = __pyx_state[12]             # <<<<<<<<<<<<<<
+ *     __Pyx_UpdateUnpickledDict(__pyx_result, __pyx_state, 13)
 */
   __pyx_t_1 = __Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 0);
   __Pyx_INCREF(__pyx_t_1);
@@ -11263,26 +11899,38 @@ static PyObject *__pyx_f_7devices_9ula_accel___pyx_unpickle_Spectrum48KULA__set_
   __pyx_v___pyx_result->beeper = ((struct __pyx_obj_7devices_9ula_accel_ULABeeper *)__pyx_t_1);
   __pyx_t_1 = 0;
   __pyx_t_2 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 1)); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
+  __pyx_v___pyx_result->border_bottom = __pyx_t_2;
+  __pyx_t_2 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 2)); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
+  __pyx_v___pyx_result->border_left = __pyx_t_2;
+  __pyx_t_2 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 3)); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
+  __pyx_v___pyx_result->border_right = __pyx_t_2;
+  __pyx_t_2 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 4)); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
+  __pyx_v___pyx_result->border_top = __pyx_t_2;
+  __pyx_t_2 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 5)); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
   __pyx_v___pyx_result->flash_counter = __pyx_t_2;
-  __pyx_t_3 = __Pyx_PyObject_IsTrue(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 2)); if (unlikely((__pyx_t_3 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_IsTrue(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 6)); if (unlikely((__pyx_t_3 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
   __pyx_v___pyx_result->flash_phase = __pyx_t_3;
-  __pyx_t_1 = __Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 3);
+  __pyx_t_2 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 7)); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
+  __pyx_v___pyx_result->frame_height = __pyx_t_2;
+  __pyx_t_2 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 8)); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
+  __pyx_v___pyx_result->frame_width = __pyx_t_2;
+  __pyx_t_1 = __Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 9);
   __Pyx_INCREF(__pyx_t_1);
   __Pyx_GIVEREF(__pyx_t_1);
-  __Pyx_GOTREF(__pyx_v___pyx_result->framebuffer);
-  __Pyx_DECREF(__pyx_v___pyx_result->framebuffer);
-  __pyx_v___pyx_result->framebuffer = __pyx_t_1;
+  __Pyx_GOTREF(__pyx_v___pyx_result->framebuffer_rgb24);
+  __Pyx_DECREF(__pyx_v___pyx_result->framebuffer_rgb24);
+  __pyx_v___pyx_result->framebuffer_rgb24 = __pyx_t_1;
   __pyx_t_1 = 0;
-  __pyx_t_2 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 4)); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyLong_As_int(__Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 10)); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(1, 12, __pyx_L1_error)
   __pyx_v___pyx_result->last_tstates = __pyx_t_2;
-  __pyx_t_1 = __Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 5);
+  __pyx_t_1 = __Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 11);
   __Pyx_INCREF(__pyx_t_1);
   __Pyx_GIVEREF(__pyx_t_1);
   __Pyx_GOTREF(__pyx_v___pyx_result->machine);
   __Pyx_DECREF(__pyx_v___pyx_result->machine);
   __pyx_v___pyx_result->machine = __pyx_t_1;
   __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 6);
+  __pyx_t_1 = __Pyx_PyTuple_GET_ITEM(__pyx_v___pyx_state, 12);
   __Pyx_INCREF(__pyx_t_1);
   if (!(likely(((__pyx_t_1) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_1, __pyx_mstate_global->__pyx_ptype_3cpu_3z80_6memory_RAMBlock))))) __PYX_ERR(1, 12, __pyx_L1_error)
   __Pyx_GIVEREF(__pyx_t_1);
@@ -11293,17 +11941,17 @@ static PyObject *__pyx_f_7devices_9ula_accel___pyx_unpickle_Spectrum48KULA__set_
 
   /* "(tree fragment)":13
  * cdef __pyx_unpickle_Spectrum48KULA__set_state(Spectrum48KULA __pyx_result, __pyx_state: tuple):
- *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.flash_counter = __pyx_state[1]; __pyx_result.flash_phase = __pyx_state[2]; __pyx_result.framebuffer = __pyx_state[3]; __pyx_result.last_tstates = __pyx_state[4]; __pyx_result.machine = __pyx_state[5]; __pyx_result.ram = __pyx_state[6]
- *     __Pyx_UpdateUnpickledDict(__pyx_result, __pyx_state, 7)             # <<<<<<<<<<<<<<
+ *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.border_bottom = __pyx_state[1]; __pyx_result.border_left = __pyx_state[2]; __pyx_result.border_right = __pyx_state[3]; __pyx_result.border_top = __pyx_state[4]; __pyx_result.flash_counter = __pyx_state[5]; __pyx_result.flash_phase = __pyx_state[6]; __pyx_result.frame_height = __pyx_state[7]; __pyx_result.frame_width = __pyx_state[8]; __pyx_result.framebuffer_rgb24 = __pyx_state[9]; __pyx_result.last_tstates = __pyx_state[10]; __pyx_result.machine = __pyx_state[11]; __pyx_result.ram = __pyx_state[12]
+ *     __Pyx_UpdateUnpickledDict(__pyx_result, __pyx_state, 13)             # <<<<<<<<<<<<<<
 */
-  __pyx_t_2 = __Pyx_UpdateUnpickledDict(((PyObject *)__pyx_v___pyx_result), __pyx_v___pyx_state, 7); if (unlikely(__pyx_t_2 == ((int)-1))) __PYX_ERR(1, 13, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_UpdateUnpickledDict(((PyObject *)__pyx_v___pyx_result), __pyx_v___pyx_state, 13); if (unlikely(__pyx_t_2 == ((int)-1))) __PYX_ERR(1, 13, __pyx_L1_error)
 
   /* "(tree fragment)":11
  *         __pyx_unpickle_Spectrum48KULA__set_state(<Spectrum48KULA> __pyx_result, __pyx_state)
  *     return __pyx_result
  * cdef __pyx_unpickle_Spectrum48KULA__set_state(Spectrum48KULA __pyx_result, __pyx_state: tuple):             # <<<<<<<<<<<<<<
- *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.flash_counter = __pyx_state[1]; __pyx_result.flash_phase = __pyx_state[2]; __pyx_result.framebuffer = __pyx_state[3]; __pyx_result.last_tstates = __pyx_state[4]; __pyx_result.machine = __pyx_state[5]; __pyx_result.ram = __pyx_state[6]
- *     __Pyx_UpdateUnpickledDict(__pyx_result, __pyx_state, 7)
+ *     __pyx_result.beeper = __pyx_state[0]; __pyx_result.border_bottom = __pyx_state[1]; __pyx_result.border_left = __pyx_state[2]; __pyx_result.border_right = __pyx_state[3]; __pyx_result.border_top = __pyx_state[4]; __pyx_result.flash_counter = __pyx_state[5]; __pyx_result.flash_phase = __pyx_state[6]; __pyx_result.frame_height = __pyx_state[7]; __pyx_result.frame_width = __pyx_state[8]; __pyx_result.framebuffer_rgb24 = __pyx_state[9]; __pyx_result.last_tstates = __pyx_state[10]; __pyx_result.machine = __pyx_state[11]; __pyx_result.ram = __pyx_state[12]
+ *     __Pyx_UpdateUnpickledDict(__pyx_result, __pyx_state, 13)
 */
 
   /* function exit code */
@@ -11751,7 +12399,7 @@ static PyObject *__pyx_tp_new_7devices_9ula_accel_Spectrum48KULA(PyTypeObject *t
   p->__pyx_vtab = __pyx_vtabptr_7devices_9ula_accel_Spectrum48KULA;
   p->machine = Py_None; Py_INCREF(Py_None);
   p->ram = ((struct __pyx_obj_3cpu_3z80_6memory_RAMBlock *)Py_None); Py_INCREF(Py_None);
-  p->framebuffer = Py_None; Py_INCREF(Py_None);
+  p->framebuffer_rgb24 = Py_None; Py_INCREF(Py_None);
   p->beeper = ((struct __pyx_obj_7devices_9ula_accel_ULABeeper *)Py_None); Py_INCREF(Py_None);
   return o;
 }
@@ -11768,7 +12416,7 @@ static void __pyx_tp_dealloc_7devices_9ula_accel_Spectrum48KULA(PyObject *o) {
   PyObject_GC_UnTrack(o);
   Py_CLEAR(p->machine);
   Py_CLEAR(p->ram);
-  Py_CLEAR(p->framebuffer);
+  Py_CLEAR(p->framebuffer_rgb24);
   Py_CLEAR(p->beeper);
   PyTypeObject *tp = Py_TYPE(o);
   #if CYTHON_USE_TYPE_SLOTS
@@ -11797,8 +12445,8 @@ static int __pyx_tp_traverse_7devices_9ula_accel_Spectrum48KULA(PyObject *o, vis
   if (p->ram) {
     e = (*v)(((PyObject *)p->ram), a); if (e) return e;
   }
-  if (p->framebuffer) {
-    e = (*v)(p->framebuffer, a); if (e) return e;
+  if (p->framebuffer_rgb24) {
+    e = (*v)(p->framebuffer_rgb24, a); if (e) return e;
   }
   if (p->beeper) {
     e = (*v)(((PyObject *)p->beeper), a); if (e) return e;
@@ -11815,8 +12463,8 @@ static int __pyx_tp_clear_7devices_9ula_accel_Spectrum48KULA(PyObject *o) {
   tmp = ((PyObject*)p->ram);
   p->ram = ((struct __pyx_obj_3cpu_3z80_6memory_RAMBlock *)Py_None); Py_INCREF(Py_None);
   Py_XDECREF(tmp);
-  tmp = ((PyObject*)p->framebuffer);
-  p->framebuffer = Py_None; Py_INCREF(Py_None);
+  tmp = ((PyObject*)p->framebuffer_rgb24);
+  p->framebuffer_rgb24 = Py_None; Py_INCREF(Py_None);
   Py_XDECREF(tmp);
   tmp = ((PyObject*)p->beeper);
   p->beeper = ((struct __pyx_obj_7devices_9ula_accel_ULABeeper *)Py_None); Py_INCREF(Py_None);
@@ -11879,16 +12527,16 @@ static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_flash_counter(PyOb
   }
 }
 
-static PyObject *__pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_framebuffer(PyObject *o, CYTHON_UNUSED void *x) {
-  return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_1__get__(o);
+static PyObject *__pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_framebuffer_rgb24(PyObject *o, CYTHON_UNUSED void *x) {
+  return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_1__get__(o);
 }
 
-static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_framebuffer(PyObject *o, PyObject *v, CYTHON_UNUSED void *x) {
+static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_framebuffer_rgb24(PyObject *o, PyObject *v, CYTHON_UNUSED void *x) {
   if (v) {
-    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_3__set__(o, v);
+    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_3__set__(o, v);
   }
   else {
-    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11framebuffer_5__del__(o);
+    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17framebuffer_rgb24_5__del__(o);
   }
 }
 
@@ -11905,10 +12553,93 @@ static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_beeper(PyObject *o
   }
 }
 
+static PyObject *__pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_border_left(PyObject *o, CYTHON_UNUSED void *x) {
+  return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11border_left_1__get__(o);
+}
+
+static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_border_left(PyObject *o, PyObject *v, CYTHON_UNUSED void *x) {
+  if (v) {
+    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11border_left_3__set__(o, v);
+  }
+  else {
+    PyErr_SetString(PyExc_NotImplementedError, "__del__");
+    return -1;
+  }
+}
+
+static PyObject *__pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_border_right(PyObject *o, CYTHON_UNUSED void *x) {
+  return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12border_right_1__get__(o);
+}
+
+static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_border_right(PyObject *o, PyObject *v, CYTHON_UNUSED void *x) {
+  if (v) {
+    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12border_right_3__set__(o, v);
+  }
+  else {
+    PyErr_SetString(PyExc_NotImplementedError, "__del__");
+    return -1;
+  }
+}
+
+static PyObject *__pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_border_top(PyObject *o, CYTHON_UNUSED void *x) {
+  return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_10border_top_1__get__(o);
+}
+
+static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_border_top(PyObject *o, PyObject *v, CYTHON_UNUSED void *x) {
+  if (v) {
+    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_10border_top_3__set__(o, v);
+  }
+  else {
+    PyErr_SetString(PyExc_NotImplementedError, "__del__");
+    return -1;
+  }
+}
+
+static PyObject *__pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_border_bottom(PyObject *o, CYTHON_UNUSED void *x) {
+  return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13border_bottom_1__get__(o);
+}
+
+static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_border_bottom(PyObject *o, PyObject *v, CYTHON_UNUSED void *x) {
+  if (v) {
+    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13border_bottom_3__set__(o, v);
+  }
+  else {
+    PyErr_SetString(PyExc_NotImplementedError, "__del__");
+    return -1;
+  }
+}
+
+static PyObject *__pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_frame_width(PyObject *o, CYTHON_UNUSED void *x) {
+  return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11frame_width_1__get__(o);
+}
+
+static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_frame_width(PyObject *o, PyObject *v, CYTHON_UNUSED void *x) {
+  if (v) {
+    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_11frame_width_3__set__(o, v);
+  }
+  else {
+    PyErr_SetString(PyExc_NotImplementedError, "__del__");
+    return -1;
+  }
+}
+
+static PyObject *__pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_frame_height(PyObject *o, CYTHON_UNUSED void *x) {
+  return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12frame_height_1__get__(o);
+}
+
+static int __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_frame_height(PyObject *o, PyObject *v, CYTHON_UNUSED void *x) {
+  if (v) {
+    return __pyx_pw_7devices_9ula_accel_14Spectrum48KULA_12frame_height_3__set__(o, v);
+  }
+  else {
+    PyErr_SetString(PyExc_NotImplementedError, "__del__");
+    return -1;
+  }
+}
+
 static PyMethodDef __pyx_methods_7devices_9ula_accel_Spectrum48KULA[] = {
-  {"_make_blank_frame", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13_make_blank_frame, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
-  {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_15__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
-  {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_17__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
+  {"__reduce_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_13__reduce_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
+  {"__setstate_cython__", (PyCFunction)(void(*)(void))(__Pyx_PyCFunction_FastCallWithKeywords)__pyx_pw_7devices_9ula_accel_14Spectrum48KULA_15__setstate_cython__, __Pyx_METH_FASTCALL|METH_KEYWORDS, 0},
   {0, 0, 0, 0}
 };
 
@@ -11917,8 +12648,14 @@ static struct PyGetSetDef __pyx_getsets_7devices_9ula_accel_Spectrum48KULA[] = {
   {"last_tstates", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_last_tstates, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_last_tstates, 0, 0},
   {"flash_phase", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_flash_phase, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_flash_phase, 0, 0},
   {"flash_counter", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_flash_counter, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_flash_counter, 0, 0},
-  {"framebuffer", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_framebuffer, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_framebuffer, 0, 0},
+  {"framebuffer_rgb24", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_framebuffer_rgb24, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_framebuffer_rgb24, 0, 0},
   {"beeper", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_beeper, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_beeper, 0, 0},
+  {"border_left", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_border_left, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_border_left, 0, 0},
+  {"border_right", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_border_right, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_border_right, 0, 0},
+  {"border_top", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_border_top, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_border_top, 0, 0},
+  {"border_bottom", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_border_bottom, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_border_bottom, 0, 0},
+  {"frame_width", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_frame_width, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_frame_width, 0, 0},
+  {"frame_height", __pyx_getprop_7devices_9ula_accel_14Spectrum48KULA_frame_height, __pyx_setprop_7devices_9ula_accel_14Spectrum48KULA_frame_height, 0, 0},
   {0, 0, 0, 0, 0}
 };
 #if CYTHON_USE_TYPE_SPECS
@@ -12076,15 +12813,15 @@ static int __Pyx_modinit_type_init_code(__pyx_mstatetype *__pyx_mstate) {
   __pyx_vtable_7devices_9ula_accel_ULABeeper.get_frame_samples = (PyObject *(*)(struct __pyx_obj_7devices_9ula_accel_ULABeeper *, int __pyx_skip_dispatch))__pyx_f_7devices_9ula_accel_9ULABeeper_get_frame_samples;
   __pyx_vtable_7devices_9ula_accel_ULABeeper._render_frame_samples = (PyObject *(*)(struct __pyx_obj_7devices_9ula_accel_ULABeeper *))__pyx_f_7devices_9ula_accel_9ULABeeper__render_frame_samples;
   #if CYTHON_USE_TYPE_SPECS
-  __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7devices_9ula_accel_ULABeeper_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper)) __PYX_ERR(0, 12, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7devices_9ula_accel_ULABeeper_spec, __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 12, __pyx_L1_error)
+  __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7devices_9ula_accel_ULABeeper_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper)) __PYX_ERR(0, 13, __pyx_L1_error)
+  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7devices_9ula_accel_ULABeeper_spec, __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 13, __pyx_L1_error)
   #else
   __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper = &__pyx_type_7devices_9ula_accel_ULABeeper;
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   #endif
   #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 12, __pyx_L1_error)
+  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 13, __pyx_L1_error)
   #endif
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount((PyObject*)__pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper);
@@ -12094,10 +12831,10 @@ static int __Pyx_modinit_type_init_code(__pyx_mstatetype *__pyx_mstate) {
     __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper->tp_getattro = PyObject_GenericGetAttr;
   }
   #endif
-  if (__Pyx_SetVtable(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_vtabptr_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 12, __pyx_L1_error)
-  if (__Pyx_MergeVtables(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 12, __pyx_L1_error)
-  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_ULABeeper, (PyObject *) __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 12, __pyx_L1_error)
-  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 12, __pyx_L1_error)
+  if (__Pyx_SetVtable(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_vtabptr_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 13, __pyx_L1_error)
+  if (__Pyx_MergeVtables(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 13, __pyx_L1_error)
+  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_ULABeeper, (PyObject *) __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 13, __pyx_L1_error)
+  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7devices_9ula_accel_ULABeeper) < (0)) __PYX_ERR(0, 13, __pyx_L1_error)
   __pyx_vtabptr_7devices_9ula_accel_Spectrum48KULA = &__pyx_vtable_7devices_9ula_accel_Spectrum48KULA;
   __pyx_vtable_7devices_9ula_accel_Spectrum48KULA.reset = (PyObject *(*)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, int __pyx_skip_dispatch))__pyx_f_7devices_9ula_accel_14Spectrum48KULA_reset;
   __pyx_vtable_7devices_9ula_accel_Spectrum48KULA.run_until = (PyObject *(*)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, int, int __pyx_skip_dispatch))__pyx_f_7devices_9ula_accel_14Spectrum48KULA_run_until;
@@ -12105,16 +12842,17 @@ static int __Pyx_modinit_type_init_code(__pyx_mstatetype *__pyx_mstate) {
   __pyx_vtable_7devices_9ula_accel_Spectrum48KULA.render_frame = (PyObject *(*)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, int __pyx_skip_dispatch))__pyx_f_7devices_9ula_accel_14Spectrum48KULA_render_frame;
   __pyx_vtable_7devices_9ula_accel_Spectrum48KULA.get_frame_samples = (PyObject *(*)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, int __pyx_skip_dispatch))__pyx_f_7devices_9ula_accel_14Spectrum48KULA_get_frame_samples;
   __pyx_vtable_7devices_9ula_accel_Spectrum48KULA._zx_bitmap_row_address = (int (*)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, int))__pyx_f_7devices_9ula_accel_14Spectrum48KULA__zx_bitmap_row_address;
+  __pyx_vtable_7devices_9ula_accel_Spectrum48KULA._make_blank_frame_rgb24 = (PyObject *(*)(struct __pyx_obj_7devices_9ula_accel_Spectrum48KULA *, PyObject *))__pyx_f_7devices_9ula_accel_14Spectrum48KULA__make_blank_frame_rgb24;
   #if CYTHON_USE_TYPE_SPECS
-  __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7devices_9ula_accel_Spectrum48KULA_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA)) __PYX_ERR(0, 169, __pyx_L1_error)
-  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7devices_9ula_accel_Spectrum48KULA_spec, __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 169, __pyx_L1_error)
+  __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA = (PyTypeObject *) __Pyx_PyType_FromModuleAndSpec(__pyx_m, &__pyx_type_7devices_9ula_accel_Spectrum48KULA_spec, NULL); if (unlikely(!__pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA)) __PYX_ERR(0, 170, __pyx_L1_error)
+  if (__Pyx_fix_up_extension_type_from_spec(&__pyx_type_7devices_9ula_accel_Spectrum48KULA_spec, __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 170, __pyx_L1_error)
   #else
   __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA = &__pyx_type_7devices_9ula_accel_Spectrum48KULA;
   #endif
   #if !CYTHON_COMPILING_IN_LIMITED_API
   #endif
   #if !CYTHON_USE_TYPE_SPECS
-  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 169, __pyx_L1_error)
+  if (__Pyx_PyType_Ready(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 170, __pyx_L1_error)
   #endif
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount((PyObject*)__pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA);
@@ -12124,10 +12862,10 @@ static int __Pyx_modinit_type_init_code(__pyx_mstatetype *__pyx_mstate) {
     __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA->tp_getattro = PyObject_GenericGetAttr;
   }
   #endif
-  if (__Pyx_SetVtable(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_vtabptr_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 169, __pyx_L1_error)
-  if (__Pyx_MergeVtables(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 169, __pyx_L1_error)
-  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA, (PyObject *) __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 169, __pyx_L1_error)
-  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 169, __pyx_L1_error)
+  if (__Pyx_SetVtable(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_vtabptr_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 170, __pyx_L1_error)
+  if (__Pyx_MergeVtables(__pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 170, __pyx_L1_error)
+  if (PyObject_SetAttr(__pyx_m, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA, (PyObject *) __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 170, __pyx_L1_error)
+  if (__Pyx_setup_reduce((PyObject *) __pyx_mstate->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA) < (0)) __PYX_ERR(0, 170, __pyx_L1_error)
   __Pyx_RefNannyFinishContext();
   return 0;
   __pyx_L1_error:;
@@ -12476,8 +13214,8 @@ __Pyx_RefNannySetupContext("PyInit_ula_accel", 0);
  * # cython: cdivision=True
  * 
  * from array import array             # <<<<<<<<<<<<<<
+ * from video import get_display_profile
  * 
- * from cpu.z80.memory cimport RAMBlock
 */
   {
     PyObject* const __pyx_imported_names[] = {__pyx_mstate_global->__pyx_n_u_array};
@@ -12496,94 +13234,118 @@ __Pyx_RefNannySetupContext("PyInit_ula_accel", 0);
   }
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":57
+  /* "devices/ula_accel.pyx":8
+ * 
+ * from array import array
+ * from video import get_display_profile             # <<<<<<<<<<<<<<
+ * 
+ * from cpu.z80.memory cimport RAMBlock
+*/
+  {
+    PyObject* const __pyx_imported_names[] = {__pyx_mstate_global->__pyx_n_u_get_display_profile};
+    __pyx_t_1 = __Pyx_Import(__pyx_mstate_global->__pyx_n_u_video, __pyx_imported_names, 1, NULL, 0); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 8, __pyx_L1_error)
+  }
+  __pyx_t_2 = __pyx_t_1;
+  __Pyx_GOTREF(__pyx_t_2);
+  {
+    PyObject* const __pyx_imported_names[] = {__pyx_mstate_global->__pyx_n_u_get_display_profile};
+    __pyx_t_3 = 0; {
+      __pyx_t_4 = __Pyx_ImportFrom(__pyx_t_2, __pyx_imported_names[__pyx_t_3]); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 8, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
+      if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_imported_names[__pyx_t_3], __pyx_t_4) < (0)) __PYX_ERR(0, 8, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
+    }
+  }
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+
+  /* "devices/ula_accel.pyx":58
  *         self.frame_samples = array("h", [0] * self.samples_per_frame)
  * 
  *     cpdef reset(self):             # <<<<<<<<<<<<<<
  *         self.current_level = 0
  *         self.start_level = 0
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_3reset, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_reset, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[1])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 57, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_3reset, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_reset, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[1])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 58, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_reset, __pyx_t_2) < (0)) __PYX_ERR(0, 57, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_reset, __pyx_t_2) < (0)) __PYX_ERR(0, 58, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":68
+  /* "devices/ula_accel.pyx":69
  *         self.frame_samples = array("h", [0] * self.samples_per_frame)
  * 
  *     cpdef begin_frame(self):             # <<<<<<<<<<<<<<
  *         self.start_level = self.current_level
  *         self.events = []
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_5begin_frame, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_begin_frame, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[2])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 68, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_5begin_frame, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_begin_frame, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[2])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 69, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_begin_frame, __pyx_t_2) < (0)) __PYX_ERR(0, 68, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_begin_frame, __pyx_t_2) < (0)) __PYX_ERR(0, 69, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":73
+  /* "devices/ula_accel.pyx":74
  *         self.frame_start_tstate = self.total_tstates
  * 
  *     cpdef run_until(self, int tstates):             # <<<<<<<<<<<<<<
  *         _ = tstates
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_7run_until, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_run_until, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[3])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 73, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_7run_until, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_run_until, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[3])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 74, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_run_until, __pyx_t_2) < (0)) __PYX_ERR(0, 73, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_run_until, __pyx_t_2) < (0)) __PYX_ERR(0, 74, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":76
+  /* "devices/ula_accel.pyx":77
  *         _ = tstates
  * 
  *     cpdef set_level_from_port_value(self, int value, int tstate_in_frame):             # <<<<<<<<<<<<<<
  *         cdef int new_level = 1 if (value & 0x10) else 0
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_9set_level_from_port_value, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_set_level_from_port_va, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[4])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 76, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_9set_level_from_port_value, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_set_level_from_port_va, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[4])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 77, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_set_level_from_port_value, __pyx_t_2) < (0)) __PYX_ERR(0, 76, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_set_level_from_port_value, __pyx_t_2) < (0)) __PYX_ERR(0, 77, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":88
+  /* "devices/ula_accel.pyx":89
  *             self.current_level = new_level
  * 
  *     cpdef end_frame(self):             # <<<<<<<<<<<<<<
  *         self.total_tstates += self.tstates_per_frame
  *         self.frame_samples = self._render_frame_samples()
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_11end_frame, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_end_frame, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[5])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 88, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_11end_frame, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_end_frame, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[5])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 89, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_end_frame, __pyx_t_2) < (0)) __PYX_ERR(0, 88, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_end_frame, __pyx_t_2) < (0)) __PYX_ERR(0, 89, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":92
+  /* "devices/ula_accel.pyx":93
  *         self.frame_samples = self._render_frame_samples()
  * 
  *     cpdef get_frame_samples(self):             # <<<<<<<<<<<<<<
  *         return self.frame_samples
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_13get_frame_samples, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_get_frame_samples, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[6])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 92, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_9ULABeeper_13get_frame_samples, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_ULABeeper_get_frame_samples, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[6])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 93, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_get_frame_samples, __pyx_t_2) < (0)) __PYX_ERR(0, 92, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_get_frame_samples, __pyx_t_2) < (0)) __PYX_ERR(0, 93, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "(tree fragment)":1
@@ -12613,223 +13375,208 @@ __Pyx_RefNannySetupContext("PyInit_ula_accel", 0);
   if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_ULABeeper, __pyx_mstate_global->__pyx_n_u_setstate_cython, __pyx_t_2) < (0)) __PYX_ERR(1, 16, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":178
- *     cdef public ULABeeper beeper
+  /* "devices/ula_accel.pyx":185
+ *     cdef public int frame_height
  * 
  *     SCREEN_WIDTH = 256             # <<<<<<<<<<<<<<
  *     SCREEN_HEIGHT = 192
  * 
 */
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_WIDTH, __pyx_mstate_global->__pyx_int_256) < (0)) __PYX_ERR(0, 178, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_WIDTH, __pyx_mstate_global->__pyx_int_256) < (0)) __PYX_ERR(0, 185, __pyx_L1_error)
 
-  /* "devices/ula_accel.pyx":179
+  /* "devices/ula_accel.pyx":186
  * 
  *     SCREEN_WIDTH = 256
  *     SCREEN_HEIGHT = 192             # <<<<<<<<<<<<<<
  * 
  *     BORDER_LEFT = 48
 */
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_HEIGHT, __pyx_mstate_global->__pyx_int_192) < (0)) __PYX_ERR(0, 179, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_HEIGHT, __pyx_mstate_global->__pyx_int_192) < (0)) __PYX_ERR(0, 186, __pyx_L1_error)
 
-  /* "devices/ula_accel.pyx":181
+  /* "devices/ula_accel.pyx":188
  *     SCREEN_HEIGHT = 192
  * 
  *     BORDER_LEFT = 48             # <<<<<<<<<<<<<<
  *     BORDER_RIGHT = 48
  *     BORDER_TOP = 48
 */
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_LEFT, __pyx_mstate_global->__pyx_int_48) < (0)) __PYX_ERR(0, 181, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_LEFT, __pyx_mstate_global->__pyx_int_48) < (0)) __PYX_ERR(0, 188, __pyx_L1_error)
 
-  /* "devices/ula_accel.pyx":182
+  /* "devices/ula_accel.pyx":189
  * 
  *     BORDER_LEFT = 48
  *     BORDER_RIGHT = 48             # <<<<<<<<<<<<<<
  *     BORDER_TOP = 48
  *     BORDER_BOTTOM = 56
 */
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_RIGHT, __pyx_mstate_global->__pyx_int_48) < (0)) __PYX_ERR(0, 182, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_RIGHT, __pyx_mstate_global->__pyx_int_48) < (0)) __PYX_ERR(0, 189, __pyx_L1_error)
 
-  /* "devices/ula_accel.pyx":183
+  /* "devices/ula_accel.pyx":190
  *     BORDER_LEFT = 48
  *     BORDER_RIGHT = 48
  *     BORDER_TOP = 48             # <<<<<<<<<<<<<<
  *     BORDER_BOTTOM = 56
  * 
 */
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_TOP, __pyx_mstate_global->__pyx_int_48) < (0)) __PYX_ERR(0, 183, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_TOP, __pyx_mstate_global->__pyx_int_48) < (0)) __PYX_ERR(0, 190, __pyx_L1_error)
 
-  /* "devices/ula_accel.pyx":184
+  /* "devices/ula_accel.pyx":191
  *     BORDER_RIGHT = 48
  *     BORDER_TOP = 48
  *     BORDER_BOTTOM = 56             # <<<<<<<<<<<<<<
  * 
  *     FRAME_WIDTH = SCREEN_WIDTH + BORDER_LEFT + BORDER_RIGHT
 */
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_BOTTOM, __pyx_mstate_global->__pyx_int_56) < (0)) __PYX_ERR(0, 184, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_BOTTOM, __pyx_mstate_global->__pyx_int_56) < (0)) __PYX_ERR(0, 191, __pyx_L1_error)
 
-  /* "devices/ula_accel.pyx":186
+  /* "devices/ula_accel.pyx":193
  *     BORDER_BOTTOM = 56
  * 
  *     FRAME_WIDTH = SCREEN_WIDTH + BORDER_LEFT + BORDER_RIGHT             # <<<<<<<<<<<<<<
  *     FRAME_HEIGHT = SCREEN_HEIGHT + BORDER_TOP + BORDER_BOTTOM
  * 
 */
-  __Pyx_GetNameInClass(__pyx_t_2, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_WIDTH); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 186, __pyx_L1_error)
+  __Pyx_GetNameInClass(__pyx_t_2, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_WIDTH); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __Pyx_GetNameInClass(__pyx_t_4, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_LEFT); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 186, __pyx_L1_error)
+  __Pyx_GetNameInClass(__pyx_t_4, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_LEFT); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = PyNumber_Add(__pyx_t_2, __pyx_t_4); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 186, __pyx_L1_error)
+  __pyx_t_5 = PyNumber_Add(__pyx_t_2, __pyx_t_4); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __Pyx_GetNameInClass(__pyx_t_4, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_RIGHT); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 186, __pyx_L1_error)
+  __Pyx_GetNameInClass(__pyx_t_4, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_RIGHT); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_2 = PyNumber_Add(__pyx_t_5, __pyx_t_4); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 186, __pyx_L1_error)
+  __pyx_t_2 = PyNumber_Add(__pyx_t_5, __pyx_t_4); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_FRAME_WIDTH, __pyx_t_2) < (0)) __PYX_ERR(0, 186, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_FRAME_WIDTH, __pyx_t_2) < (0)) __PYX_ERR(0, 193, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":187
+  /* "devices/ula_accel.pyx":194
  * 
  *     FRAME_WIDTH = SCREEN_WIDTH + BORDER_LEFT + BORDER_RIGHT
  *     FRAME_HEIGHT = SCREEN_HEIGHT + BORDER_TOP + BORDER_BOTTOM             # <<<<<<<<<<<<<<
  * 
  *     SCREEN_BITMAP_BASE = 0x4000
 */
-  __Pyx_GetNameInClass(__pyx_t_2, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_HEIGHT); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 187, __pyx_L1_error)
+  __Pyx_GetNameInClass(__pyx_t_2, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_HEIGHT); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 194, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __Pyx_GetNameInClass(__pyx_t_4, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_TOP); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 187, __pyx_L1_error)
+  __Pyx_GetNameInClass(__pyx_t_4, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_TOP); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 194, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_5 = PyNumber_Add(__pyx_t_2, __pyx_t_4); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 187, __pyx_L1_error)
+  __pyx_t_5 = PyNumber_Add(__pyx_t_2, __pyx_t_4); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 194, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  __Pyx_GetNameInClass(__pyx_t_4, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_BOTTOM); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 187, __pyx_L1_error)
+  __Pyx_GetNameInClass(__pyx_t_4, (PyObject*)__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_BORDER_BOTTOM); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 194, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
-  __pyx_t_2 = PyNumber_Add(__pyx_t_5, __pyx_t_4); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 187, __pyx_L1_error)
+  __pyx_t_2 = PyNumber_Add(__pyx_t_5, __pyx_t_4); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 194, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_FRAME_HEIGHT, __pyx_t_2) < (0)) __PYX_ERR(0, 187, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_FRAME_HEIGHT, __pyx_t_2) < (0)) __PYX_ERR(0, 194, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":189
+  /* "devices/ula_accel.pyx":196
  *     FRAME_HEIGHT = SCREEN_HEIGHT + BORDER_TOP + BORDER_BOTTOM
  * 
  *     SCREEN_BITMAP_BASE = 0x4000             # <<<<<<<<<<<<<<
  *     SCREEN_ATTR_BASE = 0x5800
  * 
 */
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_BITMAP_BASE, __pyx_mstate_global->__pyx_int_16384) < (0)) __PYX_ERR(0, 189, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_BITMAP_BASE, __pyx_mstate_global->__pyx_int_16384) < (0)) __PYX_ERR(0, 196, __pyx_L1_error)
 
-  /* "devices/ula_accel.pyx":190
+  /* "devices/ula_accel.pyx":197
  * 
  *     SCREEN_BITMAP_BASE = 0x4000
  *     SCREEN_ATTR_BASE = 0x5800             # <<<<<<<<<<<<<<
  * 
  *     PALETTE = (
 */
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_ATTR_BASE, __pyx_mstate_global->__pyx_int_22528) < (0)) __PYX_ERR(0, 190, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_SCREEN_ATTR_BASE, __pyx_mstate_global->__pyx_int_22528) < (0)) __PYX_ERR(0, 197, __pyx_L1_error)
 
-  /* "devices/ula_accel.pyx":193
+  /* "devices/ula_accel.pyx":200
  * 
  *     PALETTE = (
  *         (0, 0, 0),             # <<<<<<<<<<<<<<
  *         (0, 0, 205),
  *         (205, 0, 0),
 */
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_PALETTE, __pyx_mstate_global->__pyx_tuple[15]) < (0)) __PYX_ERR(0, 192, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_PALETTE, __pyx_mstate_global->__pyx_tuple[15]) < (0)) __PYX_ERR(0, 199, __pyx_L1_error)
 
-  /* "devices/ula_accel.pyx":221
+  /* "devices/ula_accel.pyx":236
  *         self.beeper = ULABeeper(self, tstates_per_frame=machine.TSTATES_PER_FRAME)
  * 
  *     cpdef reset(self):             # <<<<<<<<<<<<<<
  *         self.last_tstates = 0
  *         self.flash_phase = False
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_3reset, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_reset, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[9])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 221, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_3reset, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_reset, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[9])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 236, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_reset, __pyx_t_2) < (0)) __PYX_ERR(0, 221, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_reset, __pyx_t_2) < (0)) __PYX_ERR(0, 236, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":228
+  /* "devices/ula_accel.pyx":243
  *         self.beeper.reset()
  * 
  *     cpdef run_until(self, int tstates):             # <<<<<<<<<<<<<<
  *         self.last_tstates = tstates
  *         self.beeper.run_until(tstates)
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_5run_until, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_run_until, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[10])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 228, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_5run_until, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_run_until, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[10])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 243, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_run_until, __pyx_t_2) < (0)) __PYX_ERR(0, 228, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_run_until, __pyx_t_2) < (0)) __PYX_ERR(0, 243, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":232
+  /* "devices/ula_accel.pyx":247
  *         self.beeper.run_until(tstates)
  * 
  *     cpdef end_frame(self):             # <<<<<<<<<<<<<<
  *         self.flash_counter += 1
  *         if self.flash_counter >= 16:
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_7end_frame, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_end_frame, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[11])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 232, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_7end_frame, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_end_frame, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[11])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 247, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_end_frame, __pyx_t_2) < (0)) __PYX_ERR(0, 232, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_end_frame, __pyx_t_2) < (0)) __PYX_ERR(0, 247, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":242
+  /* "devices/ula_accel.pyx":257
  *         self.beeper.end_frame()
  * 
  *     cpdef render_frame(self):             # <<<<<<<<<<<<<<
  *         cdef int border_index = self.machine.border_color & 0x07
- *         cdef list frame = self._make_blank_frame(self.PALETTE[border_index])
+ *         cdef tuple border_rgb = self.PALETTE[border_index]
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_9render_frame, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_render_frame, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[12])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 242, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_9render_frame, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_render_frame, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[12])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 257, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_render_frame, __pyx_t_2) < (0)) __PYX_ERR(0, 242, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_render_frame, __pyx_t_2) < (0)) __PYX_ERR(0, 257, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
-  /* "devices/ula_accel.pyx":294
- *         return frame
+  /* "devices/ula_accel.pyx":318
+ *         return self.framebuffer_rgb24
  * 
  *     cpdef get_frame_samples(self):             # <<<<<<<<<<<<<<
  *         return self.beeper.get_frame_samples()
  * 
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_11get_frame_samples, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_get_frame_samples, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[13])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 294, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_11get_frame_samples, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA_get_frame_samples, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[13])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 318, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
   #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_get_frame_samples, __pyx_t_2) < (0)) __PYX_ERR(0, 294, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-
-  /* "devices/ula_accel.pyx":305
- *         )
- * 
- *     def _make_blank_frame(self, rgb):             # <<<<<<<<<<<<<<
- *         return [
- *             [rgb for _ in range(self.FRAME_WIDTH)]
-*/
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_13_make_blank_frame, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA__make_blank_frame, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[14])); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 305, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
-  PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
-  #endif
-  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_make_blank_frame, __pyx_t_2) < (0)) __PYX_ERR(0, 305, __pyx_L1_error)
+  if (__Pyx_SetItemOnTypeDict(__pyx_mstate_global->__pyx_ptype_7devices_9ula_accel_Spectrum48KULA, __pyx_mstate_global->__pyx_n_u_get_frame_samples, __pyx_t_2) < (0)) __PYX_ERR(0, 318, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
 
   /* "(tree fragment)":1
@@ -12837,7 +13584,7 @@ __Pyx_RefNannySetupContext("PyInit_ula_accel", 0);
  *     cdef tuple state
  *     cdef object _dict
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_15__reduce_cython__, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA___reduce_cython, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[15])); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 1, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_13__reduce_cython__, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA___reduce_cython, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[14])); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 1, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
@@ -12847,11 +13594,11 @@ __Pyx_RefNannySetupContext("PyInit_ula_accel", 0);
 
   /* "(tree fragment)":16
  *     else:
- *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x765179c, state)
+ *         return __pyx_unpickle_Spectrum48KULA, (type(self), 0x8eb6f93, state)
  * def __setstate_cython__(self, __pyx_state):             # <<<<<<<<<<<<<<
  *     __pyx_unpickle_Spectrum48KULA__set_state(self, __pyx_state)
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_17__setstate_cython__, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA___setstate_cython, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[16])); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 16, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_14Spectrum48KULA_15__setstate_cython__, __Pyx_CYFUNCTION_CCLASS, __pyx_mstate_global->__pyx_n_u_Spectrum48KULA___setstate_cython, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[15])); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 16, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
@@ -12866,7 +13613,7 @@ __Pyx_RefNannySetupContext("PyInit_ula_accel", 0);
  *     cdef object __pyx_result
  *     __Pyx_CheckUnpickleChecksum(__pyx_checksum, 0x4148ede, 0xb91fdba, 0x3fbbe4e, b'amplitude, current_level, events, filter_state_1, filter_state_2, frame_samples, frame_start_tstate, machine, sample_rate, samples_per_frame, start_level, total_samples_emitted, total_tstates, tstates_per_frame, tstates_per_second, ula')
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_1__pyx_unpickle_ULABeeper, 0, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_ULABeeper, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[17])); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 4, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_1__pyx_unpickle_ULABeeper, 0, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_ULABeeper, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[16])); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 4, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
@@ -12879,7 +13626,7 @@ __Pyx_RefNannySetupContext("PyInit_ula_accel", 0);
  *     int __Pyx_CheckUnpickleChecksum(long, long, long, long, const char*) except -1
  *     int __Pyx_UpdateUnpickledDict(object, object, Py_ssize_t) except -1
 */
-  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_3__pyx_unpickle_Spectrum48KULA, 0, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_Spectrum48KULA, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[18])); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 4, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_CyFunction_New(&__pyx_mdef_7devices_9ula_accel_3__pyx_unpickle_Spectrum48KULA, 0, __pyx_mstate_global->__pyx_n_u_pyx_unpickle_Spectrum48KULA, NULL, __pyx_mstate_global->__pyx_n_u_devices_ula_accel, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[17])); if (unlikely(!__pyx_t_2)) __PYX_ERR(1, 4, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   #if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX >= 0x030E0000
   PyUnstable_Object_EnableDeferredRefcount(__pyx_t_2);
@@ -12935,8 +13682,8 @@ __Pyx_RefNannySetupContext("PyInit_ula_accel", 0);
 
 static int __Pyx_InitCachedBuiltins(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
-  __pyx_builtin_round = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_round); if (!__pyx_builtin_round) __PYX_ERR(0, 45, __pyx_L1_error)
-  __pyx_builtin_sorted = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_sorted); if (!__pyx_builtin_sorted) __PYX_ERR(0, 120, __pyx_L1_error)
+  __pyx_builtin_round = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_round); if (!__pyx_builtin_round) __PYX_ERR(0, 46, __pyx_L1_error)
+  __pyx_builtin_sorted = __Pyx_GetBuiltinName(__pyx_mstate->__pyx_n_u_sorted); if (!__pyx_builtin_sorted) __PYX_ERR(0, 121, __pyx_L1_error)
 
   /* Cached unbound methods */
   __pyx_mstate->__pyx_umethod_PyDict_Type_items.type = (PyObject*)&PyDict_Type;
@@ -12956,179 +13703,179 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   __Pyx_RefNannySetupContext("__Pyx_InitCachedConstants", 0);
 
-  /* "devices/ula_accel.pyx":218
- *         self.flash_counter = 0
+  /* "devices/ula_accel.pyx":233
+ *         self.frame_height = self.SCREEN_HEIGHT + self.border_top + self.border_bottom
  * 
- *         self.framebuffer = self._make_blank_frame((0, 0, 0))             # <<<<<<<<<<<<<<
+ *         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))             # <<<<<<<<<<<<<<
  *         self.beeper = ULABeeper(self, tstates_per_frame=machine.TSTATES_PER_FRAME)
  * 
 */
-  __pyx_mstate_global->__pyx_tuple[0] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[0])) __PYX_ERR(0, 218, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[0] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[0])) __PYX_ERR(0, 233, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[0]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[0]);
 
-  /* "devices/ula_accel.pyx":194
+  /* "devices/ula_accel.pyx":201
  *     PALETTE = (
  *         (0, 0, 0),
  *         (0, 0, 205),             # <<<<<<<<<<<<<<
  *         (205, 0, 0),
  *         (205, 0, 205),
 */
-  __pyx_mstate_global->__pyx_tuple[1] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_205); if (unlikely(!__pyx_mstate_global->__pyx_tuple[1])) __PYX_ERR(0, 194, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[1] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_205); if (unlikely(!__pyx_mstate_global->__pyx_tuple[1])) __PYX_ERR(0, 201, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[1]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[1]);
 
-  /* "devices/ula_accel.pyx":195
+  /* "devices/ula_accel.pyx":202
  *         (0, 0, 0),
  *         (0, 0, 205),
  *         (205, 0, 0),             # <<<<<<<<<<<<<<
  *         (205, 0, 205),
  *         (0, 205, 0),
 */
-  __pyx_mstate_global->__pyx_tuple[2] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[2])) __PYX_ERR(0, 195, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[2] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[2])) __PYX_ERR(0, 202, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[2]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[2]);
 
-  /* "devices/ula_accel.pyx":196
+  /* "devices/ula_accel.pyx":203
  *         (0, 0, 205),
  *         (205, 0, 0),
  *         (205, 0, 205),             # <<<<<<<<<<<<<<
  *         (0, 205, 0),
  *         (0, 205, 205),
 */
-  __pyx_mstate_global->__pyx_tuple[3] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_205); if (unlikely(!__pyx_mstate_global->__pyx_tuple[3])) __PYX_ERR(0, 196, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[3] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_205); if (unlikely(!__pyx_mstate_global->__pyx_tuple[3])) __PYX_ERR(0, 203, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[3]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[3]);
 
-  /* "devices/ula_accel.pyx":197
+  /* "devices/ula_accel.pyx":204
  *         (205, 0, 0),
  *         (205, 0, 205),
  *         (0, 205, 0),             # <<<<<<<<<<<<<<
  *         (0, 205, 205),
  *         (205, 205, 0),
 */
-  __pyx_mstate_global->__pyx_tuple[4] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[4])) __PYX_ERR(0, 197, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[4] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[4])) __PYX_ERR(0, 204, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[4]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[4]);
 
-  /* "devices/ula_accel.pyx":198
+  /* "devices/ula_accel.pyx":205
  *         (205, 0, 205),
  *         (0, 205, 0),
  *         (0, 205, 205),             # <<<<<<<<<<<<<<
  *         (205, 205, 0),
  *         (205, 205, 205),
 */
-  __pyx_mstate_global->__pyx_tuple[5] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_205); if (unlikely(!__pyx_mstate_global->__pyx_tuple[5])) __PYX_ERR(0, 198, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[5] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_205); if (unlikely(!__pyx_mstate_global->__pyx_tuple[5])) __PYX_ERR(0, 205, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[5]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[5]);
 
-  /* "devices/ula_accel.pyx":199
+  /* "devices/ula_accel.pyx":206
  *         (0, 205, 0),
  *         (0, 205, 205),
  *         (205, 205, 0),             # <<<<<<<<<<<<<<
  *         (205, 205, 205),
  *         (0, 0, 0),
 */
-  __pyx_mstate_global->__pyx_tuple[6] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[6])) __PYX_ERR(0, 199, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[6] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[6])) __PYX_ERR(0, 206, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[6]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[6]);
 
-  /* "devices/ula_accel.pyx":200
+  /* "devices/ula_accel.pyx":207
  *         (0, 205, 205),
  *         (205, 205, 0),
  *         (205, 205, 205),             # <<<<<<<<<<<<<<
  *         (0, 0, 0),
  *         (0, 0, 255),
 */
-  __pyx_mstate_global->__pyx_tuple[7] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_205); if (unlikely(!__pyx_mstate_global->__pyx_tuple[7])) __PYX_ERR(0, 200, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[7] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_205, __pyx_mstate_global->__pyx_int_205); if (unlikely(!__pyx_mstate_global->__pyx_tuple[7])) __PYX_ERR(0, 207, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[7]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[7]);
 
-  /* "devices/ula_accel.pyx":202
+  /* "devices/ula_accel.pyx":209
  *         (205, 205, 205),
  *         (0, 0, 0),
  *         (0, 0, 255),             # <<<<<<<<<<<<<<
  *         (255, 0, 0),
  *         (255, 0, 255),
 */
-  __pyx_mstate_global->__pyx_tuple[8] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_255); if (unlikely(!__pyx_mstate_global->__pyx_tuple[8])) __PYX_ERR(0, 202, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[8] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_255); if (unlikely(!__pyx_mstate_global->__pyx_tuple[8])) __PYX_ERR(0, 209, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[8]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[8]);
 
-  /* "devices/ula_accel.pyx":203
+  /* "devices/ula_accel.pyx":210
  *         (0, 0, 0),
  *         (0, 0, 255),
  *         (255, 0, 0),             # <<<<<<<<<<<<<<
  *         (255, 0, 255),
  *         (0, 255, 0),
 */
-  __pyx_mstate_global->__pyx_tuple[9] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[9])) __PYX_ERR(0, 203, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[9] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[9])) __PYX_ERR(0, 210, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[9]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[9]);
 
-  /* "devices/ula_accel.pyx":204
+  /* "devices/ula_accel.pyx":211
  *         (0, 0, 255),
  *         (255, 0, 0),
  *         (255, 0, 255),             # <<<<<<<<<<<<<<
  *         (0, 255, 0),
  *         (0, 255, 255),
 */
-  __pyx_mstate_global->__pyx_tuple[10] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_255); if (unlikely(!__pyx_mstate_global->__pyx_tuple[10])) __PYX_ERR(0, 204, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[10] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_255); if (unlikely(!__pyx_mstate_global->__pyx_tuple[10])) __PYX_ERR(0, 211, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[10]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[10]);
 
-  /* "devices/ula_accel.pyx":205
+  /* "devices/ula_accel.pyx":212
  *         (255, 0, 0),
  *         (255, 0, 255),
  *         (0, 255, 0),             # <<<<<<<<<<<<<<
  *         (0, 255, 255),
  *         (255, 255, 0),
 */
-  __pyx_mstate_global->__pyx_tuple[11] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[11])) __PYX_ERR(0, 205, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[11] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[11])) __PYX_ERR(0, 212, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[11]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[11]);
 
-  /* "devices/ula_accel.pyx":206
+  /* "devices/ula_accel.pyx":213
  *         (255, 0, 255),
  *         (0, 255, 0),
  *         (0, 255, 255),             # <<<<<<<<<<<<<<
  *         (255, 255, 0),
  *         (255, 255, 255),
 */
-  __pyx_mstate_global->__pyx_tuple[12] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_255); if (unlikely(!__pyx_mstate_global->__pyx_tuple[12])) __PYX_ERR(0, 206, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[12] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_0, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_255); if (unlikely(!__pyx_mstate_global->__pyx_tuple[12])) __PYX_ERR(0, 213, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[12]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[12]);
 
-  /* "devices/ula_accel.pyx":207
+  /* "devices/ula_accel.pyx":214
  *         (0, 255, 0),
  *         (0, 255, 255),
  *         (255, 255, 0),             # <<<<<<<<<<<<<<
  *         (255, 255, 255),
  *     )
 */
-  __pyx_mstate_global->__pyx_tuple[13] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[13])) __PYX_ERR(0, 207, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[13] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_0); if (unlikely(!__pyx_mstate_global->__pyx_tuple[13])) __PYX_ERR(0, 214, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[13]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[13]);
 
-  /* "devices/ula_accel.pyx":208
+  /* "devices/ula_accel.pyx":215
  *         (0, 255, 255),
  *         (255, 255, 0),
  *         (255, 255, 255),             # <<<<<<<<<<<<<<
  *     )
  * 
 */
-  __pyx_mstate_global->__pyx_tuple[14] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_255); if (unlikely(!__pyx_mstate_global->__pyx_tuple[14])) __PYX_ERR(0, 208, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[14] = PyTuple_Pack(3, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_255, __pyx_mstate_global->__pyx_int_255); if (unlikely(!__pyx_mstate_global->__pyx_tuple[14])) __PYX_ERR(0, 215, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[14]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[14]);
 
-  /* "devices/ula_accel.pyx":193
+  /* "devices/ula_accel.pyx":200
  * 
  *     PALETTE = (
  *         (0, 0, 0),             # <<<<<<<<<<<<<<
  *         (0, 0, 205),
  *         (205, 0, 0),
 */
-  __pyx_mstate_global->__pyx_tuple[15] = PyTuple_Pack(16, __pyx_mstate_global->__pyx_tuple[0], __pyx_mstate_global->__pyx_tuple[1], __pyx_mstate_global->__pyx_tuple[2], __pyx_mstate_global->__pyx_tuple[3], __pyx_mstate_global->__pyx_tuple[4], __pyx_mstate_global->__pyx_tuple[5], __pyx_mstate_global->__pyx_tuple[6], __pyx_mstate_global->__pyx_tuple[7], __pyx_mstate_global->__pyx_tuple[0], __pyx_mstate_global->__pyx_tuple[8], __pyx_mstate_global->__pyx_tuple[9], __pyx_mstate_global->__pyx_tuple[10], __pyx_mstate_global->__pyx_tuple[11], __pyx_mstate_global->__pyx_tuple[12], __pyx_mstate_global->__pyx_tuple[13], __pyx_mstate_global->__pyx_tuple[14]); if (unlikely(!__pyx_mstate_global->__pyx_tuple[15])) __PYX_ERR(0, 193, __pyx_L1_error)
+  __pyx_mstate_global->__pyx_tuple[15] = PyTuple_Pack(16, __pyx_mstate_global->__pyx_tuple[0], __pyx_mstate_global->__pyx_tuple[1], __pyx_mstate_global->__pyx_tuple[2], __pyx_mstate_global->__pyx_tuple[3], __pyx_mstate_global->__pyx_tuple[4], __pyx_mstate_global->__pyx_tuple[5], __pyx_mstate_global->__pyx_tuple[6], __pyx_mstate_global->__pyx_tuple[7], __pyx_mstate_global->__pyx_tuple[0], __pyx_mstate_global->__pyx_tuple[8], __pyx_mstate_global->__pyx_tuple[9], __pyx_mstate_global->__pyx_tuple[10], __pyx_mstate_global->__pyx_tuple[11], __pyx_mstate_global->__pyx_tuple[12], __pyx_mstate_global->__pyx_tuple[13], __pyx_mstate_global->__pyx_tuple[14]); if (unlikely(!__pyx_mstate_global->__pyx_tuple[15])) __PYX_ERR(0, 200, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_mstate_global->__pyx_tuple[15]);
   __Pyx_GIVEREF(__pyx_mstate_global->__pyx_tuple[15]);
   #if CYTHON_IMMORTAL_CONSTANTS
@@ -13161,31 +13908,31 @@ static int __Pyx_InitCachedConstants(__pyx_mstatetype *__pyx_mstate) {
 static int __Pyx_InitConstants(__pyx_mstatetype *__pyx_mstate) {
   CYTHON_UNUSED_VAR(__pyx_mstate);
   {
-    const struct { const unsigned int length: 9; } index[] = {{1},{179},{1},{8},{21},{7},{6},{2},{9},{14},{13},{11},{12},{10},{12},{11},{7},{20},{16},{18},{13},{12},{14},{32},{34},{32},{24},{32},{27},{20},{24},{17},{9},{27},{29},{49},{21},{19},{27},{15},{19},{35},{1},{9},{5},{18},{11},{12},{18},{3},{17},{8},{5},{9},{5},{8},{17},{12},{1},{9},{13},{5},{3},{8},{7},{8},{17},{10},{8},{7},{3},{14},{12},{11},{10},{29},{24},{14},{12},{3},{10},{17},{13},{12},{5},{3},{5},{9},{11},{4},{25},{12},{10},{12},{19},{6},{5},{8},{15},{7},{17},{3},{6},{12},{5},{6},{11},{7},{21},{52},{314},{28},{84},{86},{71},{25},{37},{9},{14},{311},{167},{57},{55},{11},{8}};
-    #if (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (1761 bytes) */
-const char* const cstring = "BZh91AY&SY\237\242p\232\000\000\367\377\377\377\377\376\367\376\237\377\375\377\377\377\361\377\377\377\367\300@@@@@@@@@@@@\000@\000P\006\005\252\253`\305J\022*\230\006\tPH\032)\240lL!?E=\002f\243O\"z#\321\250\332OMOP1\033\325=L\324\304\365\014OM\014\223#O\020\236PJ!\r\000&\223\302\236Q\246\23154M<\2204i\223&\200\032\006@\032\000\000\r\007\250\006\200\tM\020\232L\224\236\332H\306\244\331\252z\217SG\232D\006\206A\352\000\320\365\000\320\000\000\003\324\032\036\241\352\036PA\200\002`\000&\t\200\000\000\000\002`\023\001\014\000\001\030\000\000 \300\0010\000\023\004\300\000\000\000\0010\t\200\206\000\000\214\000\000/\010@\360\216\264\000\330\204\240\263\372\265l\270\177E\244\353I=\322i\324\253\275\315\322\371\367Q\353de\226Ye\355\252u>\356\2370\303\0148\272\010\274$\261\257\271V\371\376\001tK\227.\\\272\210?\247u\353;. \307`\221j*\255AU\004\025QUU\005\025\010\345\202X\215F\351\022<T?\341&\004\232S\0231K\\f\334\350m\234\352\2610\276n\0275\310A1\016\021o\222Z\244\0321ER1\314iGwI\032$\215'x\370\206\2762\025\035-l\262\376\225j\250%9;B\024\251BM55l\257'\335\360I\270\270w\370}o\317\213~_\324E\312w\366\343\371\236f\262\030d\332\250\244\277\013Gxw\334\251\201\010\305\033\224{q\252\310\342%\323\rd\325(\320\305`\3578w\365\365\314\226\335\210\352\323F\257\310\265\2706\371\311$l;\245\241\307H\207\317\243ck\035^c7\374?$\273\321\353\270m\306\n\261\270\334\367\375\216\330\204\317\r\002\316\254c\273\210\272\374\262\334f(x\361\326\303\024\026\362\203\241\241n{y\263\360\226\323\275\352\243\314\027?\360f\014i\310\261@cG\324\253\367\370\"\240QTAH\005\244S\013\244\355\036\027\317E\304\311B\007n\367\032\345\016\033\003\264i\310\256\305\303\253\020]\332<`\307\355UJ\013a\271\031\215\t\3056\022C-\221\034Y\322D\032\321\344Gi \263\016C<\306\364\361\034\341\017\257\221\004'\321\215<\215L\265N\021p\277z2\224(B=\221\357W-\032\351i\255\251p2\354\2321Su\230\321\303\326I\203\360\t\2463\326\207\223OL\362\034A\230X\232\327\234g9d\265\332\354\333\263\016^w\315K9\207)\263+\272u\334\3737S*\324\273\220\016""\244\347:\363\014)\246\027\230\022\227\360T7_,x\354\307\006-\337\301e\226\334\370\206\365/\332w0w\323\307\311d\221\250\356=\226@\317\346\203\215 uW\324\224\177:\324$\2718\367\254\221\237a\345\272iAH1\304t\307i\331|\rx\270\374)\332\361\026\264\245\016\264\213;\024\325,g\275\017\\Q\214@Q5\025\360\016\302N\256N\350MQ\235\234x\345'!\212e\214\242\177\347\366\251\251\330\273\213\332\007\316*\022\252\212\2012\023z\374\370N\2673\233\006\3652\201\211%\246\216\225%\333\350\347\356\255\326\342rsi\217\033r\321\017\032Z\306cf\357\352\363\200\"\354m\313<\330\365\336g\245\006h''lS1\304\373\344q\025r\241\010A\034%7U\301\306\273)x\251\273A\246\2534]c\321\321\324A\303\003\204\2731\230[\364\315\257\034rCK$\363/\223\345|\212\037\232R\022I*Y@\2572\221v\235\303\034x[q6.\216\212!\037\034\316\300\207\226\372\014\305O\230\251\264o\016zD\344A\265\242\017\005\232\227F:\211\205GP\262\242\213dI\245\024ET\215V\007,D\323\021\343\307n\256n]\010\313\236\200J\244\225\301h\341\203\266j\326\275\034\311r\253\346\032\211\275\325\340\247p\310\351`Y\032m\253\367\t\315\022\300H\367R\3516=\216\252\331\"ai\004\346\206\021-\234%\3476\373\345\346\n\226\235\263Y)\033\"\215T\3109e\205#%s\276%h\356\026d\325\2331*\035;\232\001\204\206\245\230VVJ\327a$\n\326\203KS\024\2725\240\321S2*\211\266\255hc\255\032\226`6m\223g\310\255\022\035\250\255\204i\215[\027<\216R\333g\256\036x\205\210\206\323d\0270\215Hv\251j&\270/\350Q\2418U<\241\335\313\207/tT\200e6\372\"5\226\327i\223\222\222\354\315\024{$I\014c4B\304\200B#\\\367VaLo\305\210n\2529U\224\204>\017)\231 \311\312\251\t\260Z\313k+O\031,\035\233\027g7\026\316Z\307D\336\311)w*o\026\332m95\252`s\034\210b\345\220\005\201\222\310H\323:\245a\251\021\311>$\354\241e\327\222f\035\210\2071D\326\035\221\260\032\374\263.\034\227\231\230\315<\003?\353\237\013\037\236\361\006*i\236\304 sbR\256\r\376'\220\227\252\014\3302\362\353\212g\334\205@_\006\326t\263E\226\332x\233\242C\220\016\316g^\376\302v\335\236\255\037\357Z\265\315\331\3527S\034;\305q\007a\215\341\034\001\263\371J\004&\261""\224m\007\313l)RI\302ak\225\323\274-k\023\255T\324\037\212\370\266\256.\263\220\301J![\324\263\356.@F\327I\301\226\236d\3638UCp\211\214\245$\213\204\263\234m'TR/\3600D\270HI\342\004\313\274\264p\261\221h\343\024\225')cR\315-T\306L#J\201\302\262F\334\250\321\370\265\222\264\212i\247\225k\031\215\310\232\231\321dZ\304a\252\274f\372\312\331\321\313\035\371\222&5\207\273\031l\320\231l\317.lG\037\226\360\264\232\211r\031\344\237\273\034\372\227\347I-#\350)\225'\003\253T\204\304\237\021z\037\215\350\363$\273\006\354\341GcF\226l\336\2158\020,Q\360}(\215\232\020J\370\374\372\031sh\303\275\317\003*`\352\314\362\274m\247\nF\033]\030\364\371s3\304#\336\202\240\357 \324\323&O3o\345L\311b\0342\236t\232\017s\3108\265\346\351\362{\016;\355\374[\025\233\356O\363\237\210[=\242V\302\225e\271gxq\2359$|G\213\031R\232PR\024\235\307v\230\344\210dC\224\242\241(w\202\304\364z98\224\310zE\220H\245\024\215\254e\306\364%\003\244\234\\\n>{\214_\370\273\222)\302\204\204\375\023\204\320";
-    PyObject *data = __Pyx_DecompressString(cstring, 1761, 2);
+    const struct { const unsigned int length: 9; } index[] = {{1},{179},{1},{8},{21},{7},{6},{2},{9},{14},{13},{11},{12},{10},{12},{11},{7},{20},{16},{18},{13},{12},{14},{32},{34},{24},{32},{27},{20},{24},{17},{9},{27},{29},{49},{21},{19},{27},{15},{19},{35},{9},{5},{18},{11},{12},{18},{3},{7},{17},{8},{5},{20},{9},{5},{8},{19},{17},{12},{1},{9},{13},{5},{3},{8},{7},{8},{10},{8},{7},{3},{14},{12},{11},{10},{29},{24},{14},{12},{3},{10},{17},{13},{12},{5},{5},{9},{11},{4},{25},{12},{10},{12},{19},{6},{22},{20},{21},{19},{5},{8},{15},{7},{17},{3},{6},{12},{5},{6},{5},{11},{7},{21},{53},{431},{28},{84},{86},{72},{25},{9},{14},{311},{266},{57},{55},{11},{8}};
+    #if (CYTHON_COMPRESS_STRINGS) == 2 /* compression: bz2 (1937 bytes) */
+const char* const cstring = "BZh91AY&SYV\221m\314\000\001#\377\377\377\377\376\377\376\237\377\377\377\377\377\377\377\377\377\367\300@@@@@@@@@@@@\000@\000`\006\202r\254\201\217\231\251(\240\340\030\022\210\246\224\364\332(\362\236\2322\032\215\251\344\r\010\364\214C!\265\032z\214\215\030\324\321\246\236\246\002i\223h\t\223\002\r\251\211\345\004\242\020\320\000#@\021\251\344\232i\033SCA\241\240\000\310\000\006\200\000\000\003L\200\r\020`\t\204\300\230L&\230&#\000L\001\032\0310\t\200\000\000\021\200\230\000\000\032dBe2\232\231G\352z(\364\365'\351F#\032\236\240\031\017F\246\232\000\0000\214\214\203M\003\004i\210\001\243j\020`\t\204\300\230L&\230&#\000L\001\032\0310\t\200\000\000\021\200\230\000\000\032\232\251\350\365LF\2154\300&\2320\206F\230\214!\210\323C \320\310\310h\311\220\310\031\000\000\0004*\240\201XKh\"|\321T\024\016\036>E\346\246s\234\374\303\305:T\304\306\344w\334\363;\343\365\323\245\257\303\271\371\350\255B%i\360\314\353\021!\302\207\n\034(p\241\304\353\304\247\363\321\320\245\251\265'\177\213\255a\306\353\367_\272\375\332\307]\201P\022\250\247/\322\226\325|\273b\240\257^\275{\324\271%J}-\255\266\356\211Ri\n\032\202\250\200\252\"\252\252\n(\221\311\005q\034g\021k\343\024:\342\252\002\250\220B*\004R1\000\355\371\304\233\036\204\t7=\2012L\242\204\002\216Ag\226j\244\032\021\004\240j!F\3261p\002\256&&08\033\270\366\024\"w\370\370\230c\255\261\332\303\322\r\240\021\221do)R\220\32428c\021\306\374\350\332\377\307\305\257\316\375\177\276\\v\336\234\010\356A\375\3173Y\0142^TR\231\357\033\321\304\230\340\306\254L\r#\024v\242H\244Us\340\"]]\375\325\276mp\270A\222\026\200\337\327/6a\243u\303\340\226\276\237P\352vx\033\242[v\221:\350%R\037V\354\033Y]\205\235r,\341p\230\272n\030\323\211Z\365n\217\237\337\355\220%y\244\231\214\202\326\265\202\220 \266`\203\207\261\2569\240\372\261\301\310!wr\26354\343Y\323\037\365/\362\224\367\013m<@\267\363\247&H\362t\366E\256\2200\355F\241\330\025\001\212\306{\353\023\271\006\000\331\027H\204\007\337'\027\350\034\253\203\250l\320Wp\271s/~\360\311\322< \321\371""\252\245&8pFh\2459\231\347\315,S^\363&\234i2\016il\322\222\035D\213\024\207X\305A\275O\332\362|\234\324\017\301\273\272\300\205{*\rV\372\316G\337X?\205\360@\362\304*IM\220\360\313\262\371\351\340*i\300\324\224\313\252v\265B\315\033\316eX\372I@uB\211\361Z\207\213Y\320<G\020\\,CZ\363\217\262Y0v\353s\333\233\212\347\315K9g\013fWt+\306\373Mf\212\32598t\321;\332\016nC.Z\252\205\345\023\032\366]\227l\033#\036\\r3\2158$\333,\253\266\037\327+\240d\310\215\207\322\315[\030\\\306b\247n\260F\242AR\216\314\275\200\0231\200\t\273R\027o\275\220\333\346\361\347\003[:\215\201\270q7\030;\354\211\201J\034S\r\200\242\332\225R\206wtq\211\20118!\313\316\221Q\346\204\000\221k\316*\300\016\300\227/\211: \265\202\313\226\361\200\224\3607\004\251\366\375\331!\250\263\006\210\t\023\202\002\310\304`D\005\231\202\231\320f\240\301 \\{p\002R\"TB\0009\221__\266\200C\000\316\003\204\001\316c\213\010(\035\030f\345K\000\3044]=\260\r,H\0063\317A\237\312y}\0103Y1+b\363\030\342~A\034E_\354!\n\"8Jr_z\356\242!SL\346\3656j\\t\330F\212\220I\266\262.\010\033\024\"c\264\264\\;\355\221\356\321\237HlBT\206\007s,\205\344I$\231L@\024\236\235\"\331,\301\273\232V\274I\205\357w\021\220^d\303\2231\014S\225\025E.E\251\324k\0264{\332\210EZ \324\025Rj]\030\226\206\000\264h\034LA\322\243g\000\206%\252L\240\320_x\256\246\306\267\201\376\356\266j\310Q\231\254\352\251d\tgB7\333\315\351\342\350\266Rk\252\035\233*\326\317\275\313m\366\226\354f\034Y\215NY\316X\272VZJ\215\371\240&\215\326:n\027\261\312a\034,v\372\247(\310]\2049\205K\017\344x\312\315\361\233bs\n\225\255\006\217\"m\361\353\320\327\254\210\306\003\334\267\321\232!\204\310\027\r\234!\230\t\220\325\254\353Y<Y\000H \0333\213\262XF\305\323\021\2570Q\352A\274\370H\240b`2N\t3\027)\rH\221\\\327\336\204C\214\264p,\026K\002\224\346\267e\365\333\0379\002@\215\020\275\323\212\342\361\034\204o\302\307\"m\205\324S\267\222\246%g\216v\014\033\007\033Te\210!\226}\310#Y\205v\t\235\311I\205\255\024{,N\250\304\025Fi\246v\rA\274\303DaI\351\246\031\013A+\000\035n\024Hcr\211\2365R""\245\306\273\251l\344\245h\366\221X\304I\266@\301y\013\0270\311F\267A\306\246\223^3\023\202\225L\207\013\221\014\316\205\355\220\005\211\227:F\227*X\033\310\216H\363\020E\t\211\344\344\360\010\231\266\265\010 aM\033\360H\254\347\246\360k\312\177\330\344d\306\244+\202\340\335\325\331dO\304e@b\242b\236\324 sbR\256F\255O!0T%n\341\270\261\006\226\250\013\220\315\2067s\355I\263\302\236\006\221!\316\004\344\026\226\257\025\205\033\034*\353\350\345Z\375~\351\242\264n\034\2672^l\t\264\024v\325\020\334.\312)\231\240\230\230\246\351be\037u\326\032\326\213CH\236E\031\225\275\322~\022\311R59\376\242\215j\177M[\225\342\342fY\306&q\035V=\213\016B\202\234\366\002G?)b+\212\205\326\310g\325blk\376\313\205b\314og\2738\310Y+zN\3065\232Z*Q\274\324\331\241j\306\250\3312_r\353\227\271x66\246\024\212_\313Q\343\337\006>\330\335U\327\301%\233\266\230\033\201m\275*L\246?\304\301\360\363\0361\241O/\304Z\327\366\226M\276\003\316\301N\310\360\331\350\332\032B\225\302\237\333\345\026\005\354\332\372\261\2723G/;\307z\236\034x$g\363g\037\353\006\013\016\270\235\242c`N\233\010\272#]m\335\2637\024\3130\243\233\021\374\225<\2253*\360\021{k\270\\>\364\016\347Ju\306$\217\307,Z;\367\030\010\006J\031\345\304\317A\177=/\242\315\274\230\372c\331\021l\2128\370x\275Q\265\347\031\305\177\003\323\220\232\247\005(\370G\330\212,9\234d\271\034?\020j\211y\023\242\315|;\007\201'0\23582\200B\020\013\262\007\313\231\234\335'\024*y]\t(\245\025\320\256\023N\360\342\005$`F|\006\004\340\210.\212\010\220A)\022\233h\257\244m\336-\377\213\271\"\234(H+H\266\346\000";
+    PyObject *data = __Pyx_DecompressString(cstring, 1937, 2);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (1625 bytes) */
-const char* const cstring = "x\332\235TKw\323F\024\306\216R\322\306-v0\207\226\323\200\034\302\341\234B]\334\006\222R\016\255\3358\204\002\211\037\"\241,\230\216\245q\254Z\226\034=\222\270'm\263\364RK-\265\324RK-\263\314r\226Z\372'\360\023zG\262\035'\201M\027\322w\037s\357\334\373\315\235\311oh&\341\315\0266\371_{fKSy\331\340%\242\310\r\242c\223(=\3360uY4\211\316\026\251|\245\\\371vie\211\307\252\304\353\344O\"\232\006oX\rQ\301\206A\014^k\362\rKVLY\345\315^\227\030y\376y\223\357i\026\257\022\"\361\246\306wa\335d\200\331\"*o\020\223\t\374]\254\252\232\211MYS\021\204\313\352\316]^\222u\330D\336#,z\r+\006\311\377\214%\t\301B\"\221=Y$\306w\226\202\021\026E\242\344\273\275\003I6pC!De\377\035Q6bIz\302\032Qw\014\315\322E\362\264\264Y[-\327PiS\0206_\r\225\227\3455a(\326\236?[\037\311\302fe\255V|UF\353ef\215\345\355\347\253\302z\245\370\262,\010e\204*\275\003\370V\201'\264A\016\314\032i\326\177\255\225\313\033\250(\010\260I\261^\036\352\245\347\302\253be\322\022'\035*Q\326z\027\032\326\255\316\322\312\213\327/\213g\265<B:\221,\221 1:-\204.\370\201L\0038\374\370\212\016n\023\324P\260\332FM\035w\3109?Q\245\017\332w\210\031\333\221\201;]\205\030\347\374:\004\022\375\203\241:\201\242\316\333,\025Y\252)+B](\n\345:\252\000\325\021\267\340-\021\322%\372X\270\330\365\244\353B\303\023\316\311\242Fu\347\237(\232\010\203\364\024\004\334iH\370\351i@\203\354\310j\274\374\3248f\344\324t\201\214SW\324\354\204:\352\363\324\004~\244\220=\242@\n\255\203\272\232n\242=\254X\004\261\\\262iI\004\353:\356a\243\247\212\262\226\0275]\263\340J\021c\242\274\206\246\263\316DM\321tQ\001'\002\217\251c\2214\260\330\026\273\326\360r\344\307\227\003!\211\rh\014\343\236\240\016\025\214MK\025\021\272\320Vd\212\331E-Y\205g@\267\272&\222\r4.J6I\307h\223\336\210\314\016\026[\254\034\2303\250\010]\0307\260h\222\245\000\"\244F: \331G\300C\027~p\223\304\026\021\333\206\325\2115\340\323R\314X\036V\302D\366\274\304\222\245ve\261\r\t\317N\3309\347\230\376\330\276g\262G\201\355\275ka%\256\003\252\033\017\032\2720rc\0039@g\346*:p}\247\001|\250\322""\370\270c\002\021{D\r\2424?~\346l~\207D\200$\221&\216\332\035O5\372\300\204\033\020N\244\241\0376\200\365\303\025\243\361\210Uc\010\250;*\026\246\301\352J`\263\0142\316\033\025\022\375\214\243D\310\335\367\212\336\226_8*\2063\251~1\002\232\372\332\211\324g\366c\247\352\340\263\306M\247\020\251\363N5V\227\350\255\202?\347\377\340\213A&\216z\344dX\014\357r\356\272\267\021,\004\240\334p\026\351\315\007~\302\317\372o\202j\200\337/^\372\364\363~\331\276fc\333\204\224\251\233\216D\027~\0142\301\355\240\026\354\206\260\335*\345\277\367\027\375F0\025\374\0204\216\271\343\3221\016SY{\325I\271%\027\304/\235iV\337 \225\266?s\3568\273n\"LC\032w\321%^\201\336\177\022\224\002\034\246\257C\376%\307r\213\356;\377{\277:H\337\200\265\272\233\t\323\363\316k\367\266[\367\222^n\220\276j?t\222N.\314\336rv\303l\316\315\014\322Y\273\354\3149\217\334\254+x\2310{\203yo:8\314\362\356\264\033%ZtZ.vw\3034T\353\316x\t/\312*\270\363\236\350_\017\222A\216%y\346<t\023\260\037\204\245\274U?\351/\370k\021)Y\340\320i{s\336\262\177/xwR\030\314\\\351\357\036\rY^\2022@\370\315\306\021\335\013\320\325\350$\306\324\027\316\256\310Mxi\352\216\033#\253x\022Y\3279\367!\024{\315\223\374\034\3139\357l\271\217\240\216\237|<\230\231\355?\266\353\016\007\247\235\272B\257\334\212\251b\31139w\316]b\335F\3050\332/\333\373N\303\345\350\342J\220\244\217_\234\3009\246i\032\310\033V\032\3559\333_\352\377\353\210\220f\350\004\264\2578&\3135\200\006\326\341D?\213\212\217\332\376\333;\035\276q\032i\334\234@s\313~\304\022\220\025\246>\357\013v\326~\035\035?\347\026Y\352iPs\214\277x\221i\027F\3022\275\001\363~\224x?si\372\013\010\374\232e+\300H\376\036H\264T\247\365m\272\335\242-\205*\207\357/]\372;QL\002\024\223[\014\266\222o\031\274MJ\014\244d\213A+\271\307`/\371\027\203\277\222\033S\000\033S5\006\265\251?\030\3741%1\220\246\016\031\034N\375\302\001\374\302U\030T8\201\201\300\265\030\2648\205\201\302\025\247\331\266\323e\006\345\351\265\351\220ct\024\3545\347>\214=w\371h\257\277\r\243\231e\007=g\0031\327m \222\315\371\212""\273\354\335\361\014\2705\332\361\366I\231V\005*\274\241o0\305\320V\207v\272\264kR\263\307j\0355WJ\262\2140kp\330\337x\213\036\366\366\375\366\361\365\223\304\340\254%sJ\333W\354.\347ax\362p)7hm\213n\021Jd*\033\324\330\247\373\007\377\247\336\316\361\362\311\235\023#J\206(j\322f\233\266U\252\352T\207\224\377\320\177\376=-\363;\317\364\013\376\263\340\247\343\235\223\352\340\254\005\037%\006\034\\a\312?\360gAo\323j-\344\256\332O\335/\275\214\227cI\016\355e\270\3113\360\030\321B\3518O+\325\220\233\355\027>\022\370\243\263\016OGu\"\360\236W\360^\006_\300c\024\207\205\334]w\327\373\004x\272\351[A1\250\376\007\330\223_\305";
-    PyObject *data = __Pyx_DecompressString(cstring, 1625, 1);
+    #elif (CYTHON_COMPRESS_STRINGS) != 0 /* compression: zlib (1751 bytes) */
+const char* const cstring = "x\332\235TMw\333\306\0255A\252Q#\325\242\034\372(u#\007\224\345\343s\022\227\t]\331\262\035\327\r\031Q\226jY\374\020d\245I\352\311\020\030\211\250@\000\304\207,\3468\255\226\\b\211%\226Xb\211%\227Z\316\022K\376\004\377\204\274\001 \212\222\342My\016qg\336\233y\363\336}w\246\264\255Y\204\267:\330\342\277\353[\035M\345e\223\227\210\"\267\211\201-\242\364y\3232d\321\"\006[\244\362\215Z\343\257+\217Wx\254J\274A\376CD\313\344M\273-*\3304\211\311k\373|\333\226\025KVy\253\257\023\263\304o\356\363}\315\346UB$\336\322x\035\326Mn\260:D\345Mb\261\001\177\017\253\252faK\326T\004\333e\365\340\036/\311\006\034\"\037\021\266{\035+&)\375\003K\022\202\205D\"G\262H\314\257l\005#,\212D)\351\375cI6q[!De\337\003Q6\223\221\364\214\025\242\036\230\232m\210\344y\265\336Z\253\265P\265.\010\365W\351d\253\266.\244\303\326\346\213\215\263\261Po\254\267*\257jh\243\306\254\311xosM\330hT\266j\202PC\250\321?\206\377\032\360\204\266\311\261\325\"\373;\337\265j\265mT\021\0048\244\262SK\347\325M\341U\2451iI\202\246\2238\352\216\016\005\033vw\345\361\313\335\255\312\305Y\t!\203H\266H\220\030w\013\241+~ \323\004\016?\270\202\250\022\3327p\227\\\262\037\020+\261#\023wu\205\230\227\374\006l$\306\357n5\010\034z\331f\253\310V-Y\021v\204\212P\333A\r\2402\346\016\274UBtb\214\007W\253\232t])h\3029\231\324Y\336\245g\212&\202P\236\303\000w\333\022~~\276\241M\016d5Y~n\0343rn\272B\306\271+.vbzV\347\271\t\374H!GD\201\020Z\027\351\232a\241#\254\330\204\205\222-[\"\3300p\037\233}U\224\265\222\250\031\232\r7\206\230\023\331\2655\203\025&j\212f\210\n8\021x,\003\213\244\215\305CQ\207 \373\330V\254\364\n\224\306W\000!\211\3110\001\270\013\272\202\373H7\264}Y!H\205\310\343j!C\025\026\356\333\252\210\020+\370\322\352+\034\304\253\222V\240\216\254\302\233`\330\272\205d\023\215K\220-\3225\017I\377\214\371.\026;,y\324\305\220?\374\272\232dC\"\360c\271\304H\336\"\340H\207\017\334\"\261C\304C\323\356&3\340\032jL\306\351\301l\310\236\226dd\253\272,\036B\300\213\352\273\344\034\267&\261\037Y\354A`g\367l\254$y@\235c\021\242+r""\034\033\3101\272\240\271X\014P\273*\215u\220\220\205\330\353i\022e\377\203b\210\205\235\262\000\243\264\237\023rG\277#}\023\266\023\311L\213E\251J\332\232ei\335\313V\205\354[\227m\206|\320\271b\2644==\021R\206\014\3223\317\244\230L\315\024\220~V;H\316\326%\260\331&\031g\032\227\026\177\314#Y\"\332I&\312\335\367+\376\353\240|R\211\246g\007\225\030\350\354gn<}\341<u\233.\276h\254\273\345x\272\3506c,z\005z\367\357a+4\207w\206\315d\333#w\236m\342\275\234\267\341o\207K\341xR\361a\311\242+\320\342\223p>,\276_\276\366\307?\rj\316M\007;\026\004\236\275\355Jt\211\271\356@\304^\004\207\256Q\376A\260\034\264\303l\370\267\260=\314\r\253C\034\315\026\2345w\326\253zx4\233w>v\357\272=/\023\345a\267\267\354\021\277L\357?\013\253!\216\362\013\020v\305\265\275\212\367&x\0204G\371[\260\326\360\346\243\374\242\273\353\335\361v|\316/\216\362\2378\017]\316-F\205\317\335^T(z\363\243|\301\251\2717\334G^\301\023\374\371\250p\213yo\2738*\360\336\224\027\007Zv;\036\366zQ\036\222\364\246\375\214\037G\025\274E_\014\026B.,\262 /\334\207^\006\316\203m\263\376Z\300\005K\301zLHa\331[\367\227\300t\035\252\2329}p\272K[\002\025v\243\302\202\323\213>\375\213[v\353\376jP\014\312\311d\0132\275\353\277\rp\320\273b\030\245\313\237\004\225\2409\351\355\207\231p\376\212a\224\364\355f\234\375\364\334\300r\322\376\327\201\253\036\033\374\323\301qs\227\200\316\263\376'\rO\373?\261\242xA\016w\275\004\031U\223\310\350.z\017\201\245\233\276\024\024Y\314E\367\265\367\310\277\341\177\023\340\321\364\314\340\251\263\343\346@c\263st\356\363\244G,\370|\321\273\341\2550\232\343dX\277?r\336\272m/G\227\037\207\034}\372\362\024t\223\247y\350Z\232i|\346\314`e\360?W\2040\251\023\320\231s-\026\013\010\030l\200\202>N\223\007\r{\377\016\212c\315\217\343H\343\352@\261\253A\2179\306|\261\301*\275\0057\350$\363~\372\332\324\365\201\340|\306\026\226\203B\360\257P\242\325\035\272\263G\367:\264\243P\345\335\373k\327~\315T8\200\n\367\232\301k\356\007\006?p\022\003\211\3530\350pG\014\216\270_\030\374\302mg\001\266\263-\006\255\354""\317\014~\316J\014\244\354;\006\357\262\337\346\000\276\3155\0304r\002\003!\327a\320\311)\014\224\\e\212\035;UcP\233Z\237\212r\254\322\262\263\356\336\367p\224\373\350\344h\260\007z/\260&\336p\240f\320\340h\232]\236\307\336*\310\306\204\033\250\r\367Nk\264\t\032\375\236~\217)\206\262\272\264\253S\335\242V\237\345zV\\\225c\021\231\262\350\334\027\376\262\217A\244\207\303\205\323\314\350\242e\376\234\266?\273\313\364v\t\204Q\202\013^\217Y\223\250\004'\034\323\343\204\270\227,\366K\256\316\240\316\275a\360\206k3hs:\003\235\263\030X\334\006ce#\273\305`+\373#\203\037\263\210\001\312\312\014\344l\227A7\253f\377\017\036\350\243\315\323\005\332\330\245\273@\303O\364'B\tt\267G{@\003d\373+D\376o\246\306R\251q\353\023L|\345[A9x\021~3<8m\216.Z\360If\224\203\247\207\362_\00730?\244\315V\224\373\304y\356}\352\317\373E\026\344\235\263\n/\320\364\327A\206\226\253\303\022m4\243\334\314\240\374\201\215O\334\rx\362\232\023\033\277\364\313\376Vx\035\336\316d[\224\273\347\365\374?@+n\007vX\t\233\277\001]:\273\303";
+    PyObject *data = __Pyx_DecompressString(cstring, 1751, 1);
     if (unlikely(!data)) __PYX_ERR(0, 1, __pyx_L1_error)
     const char* const bytes = __Pyx_PyBytes_AsString(data);
     #if !CYTHON_ASSUME_SAFE_MACROS
     if (likely(bytes)); else { Py_DECREF(data); __PYX_ERR(0, 1, __pyx_L1_error) }
     #endif
-    #else /* compression: none (2920 bytes) */
-const char* const bytes = ".Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.?add_notedevices/ula_accel.pyxdisableenablegcisenabled<stringsource>BORDER_BOTTOMBORDER_LEFTBORDER_RIGHTBORDER_TOPFRAME_HEIGHTFRAME_WIDTHPALETTE__Pyx_PyDict_NextRefSCREEN_ATTR_BASESCREEN_BITMAP_BASESCREEN_HEIGHTSCREEN_WIDTHSpectrum48KULASpectrum48KULA.__reduce_cython__Spectrum48KULA.__setstate_cython__Spectrum48KULA._make_blank_frameSpectrum48KULA.end_frameSpectrum48KULA.get_frame_samplesSpectrum48KULA.render_frameSpectrum48KULA.resetSpectrum48KULA.run_untilTSTATES_PER_FRAMEULABeeperULABeeper.__reduce_cython__ULABeeper.__setstate_cython__ULABeeper._render_frame_samples.<locals>.<lambda>ULABeeper.begin_frameULABeeper.end_frameULABeeper.get_frame_samplesULABeeper.resetULABeeper.run_untilULABeeper.set_level_from_port_value_amplitudearrayasyncio.coroutinesbegin_frameborder_colorcline_in_tracebackcpudevices.ula_accel__dict___dictend_frameevent__func__get_frame_samples__getstate__hinterrupt_is_coroutineitemskey<lambda>machine__main___make_blank_frame__module____name____new__pop__pyx_checksum__pyx_result__pyx_state__pyx_type__pyx_unpickle_Spectrum48KULA__pyx_unpickle_ULABeeper__pyx_vtable____qualname__ram__reduce____reduce_cython____reduce_ex__render_frameresetrgbroundrun_untilsample_rateselfset_level_from_port_value__set_name__setdefault__setstate____setstate_cython__sortedstate__test__tstate_in_frametstateststates_per_frameulaupdateuse_setstatevaluevalues\200\001\330\004,\250A\250V\2601\200A\330\010\014\210A\200A\330\010\014\320\014\034\230A\330\010\014\210G\220:\230Q\230a\200A\330\010\014\320\014\034\230A\330\010\014\210O\2301\330\010\014\320\014\035\230Q\330\010\014\210O\2304\320\0371\260\022\2603\260c\270\021\330\010\014\210G\2206\230\021\200A\330\010 \240\004\240H\250N\270\"\270A\330\010\032\230$\320\0360\260\001\260\024\260X\270Q\270a\360$\000\t\r\210E\220\025\220a\220t\2301\330\014\036""\230d\320\"9\270\021\270#\270R\270q\330\014\034\230D\320 2\260$\260b\270\003\2703\270b\300\004\300B\300a\330\014\024\220D\230\014\240B\240a\330\014\030\230\005\230Q\230a\340\014\020\220\n\230%\230q\240\001\330\020\036\230d\240$\240e\2501\320,<\270B\270a\330\020\027\220t\2304\230u\240A\240^\2602\260Q\340\020\032\230%\230r\240\021\330\020\035\230U\240#\240S\250\002\250!\340\020\023\2205\230\002\230!\330\024\037\230q\330\024!\240\021\340\020\024\220E\230\022\2306\240\024\240T\250\021\330\024\032\230!\330\024\036\230a\330\024 \240\005\240Q\340\020\032\230$\230h\240a\240q\330\020\034\230D\240\010\250\001\250\021\330\020\035\230T\240\035\250c\260\027\270\002\270!\340\020\024\220G\2305\240\001\240\021\330\024 \240\014\250D\260\002\260\"\260F\270\"\270A\330\024\035\230Q\230k\250\022\2507\260+\270^\3101\340\010\017\210q\200A\330\010\014\210O\2304\230q\330\010\014\210J\220a\330\010\014\320\014\"\240$\240a\200A\330\010\014\320\014\035\230Q\330\010\014\210O\2301\330\010\014\210J\220a\330\010\014\320\014\"\240!\330\010\014\320\014\035\230Q\330\010\014\320\014%\240Q\330\010\014\320\014\036\230a\330\010\014\320\014\036\230a\330\010\014\320\014\035\230U\240!\2405\250\001\250\025\250d\260!\200A\330\010\035\230V\2406\250\022\250;\260a\340\010\013\210:\220S\230\004\230A\330\014\017\320\017\037\230r\240\021\330\020\"\240!\330\021!\240\022\2404\240q\330\020\"\240$\240a\340\014\020\220\007\220w\230b\240\004\320$8\270\002\320:K\3101\330\014\020\320\020!\240\021\200A\330\010\014\320\014\036\230a\330\010\013\2104\210\177\230c\240\021\330\014\020\320\020!\240\021\330\014\020\220\017\230t\2404\240q\340\010\014\210H\220D\230\n\240!\330\010\014\210O\2304\230}\250A\330\010\014\210G\220:\230Q\200A\330\010\014\320\014\036\230d\240!\330\010\014\320\014\035\230T\320!7\260q\200A\330\010\017\210q\330\014\r\210T\220\024\220U\230%\230q\240\004\240A\330\014\020\220\005\220U\230!\2304\230q\200A\330\010\017\210t\2201\200A\330\010\017\210t\2207\320\032,\250A\200\001\360\010\000\005\016\210T\220\034\230T""\320!1\260\024\260Y\270d\320BS\320SW\320Wh\320hl\320l|\360\000\000}\001A\002\360\000\000A\002V\002\360\000\000V\002Z\002\360\000\000Z\002d\002\360\000\000d\002h\002\360\000\000h\002v\002\360\000\000v\002z\002\360\000\000z\002N\003\360\000\000N\003R\003\360\000\000R\003`\003\360\000\000`\003d\003\360\000\000d\003|\003\360\000\000|\003@\004\360\000\000@\004P\004\360\000\000P\004T\004\360\000\000T\004h\004\360\000\000h\004l\004\360\000\000l\004A\005\360\000\000A\005E\005\360\000\000E\005F\005\330\004\014\210G\2201\220F\230,\240a\330\004\007\200v\210W\220E\230\024\230Q\330\010\022\220!\330\010\027\220q\340\010\027\220t\2308\2407\250%\250s\260$\260o\300W\310E\320QT\320TX\320Xa\320ah\320hm\320mp\320pt\320ty\360\000\000z\001A\002\360\000\000A\002B\002\330\004\007\200q\330\010\017\320\017*\250$\250a\250w\260k\300\027\310\001\340\010\017\320\017*\250$\250a\250w\260k\300\021\200\001\360\010\000\005\016\210T\220\031\230$\320\036.\250d\260.\300\004\300N\320RV\320Ve\320ei\320is\320sw\320wx\330\004\014\210G\2201\220F\230,\240a\330\004\007\200v\210W\220E\230\024\230Q\330\010\022\220!\330\010\027\220q\340\010\027\220t\2308\2407\250%\250s\260$\260m\3007\310%\310s\320RV\320V_\320_f\320fk\320kn\320nr\320rw\320w~\320~\177\330\004\007\200q\330\010\017\320\017/\250t\2601\260G\270;\300g\310Q\340\010\017\320\017/\250t\2601\260G\270;\300a\200\001\340\004\037\230q\320 0\260\013\270;\300k\320QR\330\004\023\220>\240\030\250\021\250!\330\004\007\200|\2207\230!\330\0100\260\001\3201B\300.\320PQ\330\004\013\2101\200\001\340\004\037\230q\320 0\260\013\270;\300k\320QR\330\004\023\2209\230H\240A\240Q\330\004\007\200|\2207\230!\330\010+\2501\250L\270\016\300a\330\004\013\2101\200\001\330\004'\240q\250\006\250a\250\036\260u\270A\270Q";
+    #else /* compression: none (3181 bytes) */
+const char* const bytes = ".Note that Cython is deliberately stricter than PEP-484 and rejects subclasses of builtin types. If you need to pass subclasses then set the 'annotation_typing' directive to False.?add_notedevices/ula_accel.pyxdisableenablegcisenabled<stringsource>BORDER_BOTTOMBORDER_LEFTBORDER_RIGHTBORDER_TOPFRAME_HEIGHTFRAME_WIDTHPALETTE__Pyx_PyDict_NextRefSCREEN_ATTR_BASESCREEN_BITMAP_BASESCREEN_HEIGHTSCREEN_WIDTHSpectrum48KULASpectrum48KULA.__reduce_cython__Spectrum48KULA.__setstate_cython__Spectrum48KULA.end_frameSpectrum48KULA.get_frame_samplesSpectrum48KULA.render_frameSpectrum48KULA.resetSpectrum48KULA.run_untilTSTATES_PER_FRAMEULABeeperULABeeper.__reduce_cython__ULABeeper.__setstate_cython__ULABeeper._render_frame_samples.<locals>.<lambda>ULABeeper.begin_frameULABeeper.end_frameULABeeper.get_frame_samplesULABeeper.resetULABeeper.run_untilULABeeper.set_level_from_port_valueamplitudearrayasyncio.coroutinesbegin_frameborder_colorcline_in_tracebackcpudefaultdevices.ula_accel__dict___dictdisplay_profile_nameend_frameevent__func__get_display_profileget_frame_samples__getstate__hinterrupt_is_coroutineitemskey<lambda>machine__main____module____name____new__pop__pyx_checksum__pyx_result__pyx_state__pyx_type__pyx_unpickle_Spectrum48KULA__pyx_unpickle_ULABeeper__pyx_vtable____qualname__ram__reduce____reduce_cython____reduce_ex__render_frameresetroundrun_untilsample_rateselfset_level_from_port_value__set_name__setdefault__setstate____setstate_cython__sortedspectrum_border_bottomspectrum_border_leftspectrum_border_rightspectrum_border_topstate__test__tstate_in_frametstateststates_per_frameulaupdateuse_setstatevaluevaluesvideo\200\001\330\004,\250A\250V\2601\200A\330\010\014\210A\200A\330\010\014\320\014\034\230A\330\010\014\210G\220:\230Q\230a\200A\330\010\014\320\014\034\230A\330\010\014\210O\2301\330\010\014\320\014\035\230Q\330\010\014\320\014!\240\024\320%=\270R\270s\300#\300Q\330\010\014\210G\2206\230\021\200A\330\010 \240\004\240H\250N\270\"\270A\330\010 \240\004\240H\250A\250Q""\330\010\035\230T\320!9\270\021\270!\360$\000\t\r\210E\220\025\220a\220t\2301\330\014\036\230d\320\"9\270\021\270#\270R\270q\330\014\034\230D\320 2\260$\260b\270\003\2703\270b\300\004\300B\300a\330\014\024\220D\230\014\240B\240a\340\014\020\220\n\230%\230q\240\001\330\020\036\230d\240$\240e\2501\320,<\270B\270a\330\020\027\220t\2304\230u\240A\240^\2602\260Q\340\020\032\230%\230r\240\021\330\020\035\230U\240#\240S\250\002\250!\340\020\023\2205\230\002\230!\330\024\037\230q\330\024!\240\021\340\020\024\220E\230\022\2306\240\024\240T\250\021\330\024\032\230!\330\024\036\230a\330\024 \240\005\240Q\340\020\032\230$\230h\240a\240q\330\020\034\230D\240\010\250\001\250\021\330\020\035\230T\240\035\250c\260\027\270\002\270!\340\020\024\220G\2305\240\001\240\021\330\024 \240\014\250D\260\002\260\"\260F\270\"\270A\330\024$\240F\250\"\250D\260\016\270b\300\013\3102\310U\320RT\320TU\330\024\027\220q\330\030\033\2301\230O\2507\260!\2601\330\030\033\2301\230L\250\002\250%\250w\260a\260q\330\030\033\2301\230L\250\002\250%\250w\260a\260q\340\030\033\2301\230O\2509\260A\260Q\330\030\033\2301\230L\250\002\250%\250y\270\001\270\021\330\030\033\2301\230L\250\002\250%\250y\270\001\270\021\340\010\014\320\014!\240\025\240a\240q\330\010\017\210t\2201\200A\330\010\014\210O\2304\230q\330\010\014\210J\220a\330\010\014\320\014\"\240$\240a\200A\330\010\014\320\014\035\230Q\330\010\014\210O\2301\330\010\014\210J\220a\330\010\014\320\014\"\240!\330\010\014\320\014\035\230Q\330\010\014\320\014%\240Q\330\010\014\320\014\036\230a\330\010\014\320\014\036\230a\330\010\014\320\014\035\230U\240!\2405\250\001\250\025\250d\260!\200A\330\010\035\230V\2406\250\022\250;\260a\340\010\013\210:\220S\230\004\230A\330\014\017\320\017\037\230r\240\021\330\020\"\240!\330\021!\240\022\2404\240q\330\020\"\240$\240a\340\014\020\220\007\220w\230b\240\004\320$8\270\002\320:K\3101\330\014\020\320\020!\240\021\200A\330\010\014\320\014\036\230a\330\010\013\2104\210\177\230c\240\021\330\014\020\320\020!\240\021\330\014\020""\220\017\230t\2404\240q\340\010\014\210H\220D\230\n\240!\330\010\014\320\014!\240\024\240]\260!\330\010\014\210G\220:\230Q\200A\330\010\014\320\014\036\230d\240!\330\010\014\320\014\035\230T\320!7\260q\200A\330\010\017\210t\2201\200A\330\010\017\210t\2207\320\032,\250A\200\001\360\010\000\005\016\210T\220\034\230T\320!1\260\024\260Y\270d\320BS\320SW\320Wh\320hl\320l|\360\000\000}\001A\002\360\000\000A\002V\002\360\000\000V\002Z\002\360\000\000Z\002d\002\360\000\000d\002h\002\360\000\000h\002v\002\360\000\000v\002z\002\360\000\000z\002N\003\360\000\000N\003R\003\360\000\000R\003`\003\360\000\000`\003d\003\360\000\000d\003|\003\360\000\000|\003@\004\360\000\000@\004P\004\360\000\000P\004T\004\360\000\000T\004h\004\360\000\000h\004l\004\360\000\000l\004A\005\360\000\000A\005E\005\360\000\000E\005F\005\330\004\014\210G\2201\220F\230,\240a\330\004\007\200v\210W\220E\230\024\230Q\330\010\022\220!\330\010\027\220q\340\010\027\220t\2308\2407\250%\250s\260$\260o\300W\310E\320QT\320TX\320Xa\320ah\320hm\320mp\320pt\320ty\360\000\000z\001A\002\360\000\000A\002B\002\330\004\007\200q\330\010\017\320\017*\250$\250a\250w\260k\300\027\310\001\340\010\017\320\017*\250$\250a\250w\260k\300\021\200\001\360\010\000\005\016\210T\220\031\230$\320\036.\250d\260.\300\004\300O\320SW\320Wd\320dh\320hx\320x|\360\000\000}\001K\002\360\000\000K\002O\002\360\000\000O\002^\002\360\000\000^\002b\002\360\000\000b\002p\002\360\000\000p\002t\002\360\000\000t\002H\003\360\000\000H\003L\003\360\000\000L\003[\003\360\000\000[\003_\003\360\000\000_\003i\003\360\000\000i\003m\003\360\000\000m\003n\003\330\004\014\210G\2201\220F\230,\240a\330\004\007\200v\210W\220E\230\024\230Q\330\010\022\220!\330\010\027\220q\340\010\027\220t\2308\2407\250%\250s\260$\3206I\310\027\320PU\320UX\320X\\\320\\e\320el\320lq\320qt\320tx\320x}\360\000\000~\001E\002\360\000\000E\002F\002\330\004\007\200q\330\010\017\320\017/\250t\2601\260G\270;\300g\310Q\340\010\017\320\017/\250t\2601\260G\270;\300a\200\001\340\004\037\230q\320 0""\260\013\270;\300k\320QR\330\004\023\220>\240\030\250\021\250!\330\004\007\200|\2207\230!\330\0100\260\001\3201B\300.\320PQ\330\004\013\2101\200\001\340\004\037\230q\320 0\260\013\270;\300k\320QR\330\004\023\2209\230H\240A\240Q\330\004\007\200|\2207\230!\330\010+\2501\250L\270\016\300a\330\004\013\2101\200\001\330\004'\240q\250\006\250a\250\036\260u\270A\270Q";
     PyObject *data = NULL;
     CYTHON_UNUSED_VAR(__Pyx_DecompressString);
     #endif
     PyObject **stringtab = __pyx_mstate->__pyx_string_tab;
     Py_ssize_t pos = 0;
-    for (int i = 0; i < 106; i++) {
+    for (int i = 0; i < 110; i++) {
       Py_ssize_t bytes_length = index[i].length;
       PyObject *string = PyUnicode_DecodeUTF8(bytes + pos, bytes_length, NULL);
       if (likely(string) && i >= 10) PyUnicode_InternInPlace(&string);
@@ -13196,7 +13943,7 @@ const char* const bytes = ".Note that Cython is deliberately stricter than PEP-4
       stringtab[i] = string;
       pos += bytes_length;
     }
-    for (int i = 106; i < 125; i++) {
+    for (int i = 110; i < 128; i++) {
       Py_ssize_t bytes_length = index[i].length;
       PyObject *string = PyBytes_FromStringAndSize(bytes + pos, bytes_length);
       stringtab[i] = string;
@@ -13207,15 +13954,15 @@ const char* const bytes = ".Note that Cython is deliberately stricter than PEP-4
       }
     }
     Py_XDECREF(data);
-    for (Py_ssize_t i = 0; i < 125; i++) {
+    for (Py_ssize_t i = 0; i < 128; i++) {
       if (unlikely(PyObject_Hash(stringtab[i]) == -1)) {
         __PYX_ERR(0, 1, __pyx_L1_error)
       }
     }
     #if CYTHON_IMMORTAL_CONSTANTS
     {
-      PyObject **table = stringtab + 106;
-      for (Py_ssize_t i=0; i<19; ++i) {
+      PyObject **table = stringtab + 110;
+      for (Py_ssize_t i=0; i<18; ++i) {
         #if CYTHON_COMPILING_IN_CPYTHON_FREETHREADING
         #if PY_VERSION_HEX < 0x030E0000
         if (_Py_IsOwnedByCurrentThread(table[i]) && Py_REFCNT(table[i]) == 1)
@@ -13236,7 +13983,7 @@ const char* const bytes = ".Note that Cython is deliberately stricter than PEP-4
     PyObject **numbertab = __pyx_mstate->__pyx_number_tab + 0;
     int8_t const cint_constants_1[] = {0,7,48,56};
     int16_t const cint_constants_2[] = {192,205,255,256,16384,22528};
-    int32_t const cint_constants_4[] = {68456158L,124065692L};
+    int32_t const cint_constants_4[] = {68456158L,149647251L};
     for (int i = 0; i < 12; i++) {
       numbertab[i] = PyLong_FromLong((i < 4 ? cint_constants_1[i - 0] : (i < 10 ? cint_constants_2[i - 4] : cint_constants_4[i - 10])));
       if (unlikely(!numbertab[i])) __PYX_ERR(0, 1, __pyx_L1_error)
@@ -13289,37 +14036,37 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
   PyObject* tuple_dedup_map = PyDict_New();
   if (unlikely(!tuple_dedup_map)) return -1;
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 120};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 121};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_event};
     __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_lambda, __pyx_mstate->__pyx_kp_b_iso88591_uAQ, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 57};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 58};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[1] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_reset, __pyx_mstate->__pyx_kp_b_iso88591_A_Q_O1_Ja_Q_Q_a_a_U_5_d, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[1])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 68};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 69};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[2] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_begin_frame, __pyx_mstate->__pyx_kp_b_iso88591_A_O4q_Ja_a, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[2])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 73};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 74};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_tstates};
     __pyx_mstate_global->__pyx_codeobj_tab[3] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_run_until, __pyx_mstate->__pyx_kp_b_iso88591_A_A, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[3])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 76};
+    const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 3, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 77};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_value, __pyx_mstate->__pyx_n_u_tstate_in_frame};
     __pyx_mstate_global->__pyx_codeobj_tab[4] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_set_level_from_port_value, __pyx_mstate->__pyx_kp_b_iso88591_A_V6_a_S_A_r_4q_a_wb_8_K1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[4])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 88};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 89};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[5] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_end_frame, __pyx_mstate->__pyx_kp_b_iso88591_A_d_T_7q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[5])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 92};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 93};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[6] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_get_frame_samples, __pyx_mstate->__pyx_kp_b_iso88591_A_t1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[6])) goto bad;
   }
@@ -13334,54 +14081,49 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
     __pyx_mstate_global->__pyx_codeobj_tab[8] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_setstate_cython, __pyx_mstate->__pyx_kp_b_iso88591_q_a, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[8])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 221};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 236};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
-    __pyx_mstate_global->__pyx_codeobj_tab[9] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_reset, __pyx_mstate->__pyx_kp_b_iso88591_A_A_O1_Q_O4_1_3c_G6, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[9])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[9] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_reset, __pyx_mstate->__pyx_kp_b_iso88591_A_A_O1_Q_Rs_Q_G6, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[9])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 228};
+    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 243};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_tstates};
     __pyx_mstate_global->__pyx_codeobj_tab[10] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_run_until, __pyx_mstate->__pyx_kp_b_iso88591_A_A_G_Qa, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[10])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 232};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 247};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
-    __pyx_mstate_global->__pyx_codeobj_tab[11] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_end_frame, __pyx_mstate->__pyx_kp_b_iso88591_A_a_4_c_t4q_HD_O4_A_G_Q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[11])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[11] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_end_frame, __pyx_mstate->__pyx_kp_b_iso88591_A_a_4_c_t4q_HD_G_Q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[11])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 242};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 257};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
-    __pyx_mstate_global->__pyx_codeobj_tab[12] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_render_frame, __pyx_mstate->__pyx_kp_b_iso88591_A_HN_A_0_XQa_E_at1_d_9_Rq_D_2_b, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[12])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[12] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_render_frame, __pyx_mstate->__pyx_kp_b_iso88591_A_HN_A_HAQ_T_9_E_at1_d_9_Rq_D_2, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[12])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 294};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 1, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 318};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self};
     __pyx_mstate_global->__pyx_codeobj_tab[13] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_get_frame_samples, __pyx_mstate->__pyx_kp_b_iso88591_A_t7_A, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[13])) goto bad;
   }
   {
-    const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 305};
-    PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_rgb, __pyx_mstate->__pyx_n_u__3, __pyx_mstate->__pyx_n_u__3};
-    __pyx_mstate_global->__pyx_codeobj_tab[14] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_devices_ula_accel_pyx, __pyx_mstate->__pyx_n_u_make_blank_frame, __pyx_mstate->__pyx_kp_b_iso88591_A_q_T_U_q_A_U_4q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[14])) goto bad;
-  }
-  {
     const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 1};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_state, __pyx_mstate->__pyx_n_u_dict_2, __pyx_mstate->__pyx_n_u_use_setstate};
-    __pyx_mstate_global->__pyx_codeobj_tab[15] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_reduce_cython, __pyx_mstate->__pyx_kp_b_iso88591_T_d_NRVVeeiisswwx_G1F_a_vWE_Q_q, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[15])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[14] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_reduce_cython, __pyx_mstate->__pyx_kp_b_iso88591_T_d_OSWWddhhxx_K_K_O_O_b_b_p_p, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[14])) goto bad;
   }
   {
     const __Pyx_PyCode_New_function_description descr = {2, 0, 0, 2, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 16};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_self, __pyx_mstate->__pyx_n_u_pyx_state};
-    __pyx_mstate_global->__pyx_codeobj_tab[16] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_setstate_cython, __pyx_mstate->__pyx_kp_b_iso88591_AV1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[16])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[15] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_setstate_cython, __pyx_mstate->__pyx_kp_b_iso88591_AV1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[15])) goto bad;
   }
   {
     const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 4};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_pyx_type, __pyx_mstate->__pyx_n_u_pyx_checksum, __pyx_mstate->__pyx_n_u_pyx_state, __pyx_mstate->__pyx_n_u_pyx_result};
-    __pyx_mstate_global->__pyx_codeobj_tab[17] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_pyx_unpickle_ULABeeper, __pyx_mstate->__pyx_kp_b_iso88591_q_0_kQR_9HAQ_7_1L_a_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[17])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[16] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_pyx_unpickle_ULABeeper, __pyx_mstate->__pyx_kp_b_iso88591_q_0_kQR_9HAQ_7_1L_a_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[16])) goto bad;
   }
   {
     const __Pyx_PyCode_New_function_description descr = {3, 0, 0, 4, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 4};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_pyx_type, __pyx_mstate->__pyx_n_u_pyx_checksum, __pyx_mstate->__pyx_n_u_pyx_state, __pyx_mstate->__pyx_n_u_pyx_result};
-    __pyx_mstate_global->__pyx_codeobj_tab[18] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_pyx_unpickle_Spectrum48KULA, __pyx_mstate->__pyx_kp_b_iso88591_q_0_kQR_7_0_1B_PQ_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[18])) goto bad;
+    __pyx_mstate_global->__pyx_codeobj_tab[17] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_stringsource, __pyx_mstate->__pyx_n_u_pyx_unpickle_Spectrum48KULA, __pyx_mstate->__pyx_kp_b_iso88591_q_0_kQR_7_0_1B_PQ_1, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[17])) goto bad;
   }
   Py_DECREF(tuple_dedup_map);
   return 0;
@@ -16711,6 +17453,84 @@ static CYTHON_INLINE PyObject* __Pyx_PyLong_SubtractObjC(PyObject *op1, PyObject
 }
 #endif
 
+/* SetStringIndexingError (used by SetItemIntByteArray) */
+static void __Pyx_SetStringIndexingError(const char* message, int has_gil) {
+    if (!has_gil) {
+        PyGILState_STATE gil_state = PyGILState_Ensure();
+        PyErr_SetString(PyExc_IndexError, message);
+        PyGILState_Release(gil_state);
+    } else
+        PyErr_SetString(PyExc_IndexError, message);
+}
+
+/* SetItemIntByteArray */
+static CYTHON_INLINE int __Pyx_SetItemInt_ByteArray_Fast_Locked(PyObject* string, Py_ssize_t i, unsigned char v,
+                                                                int wraparound, int boundscheck, int has_gil) {
+    Py_ssize_t length = __Pyx_PyByteArray_GET_SIZE(string);
+    #if !CYTHON_ASSUME_SAFE_SIZE
+    if (unlikely(length < 0)) return -1;
+    #endif
+    if (wraparound & unlikely(i < 0)) i += length;
+    if ((!boundscheck) || likely(__Pyx_is_valid_index(i, length))) {
+        #if !CYTHON_ASSUME_SAFE_MACROS
+        char *asString = PyByteArray_AsString(string);
+        if (unlikely(!asString)) return -1;
+        asString[i] = (char)v;
+        #else
+        PyByteArray_AS_STRING(string)[i] = (char) v;
+        #endif
+        return 0;
+    } else {
+        __Pyx_SetStringIndexingError("bytearray index out of range", has_gil);
+        return -1;
+    }
+}
+static CYTHON_INLINE int __Pyx_SetItemInt_ByteArray_Fast(PyObject* string, Py_ssize_t i, unsigned char v,
+                                                         int wraparound, int boundscheck, int has_gil, int unsafe_shared) {
+    CYTHON_MAYBE_UNUSED_VAR(unsafe_shared);
+#if CYTHON_COMPILING_IN_CPYTHON_FREETHREADING
+    wraparound = wraparound && i<0;
+#endif
+    if (wraparound | boundscheck) {
+        int result;
+        __Pyx_PyCriticalSection cs;
+        int lock = CYTHON_COMPILING_IN_CPYTHON_FREETHREADING && has_gil && !__Pyx_IS_UNIQUELY_REFERENCED(string, unsafe_shared);
+        if (lock) { __Pyx_PyCriticalSection_Begin(&cs, string); }
+        result = __Pyx_SetItemInt_ByteArray_Fast_Locked(string, i, v, wraparound, boundscheck, has_gil);
+        if (lock) { __Pyx_PyCriticalSection_End(&cs); }
+        return result;
+    } else {
+        #if !CYTHON_ASSUME_SAFE_MACROS
+        char *asString = PyByteArray_AsString(string);
+        if (unlikely(!asString)) return -1;
+        asString[i] = (char)v;
+        #else
+        PyByteArray_AS_STRING(string)[i] = (char) v;
+        #endif
+        return 0;
+    }
+}
+
+/* PySequenceMultiply */
+#if CYTHON_USE_TYPE_SLOTS
+static PyObject* __Pyx_PySequence_Multiply_Generic(PyObject *seq, Py_ssize_t mul) {
+    PyObject *result, *pymul = PyLong_FromSsize_t(mul);
+    if (unlikely(!pymul))
+        return NULL;
+    result = PyNumber_Multiply(seq, pymul);
+    Py_DECREF(pymul);
+    return result;
+}
+static CYTHON_INLINE PyObject* __Pyx_PySequence_Multiply(PyObject *seq, Py_ssize_t mul) {
+    PyTypeObject *type = Py_TYPE(seq);
+    if (likely(type->tp_as_sequence && type->tp_as_sequence->sq_repeat)) {
+        return type->tp_as_sequence->sq_repeat(seq, mul);
+    } else {
+        return __Pyx_PySequence_Multiply_Generic(seq, mul);
+    }
+}
+#endif
+
 /* ExtTypeTest */
 static CYTHON_INLINE int __Pyx_TypeTest(PyObject *obj, PyTypeObject *type) {
     __Pyx_TypeName obj_type_name;
@@ -18932,6 +19752,256 @@ static CYTHON_INLINE PyObject* __Pyx_PyLong_From_long(long value) {
         return result;
 #endif
     }
+}
+
+/* CIntFromPy */
+static CYTHON_INLINE unsigned char __Pyx_PyLong_As_unsigned_char(PyObject *x) {
+#ifdef __Pyx_HAS_GCC_DIAGNOSTIC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+    const unsigned char neg_one = (unsigned char) -1, const_zero = (unsigned char) 0;
+#ifdef __Pyx_HAS_GCC_DIAGNOSTIC
+#pragma GCC diagnostic pop
+#endif
+    const int is_unsigned = neg_one > const_zero;
+    if (unlikely(!PyLong_Check(x))) {
+        unsigned char val;
+        PyObject *tmp = __Pyx_PyNumber_Long(x);
+        if (!tmp) return (unsigned char) -1;
+        val = __Pyx_PyLong_As_unsigned_char(tmp);
+        Py_DECREF(tmp);
+        return val;
+    }
+    if (is_unsigned) {
+#if CYTHON_USE_PYLONG_INTERNALS
+        if (unlikely(__Pyx_PyLong_IsNeg(x))) {
+            goto raise_neg_overflow;
+        } else if (__Pyx_PyLong_IsCompact(x)) {
+            __PYX_VERIFY_RETURN_INT(unsigned char, __Pyx_compact_upylong, __Pyx_PyLong_CompactValueUnsigned(x))
+        } else {
+            const digit* digits = __Pyx_PyLong_Digits(x);
+            assert(__Pyx_PyLong_DigitCount(x) > 1);
+            switch (__Pyx_PyLong_DigitCount(x)) {
+                case 2:
+                    if ((8 * sizeof(unsigned char) > 1 * PyLong_SHIFT)) {
+                        if ((8 * sizeof(unsigned long) > 2 * PyLong_SHIFT)) {
+                            __PYX_VERIFY_RETURN_INT(unsigned char, unsigned long, (((((unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0])))
+                        } else if ((8 * sizeof(unsigned char) >= 2 * PyLong_SHIFT)) {
+                            return (unsigned char) (((((unsigned char)digits[1]) << PyLong_SHIFT) | (unsigned char)digits[0]));
+                        }
+                    }
+                    break;
+                case 3:
+                    if ((8 * sizeof(unsigned char) > 2 * PyLong_SHIFT)) {
+                        if ((8 * sizeof(unsigned long) > 3 * PyLong_SHIFT)) {
+                            __PYX_VERIFY_RETURN_INT(unsigned char, unsigned long, (((((((unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0])))
+                        } else if ((8 * sizeof(unsigned char) >= 3 * PyLong_SHIFT)) {
+                            return (unsigned char) (((((((unsigned char)digits[2]) << PyLong_SHIFT) | (unsigned char)digits[1]) << PyLong_SHIFT) | (unsigned char)digits[0]));
+                        }
+                    }
+                    break;
+                case 4:
+                    if ((8 * sizeof(unsigned char) > 3 * PyLong_SHIFT)) {
+                        if ((8 * sizeof(unsigned long) > 4 * PyLong_SHIFT)) {
+                            __PYX_VERIFY_RETURN_INT(unsigned char, unsigned long, (((((((((unsigned long)digits[3]) << PyLong_SHIFT) | (unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0])))
+                        } else if ((8 * sizeof(unsigned char) >= 4 * PyLong_SHIFT)) {
+                            return (unsigned char) (((((((((unsigned char)digits[3]) << PyLong_SHIFT) | (unsigned char)digits[2]) << PyLong_SHIFT) | (unsigned char)digits[1]) << PyLong_SHIFT) | (unsigned char)digits[0]));
+                        }
+                    }
+                    break;
+            }
+        }
+#endif
+#if CYTHON_COMPILING_IN_CPYTHON && PY_VERSION_HEX < 0x030C00A7
+        if (unlikely(Py_SIZE(x) < 0)) {
+            goto raise_neg_overflow;
+        }
+#else
+        {
+            int result = PyObject_RichCompareBool(x, Py_False, Py_LT);
+            if (unlikely(result < 0))
+                return (unsigned char) -1;
+            if (unlikely(result == 1))
+                goto raise_neg_overflow;
+        }
+#endif
+        if ((sizeof(unsigned char) <= sizeof(unsigned long))) {
+            __PYX_VERIFY_RETURN_INT_EXC(unsigned char, unsigned long, PyLong_AsUnsignedLong(x))
+        } else if ((sizeof(unsigned char) <= sizeof(unsigned PY_LONG_LONG))) {
+            __PYX_VERIFY_RETURN_INT_EXC(unsigned char, unsigned PY_LONG_LONG, PyLong_AsUnsignedLongLong(x))
+        }
+    } else {
+#if CYTHON_USE_PYLONG_INTERNALS
+        if (__Pyx_PyLong_IsCompact(x)) {
+            __PYX_VERIFY_RETURN_INT(unsigned char, __Pyx_compact_pylong, __Pyx_PyLong_CompactValue(x))
+        } else {
+            const digit* digits = __Pyx_PyLong_Digits(x);
+            assert(__Pyx_PyLong_DigitCount(x) > 1);
+            switch (__Pyx_PyLong_SignedDigitCount(x)) {
+                case -2:
+                    if ((8 * sizeof(unsigned char) - 1 > 1 * PyLong_SHIFT)) {
+                        if ((8 * sizeof(unsigned long) > 2 * PyLong_SHIFT)) {
+                            __PYX_VERIFY_RETURN_INT(unsigned char, long, -(long) (((((unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0])))
+                        } else if ((8 * sizeof(unsigned char) - 1 > 2 * PyLong_SHIFT)) {
+                            return (unsigned char) (((unsigned char)-1)*(((((unsigned char)digits[1]) << PyLong_SHIFT) | (unsigned char)digits[0])));
+                        }
+                    }
+                    break;
+                case 2:
+                    if ((8 * sizeof(unsigned char) > 1 * PyLong_SHIFT)) {
+                        if ((8 * sizeof(unsigned long) > 2 * PyLong_SHIFT)) {
+                            __PYX_VERIFY_RETURN_INT(unsigned char, unsigned long, (((((unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0])))
+                        } else if ((8 * sizeof(unsigned char) - 1 > 2 * PyLong_SHIFT)) {
+                            return (unsigned char) ((((((unsigned char)digits[1]) << PyLong_SHIFT) | (unsigned char)digits[0])));
+                        }
+                    }
+                    break;
+                case -3:
+                    if ((8 * sizeof(unsigned char) - 1 > 2 * PyLong_SHIFT)) {
+                        if ((8 * sizeof(unsigned long) > 3 * PyLong_SHIFT)) {
+                            __PYX_VERIFY_RETURN_INT(unsigned char, long, -(long) (((((((unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0])))
+                        } else if ((8 * sizeof(unsigned char) - 1 > 3 * PyLong_SHIFT)) {
+                            return (unsigned char) (((unsigned char)-1)*(((((((unsigned char)digits[2]) << PyLong_SHIFT) | (unsigned char)digits[1]) << PyLong_SHIFT) | (unsigned char)digits[0])));
+                        }
+                    }
+                    break;
+                case 3:
+                    if ((8 * sizeof(unsigned char) > 2 * PyLong_SHIFT)) {
+                        if ((8 * sizeof(unsigned long) > 3 * PyLong_SHIFT)) {
+                            __PYX_VERIFY_RETURN_INT(unsigned char, unsigned long, (((((((unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0])))
+                        } else if ((8 * sizeof(unsigned char) - 1 > 3 * PyLong_SHIFT)) {
+                            return (unsigned char) ((((((((unsigned char)digits[2]) << PyLong_SHIFT) | (unsigned char)digits[1]) << PyLong_SHIFT) | (unsigned char)digits[0])));
+                        }
+                    }
+                    break;
+                case -4:
+                    if ((8 * sizeof(unsigned char) - 1 > 3 * PyLong_SHIFT)) {
+                        if ((8 * sizeof(unsigned long) > 4 * PyLong_SHIFT)) {
+                            __PYX_VERIFY_RETURN_INT(unsigned char, long, -(long) (((((((((unsigned long)digits[3]) << PyLong_SHIFT) | (unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0])))
+                        } else if ((8 * sizeof(unsigned char) - 1 > 4 * PyLong_SHIFT)) {
+                            return (unsigned char) (((unsigned char)-1)*(((((((((unsigned char)digits[3]) << PyLong_SHIFT) | (unsigned char)digits[2]) << PyLong_SHIFT) | (unsigned char)digits[1]) << PyLong_SHIFT) | (unsigned char)digits[0])));
+                        }
+                    }
+                    break;
+                case 4:
+                    if ((8 * sizeof(unsigned char) > 3 * PyLong_SHIFT)) {
+                        if ((8 * sizeof(unsigned long) > 4 * PyLong_SHIFT)) {
+                            __PYX_VERIFY_RETURN_INT(unsigned char, unsigned long, (((((((((unsigned long)digits[3]) << PyLong_SHIFT) | (unsigned long)digits[2]) << PyLong_SHIFT) | (unsigned long)digits[1]) << PyLong_SHIFT) | (unsigned long)digits[0])))
+                        } else if ((8 * sizeof(unsigned char) - 1 > 4 * PyLong_SHIFT)) {
+                            return (unsigned char) ((((((((((unsigned char)digits[3]) << PyLong_SHIFT) | (unsigned char)digits[2]) << PyLong_SHIFT) | (unsigned char)digits[1]) << PyLong_SHIFT) | (unsigned char)digits[0])));
+                        }
+                    }
+                    break;
+            }
+        }
+#endif
+        if ((sizeof(unsigned char) <= sizeof(long))) {
+            __PYX_VERIFY_RETURN_INT_EXC(unsigned char, long, PyLong_AsLong(x))
+        } else if ((sizeof(unsigned char) <= sizeof(PY_LONG_LONG))) {
+            __PYX_VERIFY_RETURN_INT_EXC(unsigned char, PY_LONG_LONG, PyLong_AsLongLong(x))
+        }
+    }
+    {
+        unsigned char val;
+        int ret = -1;
+#if PY_VERSION_HEX >= 0x030d00A6 && !CYTHON_COMPILING_IN_LIMITED_API
+        Py_ssize_t bytes_copied = PyLong_AsNativeBytes(
+            x, &val, sizeof(val), Py_ASNATIVEBYTES_NATIVE_ENDIAN | (is_unsigned ? Py_ASNATIVEBYTES_UNSIGNED_BUFFER | Py_ASNATIVEBYTES_REJECT_NEGATIVE : 0));
+        if (unlikely(bytes_copied == -1)) {
+        } else if (unlikely(bytes_copied > (Py_ssize_t) sizeof(val))) {
+            goto raise_overflow;
+        } else {
+            ret = 0;
+        }
+#elif PY_VERSION_HEX < 0x030d0000 && !(CYTHON_COMPILING_IN_PYPY || CYTHON_COMPILING_IN_LIMITED_API) || defined(_PyLong_AsByteArray)
+        int one = 1; int is_little = (int)*(unsigned char *)&one;
+        unsigned char *bytes = (unsigned char *)&val;
+        ret = _PyLong_AsByteArray((PyLongObject *)x,
+                                    bytes, sizeof(val),
+                                    is_little, !is_unsigned);
+#else
+        PyObject *v;
+        PyObject *stepval = NULL, *mask = NULL, *shift = NULL;
+        int bits, remaining_bits, is_negative = 0;
+        int chunk_size = (sizeof(long) < 8) ? 30 : 62;
+        if (likely(PyLong_CheckExact(x))) {
+            v = __Pyx_NewRef(x);
+        } else {
+            v = PyNumber_Long(x);
+            if (unlikely(!v)) return (unsigned char) -1;
+            assert(PyLong_CheckExact(v));
+        }
+        {
+            int result = PyObject_RichCompareBool(v, Py_False, Py_LT);
+            if (unlikely(result < 0)) {
+                Py_DECREF(v);
+                return (unsigned char) -1;
+            }
+            is_negative = result == 1;
+        }
+        if (is_unsigned && unlikely(is_negative)) {
+            Py_DECREF(v);
+            goto raise_neg_overflow;
+        } else if (is_negative) {
+            stepval = PyNumber_Invert(v);
+            Py_DECREF(v);
+            if (unlikely(!stepval))
+                return (unsigned char) -1;
+        } else {
+            stepval = v;
+        }
+        v = NULL;
+        val = (unsigned char) 0;
+        mask = PyLong_FromLong((1L << chunk_size) - 1); if (unlikely(!mask)) goto done;
+        shift = PyLong_FromLong(chunk_size); if (unlikely(!shift)) goto done;
+        for (bits = 0; bits < (int) sizeof(unsigned char) * 8 - chunk_size; bits += chunk_size) {
+            PyObject *tmp, *digit;
+            long idigit;
+            digit = PyNumber_And(stepval, mask);
+            if (unlikely(!digit)) goto done;
+            idigit = PyLong_AsLong(digit);
+            Py_DECREF(digit);
+            if (unlikely(idigit < 0)) goto done;
+            val |= ((unsigned char) idigit) << bits;
+            tmp = PyNumber_Rshift(stepval, shift);
+            if (unlikely(!tmp)) goto done;
+            Py_DECREF(stepval); stepval = tmp;
+        }
+        Py_DECREF(shift); shift = NULL;
+        Py_DECREF(mask); mask = NULL;
+        {
+            long idigit = PyLong_AsLong(stepval);
+            if (unlikely(idigit < 0)) goto done;
+            remaining_bits = ((int) sizeof(unsigned char) * 8) - bits - (is_unsigned ? 0 : 1);
+            if (unlikely(idigit >= (1L << remaining_bits)))
+                goto raise_overflow;
+            val |= ((unsigned char) idigit) << bits;
+        }
+        if (!is_unsigned) {
+            if (unlikely(val & (((unsigned char) 1) << (sizeof(unsigned char) * 8 - 1))))
+                goto raise_overflow;
+            if (is_negative)
+                val = ~val;
+        }
+        ret = 0;
+    done:
+        Py_XDECREF(shift);
+        Py_XDECREF(mask);
+        Py_XDECREF(stepval);
+#endif
+        if (unlikely(ret))
+            return (unsigned char) -1;
+        return val;
+    }
+raise_overflow:
+    PyErr_SetString(PyExc_OverflowError,
+        "value too large to convert to unsigned char");
+    return (unsigned char) -1;
+raise_neg_overflow:
+    PyErr_SetString(PyExc_OverflowError,
+        "can't convert negative value to unsigned char");
+    return (unsigned char) -1;
 }
 
 /* PyObjectCall2Args */
