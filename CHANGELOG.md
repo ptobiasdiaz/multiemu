@@ -2,6 +2,73 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.1.1
+
+Versión centrada en mejorar la ergonomía del frontend local y la integración
+de CI.
+
+### Incluye
+
+- Cambio a pantalla completa en el frontend `pygame` mediante `Alt + Enter`
+- Cobertura específica para el toggle de pantalla completa
+- Ajustes de CI para ejecutar `tox` en GitHub Actions con versiones actuales
+  de las actions y sin empaquetado previo del proyecto
+
+## 0.0.3
+
+Versión centrada en consolidar la arquitectura común de ejecución entre
+máquinas y en validar compatibilidad real con software Game Boy, CPC y
+Spectrum.
+
+### Incluye
+
+- `Machine Runner` común en Python/Cython para unificar el frame loop de:
+  - `gameboy`
+  - `spectrum16k`
+  - `spectrum48k`
+  - `cpc464`
+- Game Boy mucho más avanzada a nivel funcional:
+  - mappers `MBC2` y `MBC5`
+  - mejoras relevantes del APU (`wave`, `noise`, `sweep`)
+  - mejoras de PPU y DMA
+- Cythonización de los bloques calientes de Game Boy:
+  - CPU LR35902
+  - bus
+  - PPU
+  - APU
+  - timer
+  - cartridge y mappers principales
+- Soporte inicial de cinta `CDT/TZX` para `cpc464`, validado con
+  `dawn-of-kernel.cdt`
+- Soporte inicial de cinta `TZX` para `spectrum48k`, validado con
+  `phantomasa-48k.tzx`
+- Control manual de `play/pause` de cinta con `F1` en el frontend `pygame`
+
+### Compatibilidad y correcciones
+
+- Corrección de regresiones de audio al integrar el runner común en Spectrum.
+- Corrección de un `OverflowError` en el runner Cython compartido.
+- Implementación de opcodes Z80 faltantes necesarios para software real,
+  incluyendo:
+  - familia `ED` de block I/O (`INI/INIR/IND/INDR/OUTI/OTIR/OUTD/OTDR`)
+  - cargas indexadas `DD/FD` como `DD 68`
+- Ajustes en vídeo y audio de CPC a partir de pruebas con software real.
+- Soporte de CLI ampliado para slots de cinta opcionales en máquinas con tape.
+
+### Testing
+
+- Nuevas pruebas de equivalencia para componentes acelerados de Game Boy.
+- Cobertura del `Machine Runner` compartido.
+- Nuevos tests de cinta para CPC y Spectrum.
+- Cobertura adicional para opcodes Z80 que estaban faltando en ejecución real.
+
+### Máquinas soportadas
+
+- `spectrum16k` - ZX Spectrum 16K
+- `spectrum48k` - ZX Spectrum 48K
+- `cpc464` - Amstrad CPC 464 (experimental)
+- `gameboy` - Nintendo Game Boy (experimental)
+
 ## 0.0.2
 
 Versión centrada en consolidar el soporte experimental de `cpc464` y en

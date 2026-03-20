@@ -21,6 +21,7 @@ class PygameFrontend:
     # frames or they disappear between firmware scans.
     TAP_HOLD_FRAMES = 5
     QUICK_TAP_MAX_FRAMES = 2
+    AUTO_TURBO_FRAME_BATCH = 8
 
     def __init__(
         self,
@@ -51,6 +52,7 @@ class PygameFrontend:
 
         self.win_width = self.src_width * self.scale
         self.win_height = self.src_height * self.scale
+        self.fullscreen = False
 
         self.running = False
         self.clock = None
@@ -63,8 +65,19 @@ class PygameFrontend:
         self.audio_prebuffer_chunks = 4
         self.audio_byte_buffer = bytearray()
         self.use_surfarray = np is not None and hasattr(pygame, "surfarray")
+        self._configure_audio_profile()
 
         self.keymap = get_pygame_keymap(getattr(self.backend, "input_keymap_name", None))
+        self.tap_hold_frames = getattr(
+            self.backend,
+            "input_tap_hold_frames",
+            self.TAP_HOLD_FRAMES,
+        )
+        self.quick_tap_max_frames = getattr(
+            self.backend,
+            "input_quick_tap_max_frames",
+            self.QUICK_TAP_MAX_FRAMES,
+        )
         self.active_controls: set[tuple[int, int]] = set()
         # Track how long a control has been held while physically down.
         self.active_control_frames: dict[tuple[int, int], int] = {}
@@ -72,6 +85,34 @@ class PygameFrontend:
         # same host key are not collapsed into a single emulated press.
         self.tap_pulse_frames: dict[tuple[int, int], int] = {}
         self.pending_tap_counts: dict[tuple[int, int], int] = {}
+
+    def _get_frame_batch_size(self) -> int:
+        machine_id = str(getattr(self.backend, "machine_id", ""))
+        auto_turbo_enabled = str(getattr(self.backend, "cpc_tape_auto_turbo", False)).lower() not in {"", "0", "false", "no", "off"}
+        if auto_turbo_enabled and machine_id.startswith("cpc") and bool(getattr(self.backend, "tape_motor_on", False)):
+            return self.AUTO_TURBO_FRAME_BATCH
+        return 1
+
+    def _discard_audio(self) -> None:
+        available = self.backend.get_audio_buffered_samples()
+        if available > 0:
+            self.backend.pop_audio_samples(available)
+        self.audio_queue.clear()
+        self.audio_byte_buffer.clear()
+        self.audio_started = False
+
+    def _configure_audio_profile(self) -> None:
+        """Tune local buffering to the audio pattern of the active machine."""
+
+        machine_id = str(getattr(self.backend, "machine_id", ""))
+
+        if machine_id.startswith("cpc"):
+            self.audio_prebuffer_chunks = 1
+            self.audio_play_chunk_size = max(1024, self.audio_chunk_size)
+            return
+
+        self.audio_prebuffer_chunks = 4
+        self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
 
     def run(self):
         pygame.mixer.pre_init(
@@ -84,7 +125,7 @@ class PygameFrontend:
 
         try:
             self.clock = pygame.time.Clock()
-            self.screen = pygame.display.set_mode((self.win_width, self.win_height))
+            self._apply_display_mode()
             pygame.display.set_caption(self.window_title)
             self.surface = pygame.Surface((self.src_width, self.src_height))
 
@@ -97,13 +138,17 @@ class PygameFrontend:
 
             while self.running:
                 self._handle_events()
-
-                self.backend.run_frame()
-                self._play_audio()
+                frame_batch_size = self._get_frame_batch_size()
+                for _ in range(frame_batch_size):
+                    self.backend.run_frame()
+                if frame_batch_size > 1:
+                    self._discard_audio()
+                else:
+                    self._play_audio()
                 self._pump_audio_queue()
                 self._draw_framebuffer(self.backend.framebuffer_rgb24)
 
-                if self.fps_limit > 0:
+                if self.fps_limit > 0 and frame_batch_size == 1:
                     self.clock.tick(self.fps_limit)
         finally:
             pygame.quit()
@@ -114,9 +159,15 @@ class PygameFrontend:
                 self.running = False
                 return
             if event.type == pygame.KEYDOWN:
+                if self._is_fullscreen_toggle_event(event):
+                    self._toggle_fullscreen()
+                    continue
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
                     return
+                if event.key == pygame.K_F1:
+                    self.backend.toggle_tape_play_pause()
+                    continue
                 control = self.keymap.get(event.key)
                 if control is not None:
                     self.active_controls.add(control)
@@ -125,11 +176,11 @@ class PygameFrontend:
                 control = self.keymap.get(event.key)
                 if control is not None:
                     held_frames = self.active_control_frames.get(control, 0)
-                    if held_frames <= self.QUICK_TAP_MAX_FRAMES:
+                    if held_frames <= self.quick_tap_max_frames:
                         if control in self.tap_pulse_frames:
                             self.pending_tap_counts[control] = self.pending_tap_counts.get(control, 0) + 1
                         else:
-                            self.tap_pulse_frames[control] = self.TAP_HOLD_FRAMES
+                            self.tap_pulse_frames[control] = self.tap_hold_frames
                     self.active_controls.discard(control)
                     self.active_control_frames.pop(control, None)
 
@@ -161,10 +212,23 @@ class PygameFrontend:
             queued = self.pending_tap_counts.get(control, 0)
             if queued > 0:
                 self.pending_tap_counts[control] = queued - 1
-                self.tap_pulse_frames[control] = self.TAP_HOLD_FRAMES
+                self.tap_pulse_frames[control] = self.tap_hold_frames
             else:
                 self.tap_pulse_frames.pop(control, None)
                 self.pending_tap_counts.pop(control, None)
+
+    def _is_fullscreen_toggle_event(self, event) -> bool:
+        mods = getattr(event, "mod", 0)
+        return event.key == pygame.K_RETURN and bool(mods & pygame.KMOD_ALT)
+
+    def _toggle_fullscreen(self) -> None:
+        self.fullscreen = not self.fullscreen
+        self._apply_display_mode()
+
+    def _apply_display_mode(self) -> None:
+        flags = pygame.FULLSCREEN if self.fullscreen else 0
+        size = (0, 0) if self.fullscreen else (self.win_width, self.win_height)
+        self.screen = pygame.display.set_mode(size, flags)
 
     def _play_audio(self):
         available = self.backend.get_audio_buffered_samples()
@@ -217,8 +281,9 @@ class PygameFrontend:
             )
             self.surface.blit(frame_surface, (0, 0))
 
-        if self.scale != 1:
-            scaled = pygame.transform.scale(self.surface, (self.win_width, self.win_height))
+        target_width, target_height = self.screen.get_size()
+        if target_width != self.src_width or target_height != self.src_height:
+            scaled = pygame.transform.scale(self.surface, (target_width, target_height))
             self.screen.blit(scaled, (0, 0))
         else:
             self.screen.blit(self.surface, (0, 0))

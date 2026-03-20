@@ -2,6 +2,19 @@ from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
 
 extensions = [
+    Extension("cpu.lr35902.bus", ["cpu/lr35902/bus.pyx"]),
+    Extension("cpu.lr35902.core", ["cpu/lr35902/core.pyx"]),
+    Extension("devices.gameboy.mbc1", ["devices/gameboy/mbc1.pyx"]),
+    Extension("devices.gameboy.mbc2", ["devices/gameboy/mbc2.pyx"]),
+    Extension("devices.gameboy.mbc3", ["devices/gameboy/mbc3.pyx"]),
+    Extension("devices.gameboy.mbc5", ["devices/gameboy/mbc5.pyx"]),
+    Extension("devices.gameboy.cartridge", ["devices/gameboy/cartridge.pyx"]),
+    Extension("devices.gameboy.apu", ["devices/gameboy/apu.pyx"]),
+    Extension("devices.gameboy.ppu", ["devices/gameboy/ppu.pyx"]),
+    Extension("devices.gameboy.timer", ["devices/gameboy/timer.pyx"]),
+    Extension("devices.gameboy.interrupts", ["devices/gameboy/interrupts.pyx"]),
+    Extension("devices.gameboy.dma", ["devices/gameboy/dma.pyx"]),
+    Extension("machines.frame_runner", ["machines/frame_runner.pyx"]),
     Extension("cpu.z80.memory", ["cpu/z80/memory.pyx"]),
     Extension("cpu.z80.io", ["cpu/z80/io.pyx"]),
     Extension("cpu.z80.bus", ["cpu/z80/bus.pyx"]),
@@ -17,7 +30,7 @@ extensions = [
 
 setup(
     name="multiemu",
-    version="0.0.2",
+    version="0.1.1",
     description="Work-in-progress retro machine emulator in Python and Cython",
     packages=find_packages(),
     entry_points={

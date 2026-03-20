@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from frontend.backend import LocalMachineBackend
 from frontend.pygame_frontend import PygameFrontend
+import pygame
 
 
 class _FakeMachine:
@@ -129,3 +130,40 @@ def test_pygame_frontend_f1_toggles_tape_play_pause(monkeypatch):
 
     assert machine.tape_toggles == 1
     assert machine.cassette.playing is True
+
+
+def test_pygame_frontend_alt_enter_toggles_fullscreen(monkeypatch):
+    machine = _FakeMachine("spectrum48k")
+    frontend = PygameFrontend(machine)
+    calls = []
+
+    class _Screen:
+        def __init__(self, size):
+            self._size = size
+
+        def get_size(self):
+            return self._size
+
+        def blit(self, *_args, **_kwargs):
+            return None
+
+    def fake_set_mode(size, flags=0):
+        calls.append((size, flags))
+        if flags & pygame.FULLSCREEN:
+            return _Screen((1920, 1080))
+        return _Screen(size)
+
+    monkeypatch.setattr("pygame.display.set_mode", fake_set_mode)
+    frontend._apply_display_mode()
+
+    class _Event:
+        type = pygame.KEYDOWN
+        key = pygame.K_RETURN
+        mod = pygame.KMOD_ALT
+
+    monkeypatch.setattr("pygame.event.get", lambda: [_Event()])
+    frontend._handle_events()
+
+    assert frontend.fullscreen is True
+    assert calls[0] == ((frontend.win_width, frontend.win_height), 0)
+    assert calls[1] == ((0, 0), pygame.FULLSCREEN)
