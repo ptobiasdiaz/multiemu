@@ -1,0 +1,105 @@
+# cython: boundscheck=False
+# cython: wraparound=False
+# cython: initializedcheck=False
+# cython: cdivision=True
+
+"""Cartridge helpers for Game Boy ROMs."""
+
+from __future__ import annotations
+
+from .mbc1 import MBC1
+from .mbc2 import MBC2
+from .mbc3 import MBC3
+from .mbc5 import MBC5
+
+
+CARTRIDGE_TYPES = {
+    0x00: "ROM_ONLY",
+    0x01: "MBC1",
+    0x02: "MBC1+RAM",
+    0x03: "MBC1+RAM+BATTERY",
+    0x05: "MBC2",
+    0x06: "MBC2+BATTERY",
+    0x0F: "MBC3+TIMER+BATTERY",
+    0x10: "MBC3+TIMER+RAM+BATTERY",
+    0x11: "MBC3",
+    0x12: "MBC3+RAM",
+    0x13: "MBC3+RAM+BATTERY",
+    0x19: "MBC5",
+    0x1A: "MBC5+RAM",
+    0x1B: "MBC5+RAM+BATTERY",
+    0x1C: "MBC5+RUMBLE",
+    0x1D: "MBC5+RUMBLE+RAM",
+    0x1E: "MBC5+RUMBLE+RAM+BATTERY",
+}
+
+
+cdef class GameBoyCartridge:
+    """Represents a Game Boy cartridge and its header/ROM data."""
+
+    TITLE_START = 0x0134
+    TITLE_END = 0x0143
+    TYPE_ADDR = 0x0147
+    ROM_SIZE_ADDR = 0x0148
+    RAM_SIZE_ADDR = 0x0149
+
+    cdef public bytes rom_data
+    cdef public object title, cartridge_type_name, mapper
+    cdef public int cartridge_type, rom_size_code, ram_size_code
+
+    def __init__(self, bytes rom_data):
+        if len(rom_data) < 0x150:
+            raise ValueError("ROM de Game Boy invalida: cabecera demasiado corta")
+        self.rom_data = bytes(rom_data)
+        self.title = self._decode_title()
+        self.cartridge_type = self.rom_data[self.TYPE_ADDR]
+        self.cartridge_type_name = CARTRIDGE_TYPES.get(self.cartridge_type, f"0x{self.cartridge_type:02X}")
+        self.rom_size_code = self.rom_data[self.ROM_SIZE_ADDR]
+        self.ram_size_code = self.rom_data[self.RAM_SIZE_ADDR]
+        self.mapper = self._build_mapper()
+
+    cdef object _decode_title(self):
+        cdef bytes raw = self.rom_data[self.TITLE_START : self.TITLE_END + 1]
+        raw = raw.split(b"\x00", 1)[0]
+        if not raw:
+            return ""
+        return raw.decode("ascii", errors="replace").strip()
+
+    cpdef bint supports_rom_only(self):
+        return self.cartridge_type == 0x00
+
+    cpdef bint supports_mbc1(self):
+        return self.cartridge_type in {0x01, 0x02, 0x03}
+
+    cpdef bint supports_mbc2(self):
+        return self.cartridge_type in {0x05, 0x06}
+
+    cpdef bint supports_mbc3(self):
+        return self.cartridge_type in {0x0F, 0x10, 0x11, 0x12, 0x13}
+
+    cpdef bint supports_mbc5(self):
+        return self.cartridge_type in {0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E}
+
+    cdef object _build_mapper(self):
+        if self.supports_rom_only():
+            return None
+        if self.supports_mbc1():
+            return MBC1(self.rom_data, ram_size_code=self.ram_size_code)
+        if self.supports_mbc2():
+            return MBC2(self.rom_data)
+        if self.supports_mbc3():
+            return MBC3(self.rom_data, ram_size_code=self.ram_size_code)
+        if self.supports_mbc5():
+            return MBC5(self.rom_data, ram_size_code=self.ram_size_code)
+        raise ValueError(f"tipo de cartucho aun no soportado: {self.cartridge_type_name}")
+
+    cpdef int read(self, int addr):
+        if self.mapper is not None:
+            return self.mapper.read(addr)
+        if 0 <= addr < len(self.rom_data):
+            return self.rom_data[addr]
+        return 0xFF
+
+    cpdef void write(self, int addr, int value):
+        if self.mapper is not None:
+            self.mapper.write(addr, value)
