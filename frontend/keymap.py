@@ -113,10 +113,26 @@ CPC_PYGAME_KEYMAP = {
     pygame.K_KP_PERIOD: (9, 6),
 }
 
+GAMEBOY_PYGAME_KEYMAP = {
+    pygame.K_RIGHT: (0, 0),
+    pygame.K_LEFT: (0, 1),
+    pygame.K_UP: (0, 2),
+    pygame.K_DOWN: (0, 3),
+    pygame.K_z: (1, 0),
+    pygame.K_LALT: (1, 0),
+    pygame.K_x: (1, 1),
+    pygame.K_LCTRL: (1, 1),
+    pygame.K_BACKSPACE: (1, 2),
+    pygame.K_SPACE: (1, 2),
+    pygame.K_RETURN: (1, 3),
+    pygame.K_RSHIFT: (1, 3),
+}
+
 
 PYGAME_KEYMAPS = {
     "spectrum": SPECTRUM_PYGAME_KEYMAP,
     "cpc": CPC_PYGAME_KEYMAP,
+    "gameboy": GAMEBOY_PYGAME_KEYMAP,
 }
 
 

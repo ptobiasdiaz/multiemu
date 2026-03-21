@@ -116,10 +116,12 @@ def test_ay38912_renders_non_silent_tone():
     chip.select_register(8)
     chip.write_selected(0x0F)
 
-    samples = chip.render_samples(32)
+    samples = chip.render_samples(128)
 
-    assert len(samples) == 32
+    assert len(samples) == 128
     assert any(sample != 0 for sample in samples)
+    assert max(samples) > 0
+    assert min(samples) < 0
 
 
 def test_ay38912_envelope_drives_channel_volume():

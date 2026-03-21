@@ -21,6 +21,12 @@ def test_machine_registry_exposes_known_machine():
     assert spec.rom_slots[0].filenames == ("spec48k.rom",)
 
 
+def test_machine_registry_exposes_gameboy():
+    spec = get_machine_spec("gameboy")
+    assert spec.display_name == "Nintendo Game Boy (early scaffold)"
+    assert spec.rom_slots[0].slot_id == "main"
+
+
 def test_default_rom_search_dirs_follow_priority(monkeypatch, tmp_path):
     fake_home = tmp_path / "home"
     fake_home.mkdir()
@@ -57,6 +63,12 @@ def test_parse_cli_rom_specs_accepts_short_form_for_single_slot_machine():
     assert roms == {"main": Path("custom.rom")}
 
 
+def test_parse_cli_rom_specs_accepts_short_form_for_gameboy():
+    roms = parse_cli_rom_specs("gameboy", ["gameboy.gb"])
+
+    assert roms == {"main": Path("gameboy.gb")}
+
+
 def test_parse_cli_rom_specs_requires_slot_names_for_multi_rom_machine():
     try:
         parse_cli_rom_specs("cpc464", ["OS_464.ROM"])
@@ -67,11 +79,12 @@ def test_parse_cli_rom_specs_requires_slot_names_for_multi_rom_machine():
 
 
 def test_parse_cli_rom_specs_accepts_named_slots_for_multi_rom_machine():
-    roms = parse_cli_rom_specs("cpc464", ["os=OS_464.ROM", "basic=BASIC_1.0.ROM"])
+    roms = parse_cli_rom_specs("cpc464", ["os=OS_464.ROM", "basic=BASIC_1.0.ROM", "tape=demo.cdt"])
 
     assert roms == {
         "os": Path("OS_464.ROM"),
         "basic": Path("BASIC_1.0.ROM"),
+        "tape": Path("demo.cdt"),
     }
 
 
@@ -156,3 +169,17 @@ def test_instantiate_machine_accepts_display_profile():
     )
 
     assert machine.display_profile_name == "full-border"
+
+
+def test_instantiate_gameboy_machine(tmp_path):
+    rom = bytearray(0x8000)
+    rom[0x0134:0x013A] = b"SMTEST"
+    rom[0x0147] = 0x00
+    rom_path = tmp_path / "gameboy.gb"
+    rom_path.write_bytes(rom)
+
+    machine = instantiate_machine("gameboy", roms={"main": rom_path})
+
+    assert machine.machine_id == "gameboy"
+    assert machine.display_name == "Nintendo Game Boy (early scaffold)"
+    assert machine.frame_width == 160

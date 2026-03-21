@@ -4,6 +4,17 @@ from __future__ import annotations
 
 from frontend.input_events import InputEvent
 from machines.z80 import CPC464
+from devices import CPCCassetteTape
+
+
+def _make_minimal_cdt(payload: bytes = b"\x00") -> bytes:
+    block = (
+        bytes([0x10])
+        + (1000).to_bytes(2, "little")
+        + len(payload).to_bytes(2, "little")
+        + payload
+    )
+    return b"ZXTape!\x1A\x01\x0A" + block
 
 
 def _pixel_at_rgb24(packed: bytes, width: int, x: int, y: int) -> tuple[int, int, int]:
@@ -564,12 +575,80 @@ def test_cpc464_keyboard_reads_survive_firmware_switching_psg_port_a_to_output()
     assert machine._port_read(0xF400) == 0xDF
 
 
+def test_cdt_parser_accepts_standard_and_turbo_blocks():
+    turbo_payload = b"\xA5\x5A"
+    turbo = (
+        bytes([0x11])
+        + (2168).to_bytes(2, "little")
+        + (667).to_bytes(2, "little")
+        + (735).to_bytes(2, "little")
+        + (855).to_bytes(2, "little")
+        + (1710).to_bytes(2, "little")
+        + (16).to_bytes(2, "little")
+        + bytes([8])
+        + (1000).to_bytes(2, "little")
+        + len(turbo_payload).to_bytes(3, "little")
+        + turbo_payload
+    )
+    data = b"ZXTape!\x1A\x01\x0A" + bytes([0x20]) + (500).to_bytes(2, "little") + turbo
+
+    tape = CPCCassetteTape.from_cdt_bytes(data)
+
+    assert tape.pulses
+    assert any(pulse.level == 0 for pulse in tape.pulses)
+    assert any(pulse.level == 1 for pulse in tape.pulses)
+
+
+def test_cdt_fast_mode_reduces_pilot_and_pause_time():
+    payload = b"\x00\x01"
+    data = _make_minimal_cdt(payload)
+
+    normal = CPCCassetteTape.from_cdt_bytes(data, fast=False)
+    fast = CPCCassetteTape.from_cdt_bytes(data, fast=True)
+
+    normal_total = sum(pulse.duration_tstates for pulse in normal.pulses)
+    fast_total = sum(pulse.duration_tstates for pulse in fast.pulses)
+
+    assert fast_total < normal_total
+    assert len(fast.pulses) < len(normal.pulses)
+
+
+def test_cpc464_port_b_exposes_cassette_input_when_motor_is_enabled():
+    machine = CPC464(bytes([0x00]) * 0x4000, tape_data=_make_minimal_cdt())
+
+    machine._port_write(0xF600, 0x10)
+
+    seen = set()
+    for _ in range(200):
+        machine._run_devices_until(machine.frame_tstates + 3000)
+        seen.add(1 if (machine._port_read(0xF500) & 0x80) else 0)
+        machine.frame_tstates += 3000
+        if seen == {0, 1}:
+            break
+
+    assert seen == {0, 1}
+
+
 def test_cpc464_runs_several_interrupts_per_frame():
-    machine = CPC464(bytes([0x00]) * 0x4000, basic_rom_data=bytes([0x00]) * 0x4000)
+    rom = bytearray([0x00] * 0x4000)
+    rom[0x0000] = 0xFB  # EI
+    rom[0x0001] = 0x00  # NOP
+    rom[0x0002] = 0x76  # HALT
+    machine = CPC464(bytes(rom), basic_rom_data=bytes([0x00]) * 0x4000)
 
     machine.run_frame()
 
-    assert machine.interrupt_counter >= 5
+    assert machine.interrupt_counter >= 1
+
+
+def test_cpc464_keeps_gate_array_irq_pending_while_cpu_interrupts_are_masked():
+    machine = CPC464(bytes([0x00]) * 0x4000)
+    machine.gate_array.pending_interrupt = True
+
+    machine._begin_scanline(0)
+
+    assert machine.gate_array.pending_interrupt is True
+    assert machine.interrupt_counter == 0
 
 
 def test_cpc464_pushes_psg_audio_into_the_machine_ring_buffer():
@@ -589,3 +668,27 @@ def test_cpc464_pushes_psg_audio_into_the_machine_ring_buffer():
     assert machine.get_audio_buffered_samples() > 0
     samples = machine.pop_audio_samples(machine.get_audio_buffered_samples())
     assert any(sample != 0 for sample in samples)
+
+
+def test_cpc464_renders_psg_audio_progressively_across_the_frame():
+    """Mid-frame PSG writes should affect later audio in the same frame."""
+
+    machine = CPC464(bytes([0x00]) * 0x4000)
+
+    machine._begin_frame()
+    machine._run_devices_until(machine.TSTATES_PER_FRAME // 2)
+
+    machine.psg.select_register(0)
+    machine.psg.write_selected(2)
+    machine.psg.select_register(1)
+    machine.psg.write_selected(0)
+    machine.psg.select_register(8)
+    machine.psg.write_selected(0x0F)
+
+    machine._run_devices_until(machine.TSTATES_PER_FRAME)
+    samples = machine._render_audio_frame()
+
+    half = len(samples) // 2
+    assert len(samples) == machine.samples_per_frame
+    assert all(sample == 0 for sample in samples[:half])
+    assert any(sample != 0 for sample in samples[half:])

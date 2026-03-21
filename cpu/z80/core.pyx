@@ -1059,6 +1059,110 @@ cdef class Z80Core:
             self.bus.io_write(self.get_BC(), self.A)
             return 12
 
+        elif op == 0xA2:
+            # INI
+            hl = self.get_HL()
+            val = self.bus.io_read(self.get_BC())
+            self.bus.mem_write(hl, val)
+            self.B = <uint8_t>((self.B - 1) & 0xFF)
+            self.set_HL(<uint16_t>((hl + 1) & 0xFFFF))
+            self.F = FLAG_N
+            if self.B != 0:
+                self.F |= FLAG_PV
+            return 16
+
+        elif op == 0xB2:
+            # INIR
+            hl = self.get_HL()
+            val = self.bus.io_read(self.get_BC())
+            self.bus.mem_write(hl, val)
+            self.B = <uint8_t>((self.B - 1) & 0xFF)
+            self.set_HL(<uint16_t>((hl + 1) & 0xFFFF))
+            self.F = FLAG_N
+            if self.B != 0:
+                self.F |= FLAG_PV
+                self.PC = <uint16_t>((self.PC - 2) & 0xFFFF)
+                return 21
+            return 16
+
+        elif op == 0xAA:
+            # IND
+            hl = self.get_HL()
+            val = self.bus.io_read(self.get_BC())
+            self.bus.mem_write(hl, val)
+            self.B = <uint8_t>((self.B - 1) & 0xFF)
+            self.set_HL(<uint16_t>((hl - 1) & 0xFFFF))
+            self.F = FLAG_N
+            if self.B != 0:
+                self.F |= FLAG_PV
+            return 16
+
+        elif op == 0xBA:
+            # INDR
+            hl = self.get_HL()
+            val = self.bus.io_read(self.get_BC())
+            self.bus.mem_write(hl, val)
+            self.B = <uint8_t>((self.B - 1) & 0xFF)
+            self.set_HL(<uint16_t>((hl - 1) & 0xFFFF))
+            self.F = FLAG_N
+            if self.B != 0:
+                self.F |= FLAG_PV
+                self.PC = <uint16_t>((self.PC - 2) & 0xFFFF)
+                return 21
+            return 16
+
+        elif op == 0xA3:
+            # OUTI
+            hl = self.get_HL()
+            val = self.bus.mem_read(hl)
+            self.bus.io_write(self.get_BC(), val)
+            self.B = <uint8_t>((self.B - 1) & 0xFF)
+            self.set_HL(<uint16_t>((hl + 1) & 0xFFFF))
+            self.F = FLAG_N
+            if self.B != 0:
+                self.F |= FLAG_PV
+            return 16
+
+        elif op == 0xB3:
+            # OTIR
+            hl = self.get_HL()
+            val = self.bus.mem_read(hl)
+            self.bus.io_write(self.get_BC(), val)
+            self.B = <uint8_t>((self.B - 1) & 0xFF)
+            self.set_HL(<uint16_t>((hl + 1) & 0xFFFF))
+            self.F = FLAG_N
+            if self.B != 0:
+                self.F |= FLAG_PV
+                self.PC = <uint16_t>((self.PC - 2) & 0xFFFF)
+                return 21
+            return 16
+
+        elif op == 0xAB:
+            # OUTD
+            hl = self.get_HL()
+            val = self.bus.mem_read(hl)
+            self.bus.io_write(self.get_BC(), val)
+            self.B = <uint8_t>((self.B - 1) & 0xFF)
+            self.set_HL(<uint16_t>((hl - 1) & 0xFFFF))
+            self.F = FLAG_N
+            if self.B != 0:
+                self.F |= FLAG_PV
+            return 16
+
+        elif op == 0xBB:
+            # OTDR
+            hl = self.get_HL()
+            val = self.bus.mem_read(hl)
+            self.bus.io_write(self.get_BC(), val)
+            self.B = <uint8_t>((self.B - 1) & 0xFF)
+            self.set_HL(<uint16_t>((hl - 1) & 0xFFFF))
+            self.F = FLAG_N
+            if self.B != 0:
+                self.F |= FLAG_PV
+                self.PC = <uint16_t>((self.PC - 2) & 0xFFFF)
+                return 21
+            return 16
+
         else:
             raise NotImplementedError(f"ED opcode {op:02X}")
 
@@ -1264,6 +1368,30 @@ cdef class Z80Core:
             self.B = self.get_IYH() if use_iy else self.get_IXH(); return 8
         elif op == 0x45:
             self.B = self.get_IYL() if use_iy else self.get_IXL(); return 8
+        elif op == 0x60:
+            if use_iy: self.set_IYH(self.B)
+            else: self.set_IXH(self.B)
+            return 8
+        elif op == 0x61:
+            if use_iy: self.set_IYH(self.C)
+            else: self.set_IXH(self.C)
+            return 8
+        elif op == 0x62:
+            if use_iy: self.set_IYH(self.D)
+            else: self.set_IXH(self.D)
+            return 8
+        elif op == 0x63:
+            if use_iy: self.set_IYH(self.E)
+            else: self.set_IXH(self.E)
+            return 8
+        elif op == 0x64:
+            if use_iy: self.set_IYH(self.get_IYH())
+            else: self.set_IXH(self.get_IXH())
+            return 8
+        elif op == 0x65:
+            if use_iy: self.set_IYH(self.get_IYL())
+            else: self.set_IXH(self.get_IXL())
+            return 8
         elif op == 0x4C:
             self.C = self.get_IYH() if use_iy else self.get_IXH(); return 8
         elif op == 0x4D:
@@ -1276,6 +1404,30 @@ cdef class Z80Core:
             self.E = self.get_IYH() if use_iy else self.get_IXH(); return 8
         elif op == 0x5D:
             self.E = self.get_IYL() if use_iy else self.get_IXL(); return 8
+        elif op == 0x68:
+            if use_iy: self.set_IYL(self.B)
+            else: self.set_IXL(self.B)
+            return 8
+        elif op == 0x69:
+            if use_iy: self.set_IYL(self.C)
+            else: self.set_IXL(self.C)
+            return 8
+        elif op == 0x6A:
+            if use_iy: self.set_IYL(self.D)
+            else: self.set_IXL(self.D)
+            return 8
+        elif op == 0x6B:
+            if use_iy: self.set_IYL(self.E)
+            else: self.set_IXL(self.E)
+            return 8
+        elif op == 0x6C:
+            if use_iy: self.set_IYL(self.get_IYH())
+            else: self.set_IXL(self.get_IXH())
+            return 8
+        elif op == 0x6D:
+            if use_iy: self.set_IYL(self.get_IYL())
+            else: self.set_IXL(self.get_IXL())
+            return 8
         elif op == 0x67:
             if use_iy: self.set_IYH(self.A)
             else: self.set_IXH(self.A)
@@ -2082,6 +2234,9 @@ cdef class Z80Core:
 
     cpdef bint is_halted(self):
         return self.halted
+
+    cpdef bint interrupts_enabled(self):
+        return self.iff1
 
     cpdef dict snapshot(self):
         return {

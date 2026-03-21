@@ -50,8 +50,9 @@ class GameBoyPPU:
         self._line_obp1 = [0] * self.FRAME_HEIGHT
         self._line_latched = [False] * self.FRAME_HEIGHT
         self.framebuffer_rgb24 = self._make_blank_frame(self._palette_color(0))
-        self._update_stat_mode(0)
-        self._apply_bus_access(0)
+        self._last_mode = 1
+        self._update_stat_mode(1)
+        self._apply_bus_access(1)
 
     def begin_frame(self):
         self._last_tstates = 0

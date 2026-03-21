@@ -199,13 +199,24 @@ class AY38912:
         total = 0
 
         for channel in range(3):
-            if not self._channel_enabled(channel):
+            if not self._channel_mixer_active(channel):
                 continue
-            total += self.LEVEL_TABLE[self._get_channel_level(channel)]
+            level = self.LEVEL_TABLE[self._get_channel_level(channel)]
+            if level <= 0:
+                continue
+            if self._channel_output_high(channel):
+                total += level
+            else:
+                total -= level
 
         return int((total / (3 * self.LEVEL_TABLE[-1])) * 32767.0)
 
-    def _channel_enabled(self, channel: int) -> bool:
+    def _channel_mixer_active(self, channel: int) -> bool:
+        tone_disabled = bool(self.registers[7] & (1 << channel))
+        noise_disabled = bool(self.registers[7] & (1 << (channel + 3)))
+        return tone_disabled or noise_disabled or self._get_channel_level(channel) > 0
+
+    def _channel_output_high(self, channel: int) -> bool:
         tone_disabled = bool(self.registers[7] & (1 << channel))
         noise_disabled = bool(self.registers[7] & (1 << (channel + 3)))
         tone_ok = tone_disabled or bool(self.tone_outputs[channel])

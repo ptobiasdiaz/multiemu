@@ -17,9 +17,9 @@ cdef class GameBoyTimer:
         self.reset()
 
     def reset(self):
-        self._div_counter = 0
+        self._div_counter = 0xAB00
         self._tima_counter = 0
-        self.div = 0x00
+        self.div = 0xAB
         self.tima = 0x00
         self.tma = 0x00
         self.tac = 0x00

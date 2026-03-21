@@ -98,8 +98,6 @@ cdef class CPCVideo:
     cpdef int _get_visible_width(self):
         cdef int chars = self._get_visible_char_count()
         cdef int mode = self.gate_array.mode
-        if mode == 0:
-            return chars * 4
         if mode == 2:
             return chars * 16
         return chars * 8
@@ -266,8 +264,6 @@ cdef class CPCVideo:
 
     cpdef int _get_pixels_per_character(self):
         cdef int mode = self.gate_array.mode
-        if mode == 0:
-            return 4
         if mode == 2:
             return 16
         return 8

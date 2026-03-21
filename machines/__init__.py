@@ -1,10 +1,13 @@
 """Supported machine families."""
 
 from .base import BaseMachine
+from .gameboy import DMG, GameBoyMachineBase
 from .z80 import CPC464, Spectrum16K, Spectrum48K, SpectrumBase, Z80MachineBase
 
 __all__ = [
     "BaseMachine",
+    "GameBoyMachineBase",
+    "DMG",
     "Z80MachineBase",
     "CPC464",
     "SpectrumBase",

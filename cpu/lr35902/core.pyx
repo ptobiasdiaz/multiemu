@@ -363,6 +363,10 @@ cdef class LR35902Core:
         try:
             if op == 0x00:
                 used = 4
+            elif op == 0x10:
+                self._fetch8()
+                self.halted = True
+                used = 4
             elif op == 0x07:
                 value = (self.A >> 7) & 1
                 self.A = ((self.A << 1) | value) & 0xFF

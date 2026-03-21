@@ -355,6 +355,13 @@ class LR35902Core:
         try:
             if op == 0x00:  # NOP
                 used = 4
+            elif op == 0x10:  # STOP
+                # In DMG software this is commonly encoded as STOP 00.
+                # Treat it as a low-power stop compatible with our HALT path
+                # so ROMs can advance without tripping the decoder.
+                self._fetch8()
+                self.halted = True
+                used = 4
             elif op == 0x07:  # RLCA
                 carry = (self.A >> 7) & 1
                 self.A = ((self.A << 1) | carry) & 0xFF

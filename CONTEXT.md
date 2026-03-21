@@ -26,12 +26,19 @@ Familias visibles ahora:
 - `spectrum16k`
 - `spectrum48k`
 - `cpc464`
+- `gameboy`
 
 La arquitectura que se esta consolidando es:
 
 - implementacion acelerada en `devices/*_accel.pyx`
 - wrappers de produccion minimos en `devices/*.py`
 - referencias Python movidas a `tests/fallbacks/` solo para equivalencia y tests
+
+Direccion acordada para Game Boy:
+
+- `LR35902` ira en una implementacion separada de `cpu/z80/`
+- se compartira infraestructura mecanica, no el core de ejecucion
+- la PPU debera nacer ya con salida canonica `rgb24`
 
 El contrato de video de produccion ya no es el framebuffer estructurado.
 
@@ -133,6 +140,34 @@ Las referencias Python del CPC viven ahora en:
 - `tests/fallbacks/cpc_chip_references.py`
 - `tests/fallbacks/cpc_render_reference.py`
 - `tests/fallbacks/cpc_video_reference.py`
+
+## Game Boy clasica
+
+Archivos principales:
+
+- `machines/gameboy/base.py`
+- `machines/gameboy/dmg.py`
+- `cpu/lr35902/core.py`
+- `cpu/lr35902/bus.py`
+- `devices/gameboy/cartridge.py`
+- `devices/gameboy/ppu.py`
+
+Estado actual:
+
+- existe id publico `gameboy` en la CLI
+- la maquina `DMG` ya se puede instanciar con ROMs `.gb`
+- hay soporte inicial para cartuchos `ROM-only` y `MBC1`
+- el `LR35902` ya no es un stub vacio: ejecuta un subconjunto real de instrucciones
+- `smtest.gb` avanza al menos un frame sin caer en error
+- la PPU todavia produce un framebuffer fijo, no video real de Game Boy
+
+Lo que falta para considerarlo soporte real:
+
+- ampliar mucho mas el decoder del `LR35902`
+- MMIO y timers mas fieles
+- PPU con tiles/fondo/ventana/sprites
+- interrupciones reales
+- audio fuera del primer corte
 
 ---
 
@@ -335,6 +370,18 @@ Y que el transporte concreto, hoy TCP, se encargue sobre todo de:
 - sockets
 - parsing de mensajes
 - colas/salida
+
+## CPUs nuevas
+
+Si entra una CPU nueva, la regla actual es conservadora:
+
+- no crear jerarquias profundas de "CPU parecida a Z80"
+- compartir utilidades e infraestructura solo cuando sean realmente neutrales
+- mantener decoder, flags, timings y tabla de opcodes en implementaciones separadas
+
+Esta decision se ha tomado ya para la futura Game Boy clasica:
+
+- `LR35902` se implementara aparte, no como refactor del `Z80`
 
 ## Convencion de documentacion
 

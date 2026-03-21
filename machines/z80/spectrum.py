@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from cpu.z80 import RAMBlock, ROMBlock, PythonPortHandler
+from devices import SpectrumCassetteTape
 from devices.ula import Spectrum48KULA
 from frontend.input_events import InputEvent
+from machines.frame_runner import SteppedFrameRunner
 from machines.z80.base import Z80MachineBase
 from video import get_display_profile
 
@@ -15,7 +17,13 @@ class SpectrumBase(Z80MachineBase):
     RAM_BASE = 0x4000
     TSTATES_PER_FRAME = 69888
 
-    def __init__(self, rom_data: bytes | None = None, *, display_profile: str = "default"):
+    def __init__(
+        self,
+        rom_data: bytes | None = None,
+        *,
+        tape_data: bytes | None = None,
+        display_profile: str = "default",
+    ):
         super().__init__()
         self.display_profile_name = display_profile
         self.display_profile = get_display_profile(display_profile)
@@ -35,6 +43,8 @@ class SpectrumBase(Z80MachineBase):
         self.last_out_fe = 0
 
         self.ula = Spectrum48KULA(self)
+        self.cassette = SpectrumCassetteTape.from_tzx_bytes(tape_data) if tape_data is not None else None
+        self._tape_tstates = 0
         self.frame_width = self.ula.frame_width
         self.frame_height = self.ula.frame_height
         self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
@@ -47,6 +57,7 @@ class SpectrumBase(Z80MachineBase):
             0xFE,
             PythonPortHandler(self._port_read_fe, self._port_write_fe),
         )
+        self._frame_runner = SteppedFrameRunner(self.TSTATES_PER_FRAME)
 
     @property
     def framebuffer_rgb24(self):
@@ -73,6 +84,14 @@ class SpectrumBase(Z80MachineBase):
             if (high & (1 << row)) == 0:
                 result &= self.keyboard_rows[row]
 
+        if self.cassette is not None:
+            # EAR input is observed on bit 6. Toggling this bit is enough for
+            # the ROM loader to see tape edges.
+            if self.cassette.level:
+                result &= ~0x40
+            else:
+                result |= 0x40
+
         return result & 0xFF
 
     def _port_write_fe(self, port: int, value: int) -> None:
@@ -88,32 +107,44 @@ class SpectrumBase(Z80MachineBase):
         self.keyboard_rows = [0x1F] * 8
 
         self.ula.reset()
+        if self.cassette is not None:
+            self.cassette.reset()
+        self._tape_tstates = 0
         self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
         self.audio_samples = self.ula.get_frame_samples()
 
-    def run_frame(self) -> int:
+    def _begin_frame(self) -> None:
         self.frame_tstates = 0
+        self._tape_tstates = 0
         self.ula.beeper.begin_frame()
 
-        while self.frame_tstates < self.TSTATES_PER_FRAME:
-            used = self.cpu.step()
-            self.tstates += used
-            self.frame_tstates += used
-            self._run_devices_until(self.frame_tstates)
-
-            if used <= 0:
-                break
-
+    def _finish_frame(self) -> None:
         self.ula.end_frame()
-
         self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
         self.audio_samples = self.ula.get_frame_samples()
         self.audio_ring.write(self.audio_samples)
         self.frame_counter += 1
+
+    def run_frame(self) -> int:
+        self._frame_runner.run(
+            self,
+            self.cpu.step,
+            self._run_devices_until,
+            self._begin_frame,
+            self._finish_frame,
+        )
         return self.tstates
 
     def _run_devices_until(self, tstates: int):
         self.ula.run_until(tstates)
+        if self.cassette is not None:
+            self.cassette.run_cycles(max(0, tstates - self._tape_tstates))
+            self._tape_tstates = tstates
+
+    def toggle_tape_play_pause(self) -> bool:
+        if self.cassette is None:
+            return False
+        return self.cassette.toggle_play_pause()
 
     def load_rom(self, data: bytes):
         self.rom.load_bytes(data)

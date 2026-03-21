@@ -270,12 +270,17 @@ class Intel8255:
     def read_port_b(self) -> int:
         if self.port_b_input:
             base = self.DEFAULT_PORT_B & 0xFE
+            if self.machine.read_cassette_input():
+                base |= 0x80
+            else:
+                base &= 0x7F
             return base | (1 if self.machine.vsync_active else 0)
         return self.port_b_latch
 
     def write_port_c(self, value: int) -> None:
         self.port_c_latch = value & 0xFF
         self.machine._apply_psg_bus_control()
+        self.machine._apply_tape_port_c()
 
     def read_port_c(self) -> int:
         return self.port_c_latch
@@ -297,4 +302,4 @@ class Intel8255:
         else:
             self.port_c_latch &= ~(1 << bit_index)
         self.machine._apply_psg_bus_control()
-
+        self.machine._apply_tape_port_c()

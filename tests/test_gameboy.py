@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from machines.gameboy import DMG
 
 
@@ -9,7 +13,7 @@ def _pixel_at_rgb24(packed: bytes, width: int, x: int, y: int) -> tuple[int, int
 
 
 def _make_test_rom(*, title: str = "SMTEST", cartridge_type: int = 0x00) -> bytes:
-    rom_size = 0x10000 if cartridge_type in {0x01, 0x02, 0x03, 0x05, 0x06, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E} else 0x8000
+    rom_size = 0x10000 if cartridge_type in {0x01, 0x02, 0x03, 0x05, 0x06, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0xFF} else 0x8000
     rom = bytearray(rom_size)
     title_bytes = title.encode("ascii")[:16]
     rom[0x0134 : 0x0134 + len(title_bytes)] = title_bytes
@@ -28,6 +32,22 @@ def test_gameboy_machine_exposes_expected_frame_geometry():
     assert machine.input_keymap_name == "gameboy"
     assert machine.input_tap_hold_frames == 2
     assert machine.input_quick_tap_max_frames == 1
+    assert machine.bus.read8(0xFF00) == 0xCF
+    assert machine.bus.read8(0xFF01) == 0x00
+    assert machine.bus.read8(0xFF02) == 0x7E
+    assert machine.bus.read8(0xFF04) == 0xAB
+    assert machine.bus.read8(0xFF0F) == 0xE1
+    assert machine.bus.read8(0xFF41) == 0x85
+
+
+def test_gameboy_serial_registers_roundtrip_through_io_handlers():
+    machine = DMG(_make_test_rom())
+
+    machine.bus.write8(0xFF01, 0xA5)
+    machine.bus.write8(0xFF02, 0x81)
+
+    assert machine.bus.read8(0xFF01) == 0xA5
+    assert machine.bus.read8(0xFF02) == 0xFF
 
 
 def test_gameboy_apu_channel_1_can_generate_audio_samples():
@@ -238,6 +258,15 @@ def test_gameboy_accepts_mbc5_cartridges():
     assert snap["cartridge_type"] == "MBC5+RAM+BATTERY"
 
 
+def test_gameboy_accepts_huc1_cartridges():
+    machine = DMG(_make_test_rom(title="HUC1TEST", cartridge_type=0xFF))
+
+    snap = machine.snapshot()
+
+    assert snap["cartridge_title"] == "HUC1TEST"
+    assert snap["cartridge_type"] == "HuC1+RAM+BATTERY"
+
+
 def test_gameboy_run_frame_advances_frame_counter():
     rom = bytearray(_make_test_rom())
     rom[0x0100:0x0102] = bytes([0x76, 0x00])  # HALT, NOP
@@ -265,6 +294,31 @@ def test_gameboy_run_frame_pushes_apu_audio_into_ring_buffer():
     assert len(machine.get_audio_samples()) > 0
     assert any(sample != 0 for sample in machine.get_audio_samples())
     assert machine.get_audio_buffered_samples() > 0
+
+
+@pytest.mark.parametrize(
+    "rom_name",
+    (
+        "dmg_huc1_smoke1.gb",
+        "dmg_huc1_smoke2.gb",
+    ),
+)
+def test_gameboy_huc1_smoke_rom_runs_multiple_frames(rom_name: str):
+    rom_path = Path(__file__).resolve().parents[1] / rom_name
+    if not rom_path.exists():
+        pytest.skip(f"falta ROM de smoke: {rom_path.name}")
+
+    machine = DMG(rom_path.read_bytes())
+
+    for _ in range(3):
+        machine.run_frame()
+
+    snap = machine.snapshot()
+
+    assert snap["cartridge_title"]
+    assert snap["cartridge_type"] == "HuC1+RAM+BATTERY"
+    assert machine.frame_counter == 3
+    assert machine.cpu.halted is False
 
 
 def test_gameboy_ppu_tracks_ly_during_frame():
@@ -370,6 +424,7 @@ def test_gameboy_ppu_restores_vram_and_oam_access_in_vblank():
 
 def test_gameboy_timer_div_increments_with_cycles():
     machine = DMG(_make_test_rom())
+    machine.timer.write_div(0x00)
 
     machine.timer.run_cycles(256)
 

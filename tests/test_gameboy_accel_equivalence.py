@@ -3,6 +3,7 @@ from __future__ import annotations
 from devices.gameboy import GameBoyAPU, GameBoyDMAController, GameBoyPPU, GameBoyTimer
 from devices.gameboy.cartridge import GameBoyCartridge
 from devices.gameboy.interrupts import GameBoyInterruptController
+from devices.gameboy.huc1 import HuC1
 from devices.gameboy.mbc1 import MBC1
 from devices.gameboy.mbc2 import MBC2
 from devices.gameboy.mbc3 import MBC3
@@ -16,6 +17,10 @@ from tests.fallbacks.gameboy_dma_reference import (
 )
 from tests.fallbacks.gameboy_interrupts_reference import (
     GameBoyInterruptController as GameBoyInterruptControllerReference,
+)
+from tests.fallbacks.gameboy_huc1_reference import HuC1 as HuC1Reference
+from tests.fallbacks.gameboy_lr35902_reference import (
+    LR35902Core as LR35902CoreReference,
 )
 from tests.fallbacks.gameboy_mbc1_reference import MBC1 as MBC1Reference
 from tests.fallbacks.gameboy_mbc2_reference import MBC2 as MBC2Reference
@@ -221,6 +226,24 @@ def test_gameboy_mbc5_accel_matches_reference():
     assert accel.read(0xA010) == reference.read(0xA010)
 
 
+def test_gameboy_huc1_accel_matches_reference():
+    rom = _make_test_rom(bank_count=8, cartridge_type=0xFF, ram_size_code=0x03)
+    accel = HuC1(rom, ram_size_code=0x03)
+    reference = HuC1Reference(rom, ram_size_code=0x03)
+
+    for mapper in (accel, reference):
+        mapper.write(0x2000, 0x02)
+        mapper.write(0x4000, 0x01)
+        mapper.write(0xA010, 0x44)
+        mapper.write(0x0000, 0x0E)
+        mapper.write(0xA000, 0x01)
+
+    assert accel.read(0x4000) == reference.read(0x4000)
+    assert accel.read(0xA010) == reference.read(0xA010)
+    assert accel.read(0xA000) == reference.read(0xA000)
+    assert accel.ir_transmitter_on == reference.ir_transmitter_on
+
+
 def test_gameboy_cartridge_accel_matches_reference():
     rom = _make_test_rom(
         bank_count=32,
@@ -246,6 +269,56 @@ def test_gameboy_cartridge_accel_matches_reference():
     assert accel.read(0xA111) == reference.read(0xA111)
 
 
+def test_gameboy_cartridge_accel_matches_reference_for_huc1():
+    rom = _make_test_rom(
+        bank_count=8,
+        title="HUC1REF",
+        cartridge_type=0xFF,
+        ram_size_code=0x03,
+    )
+    accel = GameBoyCartridge(rom)
+    reference = GameBoyCartridgeReference(rom)
+
+    for cartridge in (accel, reference):
+        cartridge.write(0x0000, 0x0A)
+        cartridge.write(0x6000, 0x01)
+        cartridge.write(0x4000, 0x01)
+        cartridge.write(0x2000, 0x02)
+        cartridge.write(0xA111, 0x42)
+
+    assert accel.cartridge_type_name == reference.cartridge_type_name
+    assert accel.supports_huc1() == reference.supports_huc1()
+    assert accel.read(0x4000) == reference.read(0x4000)
+    assert accel.read(0xA111) == reference.read(0xA111)
+
+
+def test_lr35902_accel_matches_pure_python_reference():
+    program = bytes(
+        [
+            0x3E, 0x12,        # LD A,12h
+            0x06, 0x34,        # LD B,34h
+            0x80,              # ADD A,B
+            0x27,              # DAA
+            0xE0, 0x80,        # LDH (80h),A
+            0xF0, 0x80,        # LDH A,(80h)
+            0x37,              # SCF
+            0xCE, 0x01,        # ADC A,01h
+            0x10, 0x00,        # STOP 00
+        ]
+    )
+    rom = _make_test_rom_bytes(program, cartridge_type=0x00)
+    accel_bus = _make_lr35902_bus(rom)
+    reference_bus = _make_lr35902_bus(rom)
+    accel = _make_accel_lr35902(accel_bus)
+    reference = LR35902CoreReference(reference_bus)
+
+    for _ in range(8):
+        assert accel.step() == reference.step()
+
+    assert accel.snapshot() == reference.snapshot()
+    assert accel_bus.read8(0xFF80) == reference_bus.read8(0xFF80)
+
+
 def test_gameboy_interrupts_accel_matches_reference():
     accel = GameBoyInterruptController()
     reference = GameBoyInterruptControllerReference()
@@ -258,6 +331,28 @@ def test_gameboy_interrupts_accel_matches_reference():
 
     assert accel.interrupt_enable == reference.interrupt_enable
     assert accel.interrupt_flags == reference.interrupt_flags
+
+
+def _make_test_rom_bytes(program: bytes, *, size: int = 0x8000, cartridge_type: int = 0x00) -> bytes:
+    rom = bytearray(size)
+    rom[0x0100 : 0x0100 + len(program)] = program
+    rom[0x0134:0x013A] = b"REFGB"
+    rom[0x0147] = cartridge_type
+    rom[0x0148] = 0x00 if size <= 0x8000 else 0x01
+    rom[0x0149] = 0x00
+    return bytes(rom)
+
+
+def _make_lr35902_bus(rom: bytes):
+    from cpu.lr35902 import LR35902Bus
+
+    return LR35902Bus(GameBoyCartridgeReference(rom))
+
+
+def _make_accel_lr35902(bus):
+    from cpu.lr35902 import LR35902Core
+
+    return LR35902Core(bus)
 
 
 def test_gameboy_dma_accel_matches_reference():

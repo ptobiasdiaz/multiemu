@@ -17,12 +17,12 @@ class GameBoyJoypad:
 
     def __init__(self, interrupts=None):
         self.interrupts = interrupts
-        self.select_bits = 0x30
+        self.select_bits = 0x00
         self.direction_state = 0x0F
         self.button_state = 0x0F
 
     def reset(self):
-        self.select_bits = 0x30
+        self.select_bits = 0x00
         self.direction_state = 0x0F
         self.button_state = 0x0F
 

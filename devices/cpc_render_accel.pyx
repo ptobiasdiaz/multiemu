@@ -126,7 +126,7 @@ cpdef list compose_display_row(
         return row
 
     if mode == 0:
-        pixels_per_byte = 2
+        pixels_per_byte = 4
     elif mode == 2:
         pixels_per_byte = 8
     else:
@@ -146,7 +146,7 @@ cpdef list compose_display_row(
         pixel_index = display_pixel % pixels_per_byte
 
         if mode == 0:
-            if pixel_index == 0:
+            if (pixel_index >> 1) == 0:
                 pen = ((value >> 7) & 1) | (((value >> 3) & 1) << 1) | (((value >> 5) & 1) << 2) | (((value >> 1) & 1) << 3)
             else:
                 pen = ((value >> 6) & 1) | (((value >> 2) & 1) << 1) | (((value >> 4) & 1) << 2) | ((value & 1) << 3)
@@ -199,7 +199,7 @@ cpdef list render_scanline_from_ram(
         return row
 
     if mode == 0:
-        pixels_per_byte = 2
+        pixels_per_byte = 4
     elif mode == 2:
         pixels_per_byte = 8
     else:
@@ -224,7 +224,7 @@ cpdef list render_scanline_from_ram(
         pixel_index = display_pixel % pixels_per_byte
 
         if mode == 0:
-            if pixel_index == 0:
+            if (pixel_index >> 1) == 0:
                 pen = ((value >> 7) & 1) | (((value >> 3) & 1) << 1) | (((value >> 5) & 1) << 2) | (((value >> 1) & 1) << 3)
             else:
                 pen = ((value >> 6) & 1) | (((value >> 2) & 1) << 1) | (((value >> 4) & 1) << 2) | ((value & 1) << 3)
@@ -302,7 +302,7 @@ cpdef bytes render_frame_rgb24_from_ram(
         return bytes(out)
 
     if mode == 0:
-        pixels_per_byte = 2
+        pixels_per_byte = 4
     elif mode == 2:
         pixels_per_byte = 8
     else:
@@ -336,7 +336,7 @@ cpdef bytes render_frame_rgb24_from_ram(
             pixel_index = display_pixel % pixels_per_byte
 
             if mode == 0:
-                if pixel_index == 0:
+                if (pixel_index >> 1) == 0:
                     pen = ((value >> 7) & 1) | (((value >> 3) & 1) << 1) | (((value >> 5) & 1) << 2) | (((value >> 1) & 1) << 3)
                 else:
                     pen = ((value >> 6) & 1) | (((value >> 2) & 1) << 1) | (((value >> 4) & 1) << 2) | ((value & 1) << 3)

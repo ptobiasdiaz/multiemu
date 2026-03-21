@@ -11,6 +11,7 @@ from .mbc1 import MBC1
 from .mbc2 import MBC2
 from .mbc3 import MBC3
 from .mbc5 import MBC5
+from .huc1 import HuC1
 
 
 CARTRIDGE_TYPES = {
@@ -31,6 +32,7 @@ CARTRIDGE_TYPES = {
     0x1C: "MBC5+RUMBLE",
     0x1D: "MBC5+RUMBLE+RAM",
     0x1E: "MBC5+RUMBLE+RAM+BATTERY",
+    0xFF: "HuC1+RAM+BATTERY",
 }
 
 
@@ -71,6 +73,9 @@ cdef class GameBoyCartridge:
     cpdef bint supports_mbc1(self):
         return self.cartridge_type in {0x01, 0x02, 0x03}
 
+    cpdef bint supports_huc1(self):
+        return self.cartridge_type == 0xFF
+
     cpdef bint supports_mbc2(self):
         return self.cartridge_type in {0x05, 0x06}
 
@@ -85,6 +90,8 @@ cdef class GameBoyCartridge:
             return None
         if self.supports_mbc1():
             return MBC1(self.rom_data, ram_size_code=self.ram_size_code)
+        if self.supports_huc1():
+            return HuC1(self.rom_data, ram_size_code=self.ram_size_code)
         if self.supports_mbc2():
             return MBC2(self.rom_data)
         if self.supports_mbc3():

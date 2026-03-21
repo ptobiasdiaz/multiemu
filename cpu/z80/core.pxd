@@ -98,4 +98,5 @@ cdef class Z80Core:
     cpdef int run_cycles(self, int cycles)
     cpdef dict snapshot(self)
     cpdef bint is_halted(self)
+    cpdef bint interrupts_enabled(self)
     cpdef interrupt(self)

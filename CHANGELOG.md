@@ -2,6 +2,31 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.1.2
+
+Versión centrada en ampliar cobertura real de Game Boy y cintas, y en cerrar
+algunas lagunas de CPU/CLI detectadas al probar software más exigente.
+
+### Incluye
+
+- Soporte inicial de mapper `HuC1` en Game Boy, con banking e IR stub.
+- Stub de puerto serie de Game Boy (`SB/SC`) integrado en la máquina base.
+- Soporte de slot de cinta opcional en `spectrum16k`, `spectrum48k` y `cpc464`.
+- Registro visible de `gameboy` en la CLI con carga corta de `--rom` para el
+  cartucho principal.
+- Nuevos keymaps y señales de backend para control básico de cinta desde el
+  frontend.
+- Nuevas implementaciones Z80 para block I/O `INI/INIR/IND/INDR/OUTI/OTIR/OUTD/OTDR`
+  y cargas indexadas `DD/FD` que faltaban.
+
+### Testing
+
+- Nuevos tests de equivalencia accel/reference para `HuC1` y LR35902.
+- Cobertura adicional de Game Boy para `STOP`, puerto serie, `HuC1` y smoke
+  ROMs opcionales.
+- Nuevos tests de parsing y entrada de cinta para CPC y Spectrum.
+- Cobertura adicional para opcodes Z80 y para IRQs/audio progresivo en CPC.
+
 ## 0.1.1
 
 Versión centrada en mejorar la ergonomía del frontend local y la integración

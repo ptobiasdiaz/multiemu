@@ -4,6 +4,7 @@ import pytest
 
 from frontend.input_events import InputEvent
 from machines.z80 import Spectrum16K, Spectrum48K
+from devices import SpectrumCassetteTape
 
 
 def _pixel_at_rgb24(packed: bytes, width: int, x: int, y: int) -> tuple[int, int, int]:
@@ -139,3 +140,59 @@ def test_spectrum_run_frame_produces_audio_and_advances_frame_counter():
     assert len(machine.get_audio_samples()) > 0
     assert any(sample != 0 for sample in machine.get_audio_samples())
     assert machine.get_audio_buffered_samples() > 0
+
+
+def test_tzx_parser_accepts_standard_speed_blocks_for_spectrum():
+    payload = b"\x00\x01\x02"
+    data = (
+        b"ZXTape!\x1A\x01\x14"
+        + bytes([0x10])
+        + (1000).to_bytes(2, "little")
+        + len(payload).to_bytes(2, "little")
+        + payload
+    )
+
+    tape = SpectrumCassetteTape.from_tzx_bytes(data)
+
+    assert tape.pulses
+    assert any(pulse.level == 0 for pulse in tape.pulses)
+    assert any(pulse.level == 1 for pulse in tape.pulses)
+
+
+def test_spectrum48k_port_fe_exposes_tape_ear_input():
+    payload = b"\x00"
+    data = (
+        b"ZXTape!\x1A\x01\x14"
+        + bytes([0x10])
+        + (1000).to_bytes(2, "little")
+        + len(payload).to_bytes(2, "little")
+        + payload
+    )
+    machine = Spectrum48K(bytes([0x00]) * 0x4000, tape_data=data)
+    machine.toggle_tape_play_pause()
+
+    seen = set()
+    for _ in range(200):
+        seen.add(1 if (machine._port_read_fe(0xFEFE) & 0x40) else 0)
+        machine._run_devices_until(machine.frame_tstates + 3000)
+        machine.frame_tstates += 3000
+        if seen == {0, 1}:
+            break
+
+    assert seen == {0, 1}
+
+
+def test_spectrum48k_tape_starts_paused_and_can_be_toggled():
+    data = (
+        b"ZXTape!\x1A\x01\x14"
+        + bytes([0x10])
+        + (1000).to_bytes(2, "little")
+        + (1).to_bytes(2, "little")
+        + b"\x00"
+    )
+    machine = Spectrum48K(bytes([0x00]) * 0x4000, tape_data=data)
+
+    assert machine.cassette is not None
+    assert machine.cassette.playing is False
+    assert machine.toggle_tape_play_pause() is True
+    assert machine.cassette.playing is True

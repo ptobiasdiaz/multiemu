@@ -9,10 +9,9 @@ La intención del proyecto es separar con claridad:
 - frontends locales y remotos
 - transporte y presentación en el CLI
 
-El repositorio ya incluye soporte para máquinas ZX Spectrum y un soporte
-experimental de Amstrad CPC 464. La estructura sigue pensada para crecer hacia
-más máquinas y más frontends sin mezclar toda la lógica en un único punto de
-entrada.
+El repositorio ya incluye soporte para máquinas ZX Spectrum, Amstrad CPC 464 y
+Nintendo Game Boy. La estructura sigue pensada para crecer hacia más máquinas y
+más frontends sin mezclar toda la lógica en un único punto de entrada.
 
 ## Estado actual
 
@@ -21,6 +20,7 @@ Máquinas soportadas hoy:
 - `spectrum16k`
 - `spectrum48k`
 - `cpc464` (experimental)
+- `gameboy` (experimental)
 
 Frontends y transportes disponibles hoy:
 
@@ -75,9 +75,13 @@ Slots y nombres esperados por defecto:
   - `main` -> `spec16k.rom`
 - `spectrum48k`
   - `main` -> `spec48k.rom`
+  - `tape` -> `program.tzx`, `tape.tzx`
 - `cpc464`
   - `os` -> `OS_464.ROM`
   - `basic` -> `BASIC_1.0.ROM`, `BASIC_1.1.ROM`, `BASIC_464.ROM`, `BASIC.ROM`, `cpc464.rom`
+  - `tape` -> `program.cdt`, `tape.cdt`
+- `gameboy`
+  - `main` -> `gameboy.gb`, `cart.gb`
 
 Puedes pasar ROMs explícitas con `--rom`:
 
@@ -89,6 +93,7 @@ Ejemplos:
 ```bash
 multiemu run spectrum48k --rom spec48k.rom
 multiemu run cpc464 --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
+multiemu run gameboy --rom game.gb
 ```
 
 Nota sobre `cpc464`:
@@ -104,6 +109,12 @@ Nota sobre `cpc464`:
 - el cargador intenta localizar automáticamente una ROM BASIC compatible, por ejemplo `BASIC_1.0.ROM`
 - si sólo está `OS_464.ROM`, el sistema puede terminar ejecutando RAM y mostrar imagen corrupta
 
+Nota sobre soporte de cinta:
+
+- `spectrum16k` y `spectrum48k` aceptan un slot opcional `tape` en formato `TZX`
+- `cpc464` acepta un slot opcional `tape` en formato `CDT/TZX`
+- en el frontend `pygame`, `F1` hace `play/pause` de la cinta
+
 ## Tests
 
 La suite del proyecto usa `pytest` y cubre:
@@ -111,6 +122,7 @@ La suite del proyecto usa `pytest` y cubre:
 - núcleo Z80
 - máquinas Spectrum
 - `cpc464`
+- `gameboy`
 - equivalencia entre implementaciones aceleradas y referencias Python
 
 Ejemplo:
@@ -161,6 +173,18 @@ Ejemplo para CPC464 con ROMs explícitas:
 
 ```bash
 multiemu run cpc464 --frontend pygame --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
+```
+
+Ejemplo para Spectrum 48K con cinta:
+
+```bash
+multiemu run spectrum48k --frontend pygame --rom spec48k.rom --rom tape=program.tzx
+```
+
+Ejemplo para Game Boy:
+
+```bash
+multiemu run gameboy --frontend pygame --rom game.gb
 ```
 
 El perfil de display también puede aplicarse al servidor remoto, porque el

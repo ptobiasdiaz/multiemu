@@ -14,6 +14,7 @@ from devices.gameboy import (
     GameBoyInterruptController,
     GameBoyJoypad,
     GameBoyPPU,
+    GameBoySerialPort,
     GameBoyTimer,
 )
 
@@ -34,6 +35,7 @@ class GameBoyMachineBase(BaseMachine):
 
         self.interrupts = GameBoyInterruptController()
         self.joypad = GameBoyJoypad(self.interrupts)
+        self.serial = GameBoySerialPort()
         self.timer = GameBoyTimer(self.interrupts)
         self.ppu = GameBoyPPU(self.bus, self.interrupts)
         self.apu = GameBoyAPU(sample_rate=44100)
@@ -60,6 +62,8 @@ class GameBoyMachineBase(BaseMachine):
 
     def _install_io_handlers(self):
         self.bus.set_io_handler(0xFF00, reader=self.joypad.read_p1, writer=self.joypad.write_p1)
+        self.bus.set_io_handler(0xFF01, reader=self.serial.read_sb, writer=self.serial.write_sb)
+        self.bus.set_io_handler(0xFF02, reader=self.serial.read_sc, writer=self.serial.write_sc)
         self.bus.set_io_handler(0xFF04, reader=self.timer.read_div, writer=self.timer.write_div)
         self.bus.set_io_handler(0xFF05, reader=self.timer.read_tima, writer=self.timer.write_tima)
         self.bus.set_io_handler(0xFF06, reader=self.timer.read_tma, writer=self.timer.write_tma)
@@ -109,6 +113,7 @@ class GameBoyMachineBase(BaseMachine):
         self.cpu.reset()
         self.interrupts.reset()
         self.joypad.reset()
+        self.serial.reset()
         self.timer.reset()
         self.ppu.reset()
         self.apu.reset()

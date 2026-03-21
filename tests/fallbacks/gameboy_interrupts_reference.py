@@ -8,11 +8,11 @@ class GameBoyInterruptController:
 
     def __init__(self):
         self.interrupt_enable = 0x00
-        self.interrupt_flags = 0x00
+        self.interrupt_flags = 0x01
 
     def reset(self):
         self.interrupt_enable = 0x00
-        self.interrupt_flags = 0x00
+        self.interrupt_flags = 0x01
 
     def request(self, bit: int) -> None:
         self.interrupt_flags |= 1 << bit

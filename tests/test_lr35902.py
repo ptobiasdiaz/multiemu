@@ -193,6 +193,24 @@ def test_lr35902_ld_hl_sp_plus_signed_stores_result_in_hl():
     assert (snap["F"] & 0x40) == 0
 
 
+def test_lr35902_stop_consumes_padding_byte_and_halts():
+    program = bytes(
+        [
+            0x10, 0x00,        # STOP 00
+            0x00,              # NOP (not executed before halt)
+        ]
+    )
+    bus = LR35902Bus(GameBoyCartridge(_make_test_rom(program)))
+    cpu = LR35902Core(bus)
+
+    used = cpu.step()
+    snap = cpu.snapshot()
+
+    assert used == 4
+    assert snap["PC"] == 0x0102
+    assert snap["halted"] is True
+
+
 def test_gameboy_cartridge_mbc1_switches_rom_banks():
     rom = bytearray(0x10000)
     rom[0x0134:0x0138] = b"MBC1"
@@ -342,6 +360,43 @@ def test_gameboy_cartridge_mbc5_supports_external_ram_banking():
     assert cart.read(0xA000) == 0x44
     cart.write(0x4000, 0x02)
     assert cart.read(0xA000) == 0x88
+
+
+def test_gameboy_cartridge_huc1_uses_mbc1_compatible_banking():
+    rom = bytearray(0x10000)
+    rom[0x0134:0x0138] = b"HUC1"
+    rom[0x0147] = 0xFF
+    rom[0x0148] = 0x01
+    rom[0x0149] = 0x03
+    rom[0x4000] = 0x11
+    rom[0x8000] = 0x22
+
+    cart = GameBoyCartridge(bytes(rom))
+
+    assert cart.cartridge_type_name == "HuC1+RAM+BATTERY"
+    assert cart.read(0x4000) == 0x11
+    cart.write(0x2000, 0x02)
+    assert cart.read(0x4000) == 0x22
+    cart.write(0x4000, 0x01)
+    cart.write(0xA000, 0x55)
+    assert cart.read(0xA000) == 0x55
+
+
+def test_gameboy_cartridge_huc1_exposes_ir_register_in_ir_mode():
+    rom = bytearray(0x8000)
+    rom[0x0134:0x0138] = b"HUC1"
+    rom[0x0147] = 0xFF
+    rom[0x0148] = 0x00
+    rom[0x0149] = 0x03
+
+    cart = GameBoyCartridge(bytes(rom))
+
+    cart.write(0xA000, 0x12)
+    assert cart.read(0xA000) == 0x12
+    cart.write(0x0000, 0x0E)
+    assert cart.read(0xA000) == 0xC0
+    cart.write(0xA000, 0x01)
+    assert cart.mapper.ir_transmitter_on is True
 
 
 def test_gameboy_cartridge_mbc3_switches_rom_banks():

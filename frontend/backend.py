@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Protocol
 
 
@@ -36,6 +37,10 @@ class LocalMachineBackend:
         return self.machine.frame_counter
 
     @property
+    def machine_id(self):
+        return getattr(self.machine, "machine_id", self.machine.__class__.__name__.lower())
+
+    @property
     def framebuffer_rgb24(self):
         return getattr(self.machine, "framebuffer_rgb24", None)
 
@@ -46,6 +51,24 @@ class LocalMachineBackend:
     @property
     def frame_height(self):
         return getattr(self.machine, "frame_height", None)
+
+    @property
+    def tape_motor_on(self):
+        cassette = getattr(self.machine, "cassette", None)
+        return bool(cassette is not None and getattr(cassette, "motor_on", False))
+
+    @property
+    def tape_present(self):
+        return getattr(self.machine, "cassette", None) is not None
+
+    @property
+    def tape_playing(self):
+        cassette = getattr(self.machine, "cassette", None)
+        return bool(cassette is not None and getattr(cassette, "playing", False))
+
+    @property
+    def cpc_tape_auto_turbo(self):
+        return os.environ.get("MULTIEMU_CPC_TAPE_AUTO_TURBO", "0")
 
     @property
     def input_keymap_name(self):
@@ -68,6 +91,12 @@ class LocalMachineBackend:
 
     def pop_audio_samples(self, count: int):
         return self.machine.pop_audio_samples(count)
+
+    def toggle_tape_play_pause(self):
+        toggle = getattr(self.machine, "toggle_tape_play_pause", None)
+        if toggle is None:
+            return False
+        return bool(toggle())
 
 
 def wrap_backend(backend):

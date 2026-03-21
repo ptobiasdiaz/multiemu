@@ -8,6 +8,7 @@ extensions = [
     Extension("devices.gameboy.mbc2", ["devices/gameboy/mbc2.pyx"]),
     Extension("devices.gameboy.mbc3", ["devices/gameboy/mbc3.pyx"]),
     Extension("devices.gameboy.mbc5", ["devices/gameboy/mbc5.pyx"]),
+    Extension("devices.gameboy.huc1", ["devices/gameboy/huc1.pyx"]),
     Extension("devices.gameboy.cartridge", ["devices/gameboy/cartridge.pyx"]),
     Extension("devices.gameboy.apu", ["devices/gameboy/apu.pyx"]),
     Extension("devices.gameboy.ppu", ["devices/gameboy/ppu.pyx"]),
@@ -30,7 +31,7 @@ extensions = [
 
 setup(
     name="multiemu",
-    version="0.1.1",
+    version="0.1.2",
     description="Work-in-progress retro machine emulator in Python and Cython",
     packages=find_packages(),
     entry_points={

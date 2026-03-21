@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable
 import warnings
 
+from machines.gameboy import DMG
 from machines.z80 import CPC464, Spectrum16K, Spectrum48K
 from video import get_display_profile
 
@@ -42,6 +43,7 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
         display_name="ZX Spectrum 16K",
         factory=lambda roms, display_profile: Spectrum16K(
             roms["main"],
+            tape_data=roms.get("tape"),
             display_profile=display_profile,
         ),
         rom_slots=(
@@ -50,6 +52,12 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 description="ROM principal del Spectrum 16K",
                 filenames=("spec16k.rom",),
             ),
+            RomSlotSpec(
+                slot_id="tape",
+                description="Imagen de cinta TZX para Spectrum",
+                filenames=("program.tzx", "tape.tzx"),
+                required=False,
+            ),
         ),
     ),
     "spectrum48k": MachineSpec(
@@ -57,6 +65,7 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
         display_name="ZX Spectrum 48K",
         factory=lambda roms, display_profile: Spectrum48K(
             roms["main"],
+            tape_data=roms.get("tape"),
             display_profile=display_profile,
         ),
         rom_slots=(
@@ -64,6 +73,12 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 slot_id="main",
                 description="ROM principal del Spectrum 48K",
                 filenames=("spec48k.rom",),
+            ),
+            RomSlotSpec(
+                slot_id="tape",
+                description="Imagen de cinta TZX para Spectrum",
+                filenames=("program.tzx", "tape.tzx"),
+                required=False,
             ),
         ),
     ),
@@ -73,6 +88,7 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
         factory=lambda roms, display_profile: CPC464(
             roms["os"],
             basic_rom_data=roms.get("basic"),
+            tape_data=roms.get("tape"),
             display_profile=display_profile,
         ),
         rom_slots=(
@@ -92,6 +108,24 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                     "cpc464.rom",
                 ),
                 required=False,
+            ),
+            RomSlotSpec(
+                slot_id="tape",
+                description="Imagen de cassette CDT/TZX para CPC464",
+                filenames=("program.cdt", "tape.cdt"),
+                required=False,
+            ),
+        ),
+    ),
+    "gameboy": MachineSpec(
+        machine_id="gameboy",
+        display_name="Nintendo Game Boy (early scaffold)",
+        factory=lambda roms, display_profile: DMG(roms["main"]),
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="main",
+                description="ROM principal/cartucho de Game Boy",
+                filenames=("gameboy.gb", "cart.gb"),
             ),
         ),
     ),
@@ -143,7 +177,16 @@ def get_rom_slot(spec: MachineSpec, slot_id: str) -> RomSlotSpec:
 def has_single_rom_slot(spec: MachineSpec) -> bool:
     """Return whether the machine exposes exactly one ROM slot."""
 
-    return len(spec.rom_slots) == 1
+    if len(spec.rom_slots) == 1:
+        return True
+
+    required_slots = [slot for slot in spec.rom_slots if slot.required]
+    optional_slots = [slot for slot in spec.rom_slots if not slot.required]
+    return (
+        len(required_slots) == 1
+        and len(optional_slots) == 1
+        and optional_slots[0].slot_id == "tape"
+    )
 
 
 def parse_cli_rom_specs(machine_id: str, rom_specs: list[str] | None) -> dict[str, Path]:
