@@ -161,10 +161,13 @@ def test_parser_builds_list_display_profiles_command():
     assert args.command == "list-display-profiles"
 
 
-def test_instantiate_machine_accepts_display_profile():
+def test_instantiate_machine_accepts_display_profile(tmp_path):
+    rom_path = tmp_path / "spectrum48k_test.rom"
+    rom_path.write_bytes(b"\x00" * 0x4000)
+
     machine = instantiate_machine(
         "spectrum48k",
-        roms={"main": "48.rom"},
+        roms={"main": rom_path},
         display_profile="full-border",
     )
 

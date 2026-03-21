@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
 from machines.gameboy import DMG
 
 
@@ -296,26 +292,23 @@ def test_gameboy_run_frame_pushes_apu_audio_into_ring_buffer():
     assert machine.get_audio_buffered_samples() > 0
 
 
-@pytest.mark.parametrize(
-    "rom_name",
-    (
-        "dmg_huc1_smoke1.gb",
-        "dmg_huc1_smoke2.gb",
-    ),
-)
-def test_gameboy_huc1_smoke_rom_runs_multiple_frames(rom_name: str):
-    rom_path = Path(__file__).resolve().parents[1] / rom_name
-    if not rom_path.exists():
-        pytest.skip(f"falta ROM de smoke: {rom_path.name}")
-
-    machine = DMG(rom_path.read_bytes())
+def test_gameboy_huc1_synthetic_rom_runs_multiple_frames():
+    rom = bytearray(_make_test_rom(title="HUC1RUN", cartridge_type=0xFF))
+    rom[0x0100:0x0108] = bytes(
+        [
+            0x3E, 0x02,        # LD A,02h
+            0xEA, 0x00, 0x20,  # LD (2000h),A
+            0xC3, 0x00, 0x01,  # JP 0100h
+        ]
+    )
+    machine = DMG(bytes(rom))
 
     for _ in range(3):
         machine.run_frame()
 
     snap = machine.snapshot()
 
-    assert snap["cartridge_title"]
+    assert snap["cartridge_title"] == "HUC1RUN"
     assert snap["cartridge_type"] == "HuC1+RAM+BATTERY"
     assert machine.frame_counter == 3
     assert machine.cpu.halted is False
