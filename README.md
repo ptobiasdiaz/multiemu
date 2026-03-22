@@ -10,8 +10,9 @@ La intención del proyecto es separar con claridad:
 - transporte y presentación en el CLI
 
 El repositorio ya incluye soporte para máquinas ZX Spectrum, Amstrad CPC 464 y
-Nintendo Game Boy. La estructura sigue pensada para crecer hacia más máquinas y
-más frontends sin mezclar toda la lógica en un único punto de entrada.
+Nintendo Game Boy, además de un primer scaffold para MOS KIM-1. La estructura
+sigue pensada para crecer hacia más máquinas y más frontends sin mezclar toda
+la lógica en un único punto de entrada.
 
 ## Estado actual
 
@@ -21,6 +22,7 @@ Máquinas soportadas hoy:
 - `spectrum48k`
 - `cpc464` (experimental)
 - `gameboy` (experimental)
+- `kim1` (experimental)
 
 Frontends y transportes disponibles hoy:
 
@@ -82,6 +84,8 @@ Slots y nombres esperados por defecto:
   - `tape` -> `program.cdt`, `tape.cdt`
 - `gameboy`
   - `main` -> `gameboy.gb`, `cart.gb`
+- `kim1`
+  - requiere `--rom lower=... --rom upper=...`
 
 Puedes pasar ROMs explícitas con `--rom`:
 
@@ -94,6 +98,7 @@ Ejemplos:
 multiemu run spectrum48k --rom spec48k.rom
 multiemu run cpc464 --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
 multiemu run gameboy --rom game.gb
+multiemu run kim1 --rom lower=6530-002.bin --rom upper=6530-003.bin
 ```
 
 Nota sobre `cpc464`:
@@ -186,6 +191,35 @@ Ejemplo para Game Boy:
 ```bash
 multiemu run gameboy --frontend pygame --rom game.gb
 ```
+
+Ejemplo para KIM-1:
+
+```bash
+multiemu run kim1 --frontend pygame --rom lower=6530-002.bin --rom upper=6530-003.bin
+```
+
+## Uso básico de `kim1`
+
+El frontend `pygame` usa un mapeo orientado al teclado numérico:
+
+- `KP_0..KP_9` -> dígitos hexadecimales `0..9`
+- `A..F` -> dígitos hexadecimales `A..F`
+- `KP_MINUS` -> `ADDR`
+- `KP_PERIOD` -> `DATA`
+- `KP_PLUS` -> `STEP`
+- `KP_ENTER` -> `RUN`
+- `KP_DIVIDE` -> `PC`
+
+Qué deberías ver:
+
+- la pantalla muestra 6 dígitos hexadecimales
+- en reposo, el monitor enseña la dirección o celda actualmente abierta
+- si pulsas hexadecimales, modificas dirección o dato según el modo activo
+- `ADDR` cambia a edición de dirección
+- `DATA` cambia a edición de dato
+- `STEP` avanza a la siguiente celda
+- `RUN` salta a la dirección abierta
+- `PC` muestra el contador de programa guardado por el monitor
 
 El perfil de display también puede aplicarse al servidor remoto, porque el
 framebuffer se genera en la máquina servida:

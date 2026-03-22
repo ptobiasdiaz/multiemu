@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from cpu.z80 import RAMBlock, ROMBlock, PythonPortHandler
+from chipsets.ula import Spectrum48KULA
 from devices import SpectrumCassetteTape
-from devices.ula import Spectrum48KULA
 from frontend.input_events import InputEvent
 from machines.frame_runner import SteppedFrameRunner
 from machines.z80.base import Z80MachineBase
@@ -43,7 +43,7 @@ class SpectrumBase(Z80MachineBase):
         self.last_out_fe = 0
 
         self.ula = Spectrum48KULA(self)
-        self.cassette = SpectrumCassetteTape.from_tzx_bytes(tape_data) if tape_data is not None else None
+        self.cassette = SpectrumCassetteTape.from_bytes(tape_data) if tape_data is not None else None
         self._tape_tstates = 0
         self.frame_width = self.ula.frame_width
         self.frame_height = self.ula.frame_height

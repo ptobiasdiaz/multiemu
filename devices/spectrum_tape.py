@@ -69,6 +69,12 @@ class SpectrumCassetteTape:
             self._level = self.pulses[self._pulse_index].level
 
     @classmethod
+    def from_bytes(cls, data: bytes) -> "SpectrumCassetteTape":
+        if len(data) >= 10 and data.startswith(b"ZXTape!\x1A"):
+            return cls.from_tzx_bytes(data)
+        return cls.from_tap_bytes(data)
+
+    @classmethod
     def from_tzx_bytes(cls, data: bytes) -> "SpectrumCassetteTape":
         if len(data) < 10 or not data.startswith(b"ZXTape!\x1A"):
             raise ValueError("TZX inválido: cabecera no reconocida")
@@ -121,6 +127,56 @@ class SpectrumCassetteTape:
                 continue
 
             raise ValueError(f"bloque TZX no soportado aún para Spectrum: 0x{block_id:02X}")
+
+        return cls(pulses)
+
+    @classmethod
+    def from_tap_bytes(cls, data: bytes) -> "SpectrumCassetteTape":
+        pulses: list[TapePulse] = []
+        cursor = 0
+        current_level = 1
+
+        def add_pulse(duration: int) -> None:
+            nonlocal current_level
+            pulses.append(TapePulse(max(1, duration), current_level))
+            current_level ^= 1
+
+        def add_pause(duration_ms: int) -> None:
+            nonlocal current_level
+            if duration_ms <= 0:
+                pulses.append(TapePulse(1, 0))
+                current_level = 1
+                return
+            pulses.append(TapePulse(max(1, duration_ms * 3500), 0))
+            current_level = 1
+
+        while cursor < len(data):
+            if cursor + 2 > len(data):
+                raise ValueError("TAP inválido: longitud de bloque truncada")
+            block_length = int.from_bytes(data[cursor:cursor + 2], "little")
+            cursor += 2
+            payload = data[cursor:cursor + block_length]
+            if len(payload) != block_length:
+                raise ValueError("TAP inválido: bloque truncado")
+            cursor += block_length
+
+            pilot_count = (
+                cls.STANDARD_DATA_PILOT_COUNT
+                if payload and payload[0] >= 0x80
+                else cls.STANDARD_HEADER_PILOT_COUNT
+            )
+            for _ in range(pilot_count):
+                add_pulse(cls.STANDARD_PILOT_PULSE)
+            add_pulse(cls.STANDARD_SYNC_FIRST)
+            add_pulse(cls.STANDARD_SYNC_SECOND)
+            cls._append_data_bits(
+                add_pulse,
+                payload,
+                zero_length=cls.STANDARD_ZERO,
+                one_length=cls.STANDARD_ONE,
+                used_bits_last_byte=8,
+            )
+            add_pause(1000)
 
         return cls(pulses)
 

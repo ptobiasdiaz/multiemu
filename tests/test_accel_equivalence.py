@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from devices.cpc_render import (
+from chipsets import AY38912
+from chipsets.cpc_crtc import HD6845
+from chipsets.cpc_render import (
     build_horizontal_display_map as build_horizontal_display_map_accel,
     build_vertical_display_map as build_vertical_display_map_accel,
     compose_display_row as compose_display_row_accel,
     render_frame_rgb24_from_ram as render_frame_rgb24_from_ram_accel,
 )
-from devices import AY38912
-from devices.cpc_crtc import HD6845
 from machines.z80 import CPC464, Spectrum48K
 from tests.fallbacks.ay38912_reference import AY38912 as AY38912Reference
 from tests.fallbacks.cpc_render_reference import (

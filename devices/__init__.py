@@ -1,21 +1,17 @@
-'''
-    Emulated devices
-'''
+"""External media and peripheral devices.
 
-from .ay38912 import AY38912
-from .cpc import CPCGateArray, CPCCRTC, CPCPPI, AmstradCPCVideo, CPCVideo, HD6845, Intel8255
+Internal machine chipsets should live under `chipsets/`. This package is kept
+for media/peripherals and for transitional compatibility during the refactor.
+"""
+
+from .cpc_disk import CPCDiskImage
+from .cpc_fdc import CPCFDC
 from .cpc_tape import CPCCassetteTape
 from .spectrum_tape import SpectrumCassetteTape
 
 __all__ = [
-    "AY38912",
-    "CPCGateArray",
-    "HD6845",
-    "CPCCRTC",
-    "Intel8255",
-    "CPCPPI",
-    "CPCVideo",
-    "AmstradCPCVideo",
+    "CPCDiskImage",
+    "CPCFDC",
     "CPCCassetteTape",
     "SpectrumCassetteTape",
 ]

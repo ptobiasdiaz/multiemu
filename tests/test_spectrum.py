@@ -159,6 +159,17 @@ def test_tzx_parser_accepts_standard_speed_blocks_for_spectrum():
     assert any(pulse.level == 1 for pulse in tape.pulses)
 
 
+def test_tap_parser_accepts_standard_blocks_for_spectrum():
+    payload = b"\x00\x01\x02"
+    data = len(payload).to_bytes(2, "little") + payload
+
+    tape = SpectrumCassetteTape.from_tap_bytes(data)
+
+    assert tape.pulses
+    assert any(pulse.level == 0 for pulse in tape.pulses)
+    assert any(pulse.level == 1 for pulse in tape.pulses)
+
+
 def test_spectrum48k_port_fe_exposes_tape_ear_input():
     payload = b"\x00"
     data = (
@@ -168,6 +179,23 @@ def test_spectrum48k_port_fe_exposes_tape_ear_input():
         + len(payload).to_bytes(2, "little")
         + payload
     )
+    machine = Spectrum48K(bytes([0x00]) * 0x4000, tape_data=data)
+    machine.toggle_tape_play_pause()
+
+    seen = set()
+    for _ in range(200):
+        seen.add(1 if (machine._port_read_fe(0xFEFE) & 0x40) else 0)
+        machine._run_devices_until(machine.frame_tstates + 3000)
+        machine.frame_tstates += 3000
+        if seen == {0, 1}:
+            break
+
+    assert seen == {0, 1}
+
+
+def test_spectrum48k_port_fe_exposes_tap_ear_input():
+    payload = b"\x00"
+    data = len(payload).to_bytes(2, "little") + payload
     machine = Spectrum48K(bytes([0x00]) * 0x4000, tape_data=data)
     machine.toggle_tape_play_pause()
 

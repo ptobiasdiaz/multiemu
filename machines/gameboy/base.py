@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from frontend.input_events import InputEvent
-from machines.base import BaseMachine
 from machines.frame_runner import SteppedFrameRunner
+from machines.lr35902 import LR35902MachineBase
 
-from cpu.lr35902 import LR35902Bus, LR35902Core
 from devices.gameboy import (
     GameBoyAPU,
     GameBoyCartridge,
@@ -19,7 +18,7 @@ from devices.gameboy import (
 )
 
 
-class GameBoyMachineBase(BaseMachine):
+class GameBoyMachineBase(LR35902MachineBase):
     """Shared DMG machine wiring.
 
     The machine remains in Python, while the future hot paths can move to
@@ -27,11 +26,10 @@ class GameBoyMachineBase(BaseMachine):
     """
 
     TSTATES_PER_FRAME = 70224
+
     def __init__(self, rom_data: bytes):
         self.cartridge = GameBoyCartridge(rom_data)
-        self.bus = LR35902Bus(self.cartridge)
-        self.cpu = LR35902Core(self.bus)
-        super().__init__(bus=self.bus, cpu=self.cpu, audio_sample_rate=44100)
+        super().__init__(memory=self.cartridge, audio_sample_rate=44100)
 
         self.interrupts = GameBoyInterruptController()
         self.joypad = GameBoyJoypad(self.interrupts)
@@ -107,6 +105,7 @@ class GameBoyMachineBase(BaseMachine):
                 reader=lambda wave_index=wave_index: self.apu.read_wave_ram(wave_index),
                 writer=lambda value, wave_index=wave_index: self.apu.write_wave_ram(wave_index, value),
             )
+
     def reset(self):
         super().reset()
         self.bus.reset()

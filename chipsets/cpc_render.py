@@ -8,7 +8,6 @@ from .cpc_render_accel import (
     render_scanline_from_ram,
 )
 
-
 __all__ = [
     "build_horizontal_display_map",
     "build_vertical_display_map",

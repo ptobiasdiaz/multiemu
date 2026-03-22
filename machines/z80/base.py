@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from cpu.z80 import Z80Bus, Z80Core
-from machines.base import BaseMachine
+from machines.single_cpu import SingleCPUMachineBase
 
 
-class Z80MachineBase(BaseMachine):
+class Z80MachineBase(SingleCPUMachineBase):
     def __init__(self, *, audio_sample_rate: int = 44100):
         bus = Z80Bus()
         cpu = Z80Core(bus)

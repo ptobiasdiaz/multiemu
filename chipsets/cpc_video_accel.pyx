@@ -4,7 +4,7 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 
-from devices.cpc_render import (
+from chipsets.cpc_render import (
     build_horizontal_display_map,
     build_vertical_display_map,
     render_frame_rgb24_from_ram,

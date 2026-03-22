@@ -19,6 +19,7 @@ def test_machine_registry_exposes_known_machine():
     assert spec.display_name == "ZX Spectrum 48K"
     assert spec.rom_slots[0].slot_id == "main"
     assert spec.rom_slots[0].filenames == ("spec48k.rom",)
+    assert "program.tap" in spec.rom_slots[1].filenames
 
 
 def test_machine_registry_exposes_gameboy():
@@ -55,6 +56,23 @@ def test_resolve_machine_rom_paths_uses_first_matching_directory(monkeypatch, tm
     roms = resolve_machine_rom_paths("spectrum48k")
 
     assert roms["main"] == cwd_rom
+
+
+def test_resolve_machine_rom_paths_accepts_default_spectrum_tap(monkeypatch, tmp_path):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    cwd_rom = tmp_path / "spec48k.rom"
+    cwd_tape = tmp_path / "program.tap"
+    cwd_rom.write_bytes(b"rom")
+    cwd_tape.write_bytes(b"tap")
+
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.chdir(tmp_path)
+
+    roms = resolve_machine_rom_paths("spectrum48k")
+
+    assert roms["main"] == cwd_rom
+    assert roms["tape"] == cwd_tape
 
 
 def test_parse_cli_rom_specs_accepts_short_form_for_single_slot_machine():

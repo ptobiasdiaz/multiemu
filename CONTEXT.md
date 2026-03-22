@@ -1,410 +1,395 @@
-Aqui tienes un contexto de reentrada breve y actualizado del proyecto.
+`CONTEXT.md` es un documento estable de decisiones tecnicas y arquitecturales.
+
+No debe usarse como diario de sesion, changelog, roadmap ni snapshot temporal
+del estado del codigo. Para eso existe `NEXT_SESSION.md` y, a nivel de
+proyecto, `TODO.md`.
+
+Si una decision cambia, este fichero debe actualizarse con:
+
+- la nueva decision
+- la decision anterior que sustituye
+- el motivo del cambio
 
 ---
 
-# Proyecto
+# Principios del proyecto
 
-`MultiEmu` es un multiemulador de maquinas retro en Python + Cython.
+## Separacion de responsabilidades
 
-Direccion actual:
+`MultiEmu` sigue estas reglas:
 
-- CPU y dispositivos calientes en Cython
-- maquina, cableado e integracion en Python
-- frontends desacoplados
-- ruta principal de video y streaming basada en `rgb24`
+- la maquina y el cableado entre chips viven en Python
+- los chips o rutas calientes pueden vivir en Cython
+- los frontends y transportes deben mantenerse desacoplados de la logica de
+  maquina
+- las referencias Python de semantica deben vivir en `tests/fallbacks/` cuando
+  sirvan para validar implementaciones aceleradas
 
-Version de trabajo actual:
+Esta separacion es deliberada. El objetivo no es maximizar Cython por defecto,
+sino mantener visible la arquitectura de cada maquina.
 
-- `0.0.2`
+## Contrato de produccion para video
 
----
-
-# Estado general
-
-Familias visibles ahora:
-
-- `spectrum16k`
-- `spectrum48k`
-- `cpc464`
-- `gameboy`
-
-La arquitectura que se esta consolidando es:
-
-- implementacion acelerada en `devices/*_accel.pyx`
-- wrappers de produccion minimos en `devices/*.py`
-- referencias Python movidas a `tests/fallbacks/` solo para equivalencia y tests
-
-Direccion acordada para Game Boy:
-
-- `LR35902` ira en una implementacion separada de `cpu/z80/`
-- se compartira infraestructura mecanica, no el core de ejecucion
-- la PPU debera nacer ya con salida canonica `rgb24`
-
-El contrato de video de produccion ya no es el framebuffer estructurado.
-
-La salida canonica es:
+La salida canonica de video en produccion es:
 
 - `framebuffer_rgb24`
 
-La limpieza de `framebuffer` en produccion ya esta hecha en Spectrum, CPC,
-frontend local y runtime remoto.
+Decision vigente:
+
+- la ruta de produccion consume y entrega `rgb24`
+- representaciones estructuradas o auxiliares de framebuffer pertenecen a
+  referencias, utilidades o tests, no a la ruta principal
+
+Motivo:
+
+- simplifica frontends y runtime remoto
+- evita conversiones por frame sin valor arquitectonico
+- unifica Spectrum, CPC, Game Boy y futuras maquinas bajo el mismo contrato
+
+## Frontends y runtime remoto
+
+La sesion remota comun debe concentrar:
+
+- loop remoto
+- merge de input por frame
+- ritmo/cadencia
+- codificacion de video
+- drenado de audio
+
+Los transportes concretos deben limitarse a:
+
+- sockets o medio de transporte
+- parsing de mensajes
+- colas de entrada/salida
+
+Decision vigente:
+
+- no acoplar transporte y frontend en un identificador unico artificial
+- mantener la separacion `transport` / `frontend` en la CLI y en los registros
+
+## Politica de documentacion interna
+
+La documentacion interna debe preservar decisiones y restricciones, no narrar
+paso a paso el codigo actual.
+
+Reglas:
+
+- usar docstrings para contexto arquitectonico o de hardware
+- usar comentarios breves para decisiones no obvias
+- evitar comentarios redundantes que solo repitan el codigo
+- mantener `CONTEXT.md` como documento de decisiones duraderas
+- mantener `NEXT_SESSION.md` como documento tactico de continuacion
 
 ---
 
-# CPU Z80
+# Estructura del codigo
 
-La CPU Z80 en Cython arranca ROMs reales de Spectrum y CPC.
+## Familias de CPU
 
-Punto importante reciente:
+Las familias de CPU deben vivir separadas cuando la semantica real difiera de
+forma importante.
 
-- se corrigio `run_cycles()` para que el reloj siga avanzando en `HALT`
+Decision vigente:
 
-Ese bug hacia que ciertas cargas, especialmente ROMs de prueba del CPC basadas
-en `HALT` + interrupciones, corriesen demasiado rapido.
+- `Z80`, `LR35902` y `m6502` deben tener implementaciones separadas
+- solo se comparte infraestructura realmente neutra
+- no se debe forzar una jerarquia comun artificial de CPUs "parecidas"
 
-Hay regresion especifica en:
+Motivo:
 
-- `tests/test_z80_core.py`
+- reduce acoplamiento falso
+- evita contaminar una familia con detalles de otra
+- facilita evolucion independiente de decoder, flags, timings e interrupciones
 
----
+## Bases de maquina
 
-# Maquinas
+La infraestructura comun de maquinas debe ser minima y neutral.
 
-## Spectrum
+Decision vigente:
 
-Archivos principales:
+- las utilidades de ciclo de vida, audio, framebuffer e input pueden vivir en
+  bases compartidas
+- las bases especificas de familia (`Z80`, `LR35902`, `m6502`) deben quedarse
+  en su namespace
+- no introducir abstracciones globales nuevas en `BaseMachine` si no hay un
+  patron claro compartido por varias familias reales
 
-- `machines/z80/spectrum.py`
-- `machines/z80/spectrum48k.py` como shim de compatibilidad
-- `devices/ula.py`
-- `devices/ula_accel.pyx`
+## Runners de frame
 
-Estado actual:
+Los runners compartidos son la abstraccion comun permitida para el avance por
+frame.
 
-- `SpectrumBase`, `Spectrum16K` y `Spectrum48K` son la jerarquia vigente
-- la ULA de produccion genera `rgb24` directamente
-- `SpectrumBase` expone `frame_width` y `frame_height` desde la ULA
-- teclado, beeper y puerto `0xFE` siguen en la maquina
+Decisiones vigentes:
 
-La referencia Python de la ULA ya no forma parte de la ruta principal y vive en:
+- `SteppedFrameRunner` para maquinas orientadas a pasos de CPU
+- `ScanlineFrameRunner` para maquinas orientadas a scanline
+- el frame loop comun puede vivir en Python y/o Cython, pero la orquestacion
+  de maquina debe seguir siendo visible en Python
 
-- `tests/fallbacks/ula_reference.py`
+## Organizacion de chipsets y perifericos
 
-## CPC464
+Decision vigente:
 
-Archivo principal:
+- `devices/` debe reservarse para perifericos y medios externos
+  - cintas
+  - discos
+  - FDCs
+  - cartuchos y soportes similares
+- `chipsets/` debe agrupar chips y subsistemas internos de maquina
+  - ULA
+  - AY-3-8912
+  - Gate Array
+  - CRTC
+  - PPI
+  - componentes internos equivalentes
 
-- `machines/z80/cpc.py`
+Motivo:
 
-Arquitectura actual:
+- separar mejor hardware interno de medios/perifericos
+- hacer la arquitectura de cada maquina mas legible
+- preparar el arbol para crecer sin convertir `devices/` en un cajon de sastre
 
-- `CPC464` orquesta la maquina en Python
-- chips y subsistemas principales del CPC ya tienen implementacion acelerada
-- los nombres se acercan al hardware real
+Estado de la decision:
 
-Chips/subsistemas actuales:
+- aprobada
+- completada para los chipsets y aceleradores de primer nivel
+- `devices/` queda como espacio de perifericos y medios
+- `chipsets/` queda como espacio canonico para chips internos y aceleradores
+- evitar mezclar futuras migraciones de arbol con cambios funcionales no
+  relacionados cuando sea posible
 
-- `devices/cpc_gate_array.py` -> `CPCGateArray`
-- `devices/cpc_crtc.py` -> `HD6845`
-- `devices/cpc_ppi.py` -> `Intel8255`
-- `devices/cpc_video.py` -> `CPCVideo`
-- `devices/ay38912.py` -> `AY38912`
+## Game Boy
 
-Implementaciones aceleradas correspondientes:
+Decision vigente:
 
-- `devices/cpc_gate_array_accel.pyx`
-- `devices/cpc_crtc_accel.pyx`
-- `devices/cpc_ppi_accel.pyx`
-- `devices/cpc_video_accel.pyx`
-- `devices/cpc_render_accel.pyx`
-- `devices/ay38912_accel.pyx`
+- el namespace `devices/gameboy/` se usa hoy como agrupacion funcional del
+  hardware de la maquina
+- si en el futuro se decide converger hacia `chipsets/`, debe hacerse como
+  refactor separado y explicito, no mezclado con cambios de comportamiento
 
-Estado funcional del CPC:
+Motivo:
 
-- ROM baja y ROM alta soportadas
-- overlay de ROM sobre RAM
-- Gate Array, CRTC y PPI cableados
-- teclado CPC por matriz via PPI + PSG
-- video principal en `rgb24`
-- frontend local y TCP funcionando con CPC
-
-Lo que todavia no se considera cerrado:
-
-- fidelidad fina de video
-- fidelidad del `AY-3-8912`
-- teclado CPC en pulsaciones rapidas
-- perifericos como cassette
-
-Las referencias Python del CPC viven ahora en:
-
-- `tests/fallbacks/cpc_chip_references.py`
-- `tests/fallbacks/cpc_render_reference.py`
-- `tests/fallbacks/cpc_video_reference.py`
-
-## Game Boy clasica
-
-Archivos principales:
-
-- `machines/gameboy/base.py`
-- `machines/gameboy/dmg.py`
-- `cpu/lr35902/core.py`
-- `cpu/lr35902/bus.py`
-- `devices/gameboy/cartridge.py`
-- `devices/gameboy/ppu.py`
-
-Estado actual:
-
-- existe id publico `gameboy` en la CLI
-- la maquina `DMG` ya se puede instanciar con ROMs `.gb`
-- hay soporte inicial para cartuchos `ROM-only` y `MBC1`
-- el `LR35902` ya no es un stub vacio: ejecuta un subconjunto real de instrucciones
-- `smtest.gb` avanza al menos un frame sin caer en error
-- la PPU todavia produce un framebuffer fijo, no video real de Game Boy
-
-Lo que falta para considerarlo soporte real:
-
-- ampliar mucho mas el decoder del `LR35902`
-- MMIO y timers mas fieles
-- PPU con tiles/fondo/ventana/sprites
-- interrupciones reales
-- audio fuera del primer corte
+- reducir riesgo en una maquina que ya tiene bastante superficie funcional
+- evitar una migracion demasiado grande en una sola release
 
 ---
 
-# Video
+# CLI, registros y ROMs
 
-Regla actual de arquitectura:
+## Registro de maquinas
 
-- produccion consume y entrega `rgb24`
-- helpers de framebuffer estructurado, si existen, pertenecen a referencias o tests
+La seleccion de maquinas no debe vivir en cascadas de `if/elif` dentro de la
+CLI.
 
-Impacto ya aplicado:
+Decision vigente:
 
-- Spectrum produce `rgb24`
-- CPC produce `rgb24`
-- `frontend/pygame_frontend.py` consume `rgb24`
-- `multiemu/remote_runtime.py` codifica y envia `rgb24`
+- la CLI publica vive en `multiemu/cli.py`
+- la descripcion declarativa de maquinas vive en `multiemu/machine_registry.py`
+- la seleccion de runtimes y transportes vive en registros dedicados
 
-Esto simplifica la ruta normal y evita conversiones por frame que ya no aportan
-valor en produccion.
+Motivo:
 
----
+- mantener la CLI estable
+- reutilizar la misma logica desde `run`, `serve`, `connect` y futuros entry
+  points
+- hacer extensible la incorporacion de nuevas maquinas
 
-# Audio
+## Politica de slots de ROM
 
-## Spectrum
+Las maquinas deben exponerse mediante slots nombrados.
 
-- beeper clasico del puerto `0xFE`
+Decisiones vigentes:
 
-## CPC
+- no proliferar flags especificos tipo `--rom2`, `--rom3`
+- en maquinas con un solo slot principal se puede aceptar forma corta
+- en maquinas con varios slots, el uso preferente es `--rom slot=fichero`
+- si un slot no tiene nombres por defecto, debe exigirse explicitamente
 
-- PSG basado en `AY-3-8912`
-- integracion CPC via `Intel8255`
+Motivo:
 
-Estado practico del `AY38912`:
-
-- registros, tonos, ruido, envolvente y puertos estan implementados
-- existe ruta accel + referencia
-- es suficiente para seguir con CPC
-- todavia no se da por fidelidad completa
-
-Archivos clave:
-
-- `devices/ay38912.py`
-- `devices/ay38912_accel.pyx`
-- `tests/fallbacks/ay38912_reference.py`
-- `tests/test_ay38912.py`
-
-Se generaron ROMs de prueba de sonido para CPC en:
-
-- `tools/build_cpc_sound_test_rom.py`
-- `roms/generated/cpc_ode_to_joy.rom`
-
-Sirvieron para descubrir el bug de timing del Z80 en `HALT`, pero la calidad
-musical del CPC todavia no se considera buena.
-
----
-
-# Frontends y runtimes
-
-Frontends/runtimes actuales:
-
-- `frontend/pygame_frontend.py`
-- `frontend/tcp_frontend.py`
-- `frontend/tcp_pygame_client.py`
-- `multiemu/remote_runtime.py`
-
-Estado actual:
-
-- `pygame` local funcionando
-- cliente TCP `pygame` funcionando
-- handshake remoto corregido para no depender de dimensiones `None`
-- video y audio remotos siguen siendo funcionales, aunque el audio TCP no es la
-  parte mas refinada del proyecto
-
-CLI actual:
-
-- `multiemu list-machines`
-- `multiemu run`
-- `multiemu serve`
-- `multiemu connect`
-
----
-
-# Tests
-
-La suite ya no se basa en scripts manuales de arranque. Ahora el objetivo es
-que los tests reales sean `pytest`.
-
-Archivos principales de tests:
-
-- `tests/test_spectrum.py`
-- `tests/test_cpc464.py`
-- `tests/test_ay38912.py`
-- `tests/test_z80_bus.py`
-- `tests/test_z80_core.py`
-- `tests/test_accel_equivalence.py`
-- `tests/test_cli.py`
-- `tests/test_display_profiles.py`
-- `tests/test_keymaps.py`
-
-Las referencias Python para comparar con las implementaciones aceleradas viven
-en:
-
-- `tests/fallbacks/`
-
-Decision importante:
-
-- el fallback ya no es parte de la ejecucion normal del emulador
-- su funcion ahora es validar semantica, servir de referencia y facilitar tests
-
----
-
-# Decisiones de diseno
-
-Estas notas no describen el estado puntual del codigo, sino decisiones de
-arquitectura que conviene preservar entre sesiones.
-
-## CLI y registros
-
-La CLI publica vive en:
-
-- `multiemu/cli.py`
-
-La idea sigue siendo:
-
-- no usar `tests/` como punto de entrada del emulador
-- mantener un CLI estable para uso manual y automatizaciones
-- dejar la logica de seleccion en registros/factorias, no en `if/elif`
-
-Registros relevantes:
-
-- `multiemu/machine_registry.py`
-- `multiemu/runtime_registry.py`
-
-Separacion actual de runtimes:
-
-- `LOCAL_FRONTENDS`
-- `SERVER_TRANSPORTS`
-- `CONNECT_TRANSPORTS`
-- `CONNECT_FRONTENDS`
-
-Decision importante:
-
-- `connect` separa transporte y frontend
-- no conviene colapsar eso en ids artificiales como `tcp-pygame`
+- mantener una interfaz consistente para maquinas heterogeneas
+- evitar reglas especiales por maquina
 
 ## Politica de busqueda de ROMs
 
 La busqueda de ROMs no debe depender del arbol del repositorio.
 
-Si no se pasa `--rom`, cada slot busca en este orden:
+Orden vigente:
 
 1. `CWD`
 2. `$HOME/.local/share/multiemu/`
 3. `/usr/local/share/multiemu/roms/`
 4. `/usr/share/multiemu/`
 
-Slots/nombres por defecto vigentes:
+Motivo:
 
-- `spectrum16k` -> `spec16k.rom`
-- `spectrum48k` -> `spec48k.rom`
-- `cpc464` slot `os` -> `OS_464.ROM`
+- alinear desarrollo local e instalacion real
+- evitar dependencias implicitas del checkout
 
-Para CPC se mantiene el modelo de slots nombrados, no una proliferacion de
-flags tipo `--rom2`, `--rom3`.
+## Cintas y discos
 
-## Perfiles de display
+Decision vigente:
 
-Los perfiles de display viven en:
-
-- `video/display_profiles.py`
-
-Su funcion es separar:
-
-- el raster/hardware que produce la maquina
-- la ventana visible o perfil presentado al usuario
-
-Esto se comparte entre Spectrum y CPC, y debe seguir asi.
-
-## Runtime remoto
-
-La base comun del frontend remoto vive en:
-
-- `multiemu/remote_runtime.py`
-
-Clase principal:
-
-- `RemoteFrontendSession`
-
-La intencion sigue siendo que la sesion remota comun concentre:
-
-- loop de emulacion remoto
-- merge de input por frame
-- ritmo/cadencia
-- codificacion de video
-- drenado de audio
-
-Y que el transporte concreto, hoy TCP, se encargue sobre todo de:
-
-- sockets
-- parsing de mensajes
-- colas/salida
-
-## CPUs nuevas
-
-Si entra una CPU nueva, la regla actual es conservadora:
-
-- no crear jerarquias profundas de "CPU parecida a Z80"
-- compartir utilidades e infraestructura solo cuando sean realmente neutrales
-- mantener decoder, flags, timings y tabla de opcodes en implementaciones separadas
-
-Esta decision se ha tomado ya para la futura Game Boy clasica:
-
-- `LR35902` se implementara aparte, no como refactor del `Z80`
-
-## Convencion de documentacion
-
-La documentacion interna debe preservar decisiones, no narrar el codigo.
-
-Regla acordada:
-
-- docstrings de modulo o clase cuando aporten contexto arquitectonico
-- comentarios breves solo para decisiones no obvias o rarezas de hardware
-- evitar comentarios redundantes que solo repitan el codigo
+- los medios deben entrar como slots opcionales declarativos
+- el frontend puede exponer controles comunes como `play/pause`, pero el
+  comportamiento del medio debe quedarse en el dispositivo correspondiente
+- no deformar silenciosamente la señal de cinta para "hacer que cargue"
+- si se quiere acelerar carga, debe ser por una via explicita de control o modo
+  turbo
 
 ---
 
-# Prioridades abiertas
+# Politica de implementacion acelerada
 
-Si se retoma el trabajo del CPC, el orden recomendado es:
+## Relacion entre Python y Cython
 
-1. fidelidad basica de video e input
-2. afinar `AY38912`
-3. medir rendimiento real del CPC completo
-4. decidir si merece la pena mas Cython o mas hardware
+Decision vigente:
 
-Si aparece un bug de timing raro en CPC, recordar primero:
+- la implementacion acelerada puede ser la canonica del paquete productivo
+- cuando exista una ruta Cython canonica, la referencia Python debe moverse a
+  `tests/fallbacks/`
+- la implementacion Python y la acelerada deben mantenerse semanticamente
+  alineadas
+- no debe introducirse funcionalidad en Cython sin referencia equivalente o sin
+  tests que fijen la semantica
 
-- revisar relacion entre `run_frame()`, interrupciones y `HALT`
-- comprobar si la ROM o test depende de esperas por frame
+Motivo:
+
+- reducir deuda de divergencia
+- permitir depuracion y comparacion reproducible
+
+## Referencias en tests
+
+Decision vigente:
+
+- las referencias Python para comparar con implementaciones aceleradas viven en
+  `tests/fallbacks/`
+- esas referencias no son la ruta normal de ejecucion del emulador
+- su objetivo es validar semantica y servir de modelo de regresion
+
+Aplicacion vigente:
+
+- `m6502` sigue ya esta politica
+- las pruebas de equivalencia deben comparar el core productivo frente a la
+  referencia Python cargada desde `tests/fallbacks/`
+
+## Regla para cambios de decoder o hardware caliente
+
+Al ampliar un core o chipset caliente:
+
+- fijar primero la semantica observable
+- añadir o ajustar tests
+- mantener alineadas las variantes Python/Cython cuando existan ambas
+
+Esta regla es especialmente importante en:
+
+- `Z80`
+- `LR35902`
+- render y chips acelerados del CPC
+
+---
+
+# Decisiones por maquina
+
+## Spectrum
+
+Decisiones vigentes:
+
+- `SpectrumBase`, `Spectrum16K` y `Spectrum48K` son la jerarquia valida
+- teclado, beeper y puerto `0xFE` siguen en la maquina
+- la ULA produce `rgb24` directamente
+- el soporte de cinta se modela como señal `EAR` observable por ROM
+
+Sobre formatos de cinta:
+
+- `TZX` y `TAP` son formatos aceptables para Spectrum
+- la pausa inicial y el control manual de cinta son parte del flujo esperado
+- el frontend `pygame` usa `F1` para `play/pause`
+
+## CPC464
+
+Decisiones vigentes:
+
+- `CPC464` sigue siendo una maquina cableada en Python
+- Gate Array, CRTC, PPI, video y PSG son subsistemas separados
+- la RAM sigue estando fisicamente presente incluso bajo ROM
+- la ROM alta debe tratarse como banco seleccionable, no como un caso especial
+  ad hoc
+
+Sobre medios:
+
+- el cassette CPC acepta `CDT/TZX`
+- el disco CPC acepta `DSK`
+- el soporte de disco puede crecer de forma incremental desde un FDC minimo
+
+Sobre fidelidad:
+
+- prioridad en CPC: coherencia funcional antes que exactitud de timing total
+- cualquier mejora fina de video o AY debe preservar la legibilidad de la
+  orquestacion en Python
+
+## KIM-1 y m6502
+
+Decisiones vigentes:
+
+- `m6502` crece como familia propia
+- `KIM-1` se usa como primera maquina real para validar esa familia
+- el core productivo de `m6502` es la ruta Cython; la referencia Python vive en
+  `tests/fallbacks/`
+- las ROMs de `KIM-1` deben pasarse por slots explicitos, no hardcodearse por
+  nombre dentro de la maquina
+- el display y keypad deben modelarse a traves del `6530`, no mediante MMIO
+  inventado ajeno al monitor
+- la validez del soporte `KIM-1` debe fijarse con ROMs originales del monitor,
+  no solo con ROMs sinteticas
+- la entrada/salida TTY debe modelarse como linea serie bit-bang en el `6530`
+  y validarse con rutas reales del monitor
+- las rutas reales del monitor que se consideran criterio de verdad incluyen al
+  menos:
+  - `ADDR`
+  - `DATA`
+  - `STEP`
+  - `PC`
+  - `RUN`
+  - `OPEN`
+  - `MODIFY`
+  - `GOEXEC`
+  - `OUTCH`
+  - `DUMP`
+  - `LOAD`
+
+Motivo:
+
+- usar software real del monitor como criterio de verdad
+- validar arquitectura antes de saltar a maquinas 6502 mas grandes
+
+## Game Boy
+
+Decisiones vigentes:
+
+- `LR35902` no es una variante refactorizada del `Z80`
+- `DMG` se modela como maquina propia
+- cartucho, PPU, APU, timer, DMA, joypad e interrupciones son subsistemas
+  separados
+- la salida de video de produccion debe seguir siendo `rgb24`
+
+Si en algun momento cambia la estrategia de organizacion interna de estos
+componentes, debe documentarse aqui como cambio de decision, no solo como
+movimiento de ficheros.
+
+---
+
+# Politica de cambios futuros
+
+Antes de introducir una nueva abstraccion o refactor grande, comprobar:
+
+- si resuelve un patron real en varias maquinas
+- si mejora claridad arquitectonica y no solo simetria estetica
+- si separa mejor hardware interno, perifericos y frontends
+- si mantiene visible la maquina en Python
+
+Si una decision de este documento deja de ser valida:
+
+- no se borra sin mas
+- se sustituye por la nueva decision
+- se deja constancia breve del motivo del cambio

@@ -177,6 +177,8 @@ cython_debug/
 
 # Local ROM and capture artifacts
 /roms/gameboy_mapper_catalog.json
+/6530-002.bin
+/6530-003.bin
 /*.rom
 /*.ROM
 /*.gb

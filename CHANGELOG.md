@@ -2,6 +2,54 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.0
+
+Versión centrada en abrir la familia `m6502`, consolidar `KIM-1` como primera
+máquina 6502 usable, y separar chipsets internos de periféricos y medios.
+
+### Incluye
+
+- Nueva familia `m6502` y primera máquina real `kim1`.
+- Core `m6502` acelerado en Cython como implementación canónica del paquete.
+- Referencia Python del `m6502` movida a `tests/fallbacks/` para tests de
+  equivalencia accel/reference.
+- Soporte del monitor `KIM-1` con carga explícita de `6530-002` y `6530-003`.
+- Implementación funcional del `M6530` para:
+  - display escaneado
+  - keypad
+  - timer e IRQ
+  - entrada/salida TTY bit-bang
+- Validación del monitor real del `KIM-1` sobre ROMs originales en rutas de:
+  - `ADDR`
+  - `DATA`
+  - `STEP`
+  - `PC`
+  - `RUN`
+  - `OPEN`
+  - `MODIFY`
+  - `GOEXEC`
+  - `OUTCH`
+  - `DUMP`
+  - `LOAD`
+- Soporte básico de disco para `cpc464`:
+  - parser de imágenes `DSK`
+  - FDC mínimo
+  - slot `disk`
+  - slot `amsdos`
+- Soporte de cinta `TAP` para Spectrum además de `TZX`.
+- Introducción del namespace `chipsets/` como espacio canónico para chips y
+  subsistemas internos, separándolos de medios/periféricos en `devices/`.
+
+### Testing
+
+- Nuevos tests para `m6502` y equivalencia entre referencia Python y core
+  Cython.
+- Nuevos tests de monitor real para `KIM-1`, incluyendo rutas TTY y
+  roundtrip `DUMP -> LOAD`.
+- Nuevos tests para parser/FDC de disco CPC.
+- Cobertura adicional para `Spectrum .tap`.
+- Ajustes de tests e imports para el nuevo namespace `chipsets/`.
+
 ## 0.1.2
 
 Versión centrada en ampliar cobertura real de Game Boy y cintas, y en cerrar

@@ -128,11 +128,36 @@ GAMEBOY_PYGAME_KEYMAP = {
     pygame.K_RSHIFT: (1, 3),
 }
 
+KIM1_PYGAME_KEYMAP = {
+    pygame.K_KP0: (0, 6),
+    pygame.K_KP1: (0, 5),
+    pygame.K_KP2: (0, 4),
+    pygame.K_KP3: (0, 3),
+    pygame.K_KP4: (0, 2),
+    pygame.K_KP5: (0, 1),
+    pygame.K_KP6: (0, 0),
+    pygame.K_KP7: (1, 6),
+    pygame.K_KP8: (1, 5),
+    pygame.K_KP9: (1, 4),
+    pygame.K_a: (1, 3),
+    pygame.K_b: (1, 2),
+    pygame.K_c: (1, 1),
+    pygame.K_d: (1, 0),
+    pygame.K_e: (2, 6),
+    pygame.K_f: (2, 5),
+    pygame.K_KP_MINUS: (2, 4),
+    pygame.K_KP_PERIOD: (2, 3),
+    pygame.K_KP_PLUS: (2, 2),
+    pygame.K_KP_ENTER: (2, 1),
+    pygame.K_KP_DIVIDE: (2, 0),
+}
+
 
 PYGAME_KEYMAPS = {
     "spectrum": SPECTRUM_PYGAME_KEYMAP,
     "cpc": CPC_PYGAME_KEYMAP,
     "gameboy": GAMEBOY_PYGAME_KEYMAP,
+    "kim1": KIM1_PYGAME_KEYMAP,
 }
 
 

@@ -13,6 +13,7 @@ from typing import Callable
 import warnings
 
 from machines.gameboy import DMG
+from machines.m6502 import KIM1
 from machines.z80 import CPC464, Spectrum16K, Spectrum48K
 from video import get_display_profile
 
@@ -54,8 +55,8 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
             ),
             RomSlotSpec(
                 slot_id="tape",
-                description="Imagen de cinta TZX para Spectrum",
-                filenames=("program.tzx", "tape.tzx"),
+                description="Imagen de cinta TZX/TAP para Spectrum",
+                filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
                 required=False,
             ),
         ),
@@ -76,8 +77,8 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
             ),
             RomSlotSpec(
                 slot_id="tape",
-                description="Imagen de cinta TZX para Spectrum",
-                filenames=("program.tzx", "tape.tzx"),
+                description="Imagen de cinta TZX/TAP para Spectrum",
+                filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
                 required=False,
             ),
         ),
@@ -88,7 +89,9 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
         factory=lambda roms, display_profile: CPC464(
             roms["os"],
             basic_rom_data=roms.get("basic"),
+            amsdos_rom_data=roms.get("amsdos"),
             tape_data=roms.get("tape"),
+            disk_data=roms.get("disk"),
             display_profile=display_profile,
         ),
         rom_slots=(
@@ -110,9 +113,21 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 required=False,
             ),
             RomSlotSpec(
+                slot_id="amsdos",
+                description="ROM AMSDOS/expansión de disco para CPC",
+                filenames=("AMSDOS.ROM", "amsdos.rom"),
+                required=False,
+            ),
+            RomSlotSpec(
                 slot_id="tape",
                 description="Imagen de cassette CDT/TZX para CPC464",
                 filenames=("program.cdt", "tape.cdt"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="disk",
+                description="Imagen DSK para CPC",
+                filenames=("disk.dsk", "program.dsk"),
                 required=False,
             ),
         ),
@@ -126,6 +141,26 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 slot_id="main",
                 description="ROM principal/cartucho de Game Boy",
                 filenames=("gameboy.gb", "cart.gb"),
+            ),
+        ),
+    ),
+    "kim1": MachineSpec(
+        machine_id="kim1",
+        display_name="MOS KIM-1 (early scaffold)",
+        factory=lambda roms, display_profile: KIM1(
+            roms["lower"],
+            roms["upper"],
+        ),
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="lower",
+                description="ROM baja 6530-002 del KIM-1",
+                filenames=(),
+            ),
+            RomSlotSpec(
+                slot_id="upper",
+                description="ROM alta 6530-003 del KIM-1",
+                filenames=(),
             ),
         ),
     ),
@@ -273,7 +308,7 @@ def resolve_machine_rom_paths(
 
         if slot.required:
             search_dirs_str = ", ".join(str(path) for path in search_dirs)
-            filenames = ", ".join(slot.filenames)
+            filenames = ", ".join(slot.filenames) if slot.filenames else "sin nombres por defecto"
             raise FileNotFoundError(
                 f"no se encontró la ROM del slot {slot.slot_id!r} para {spec.machine_id!r} "
                 f"(nombres buscados: {filenames}) en: {search_dirs_str}"

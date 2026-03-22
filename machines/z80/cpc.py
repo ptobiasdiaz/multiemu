@@ -11,8 +11,9 @@ grow the machine incrementally without blocking on full hardware accuracy.
 import os
 from array import array
 
+from chipsets import AY38912, CPCGateArray, CPCVideo, HD6845, Intel8255
 from cpu.z80 import MemoryDevice, PythonPortHandler, RAMBlock, ROMBlock
-from devices import AY38912, CPCCassetteTape, CPCGateArray, CPCVideo, HD6845, Intel8255
+from devices import CPCDiskImage, CPCFDC, CPCCassetteTape
 from machines.frame_runner import ScanlineFrameRunner
 from machines.z80.base import Z80MachineBase
 from video import get_display_profile
@@ -29,7 +30,9 @@ class CPCMemoryMap(MemoryDevice):
             return self.machine.lower_rom.peek(addr)
 
         if 0xC000 <= addr <= 0xFFFF and self.machine.upper_rom_enabled:
-            return self.machine.upper_rom.peek(addr - 0xC000)
+            active_upper_rom = self.machine.active_upper_rom
+            if active_upper_rom is not None:
+                return active_upper_rom.peek(addr - 0xC000)
 
         return self.machine.ram.peek(addr)
 
@@ -85,7 +88,9 @@ class CPC464(Z80MachineBase):
         rom_data: bytes | None = None,
         *,
         basic_rom_data: bytes | None = None,
+        amsdos_rom_data: bytes | None = None,
         tape_data: bytes | None = None,
+        disk_data: bytes | None = None,
         fast_tape: bool | None = None,
         audio_sample_rate: int = 44100,
         display_profile: str = "default",
@@ -99,15 +104,19 @@ class CPC464(Z80MachineBase):
         self.lower_rom = ROMBlock(self.ROM_SIZE)
         self.upper_rom = ROMBlock(self.ROM_SIZE)
         self.ram = RAMBlock(self.RAM_SIZE)
+        self.upper_rom_banks: dict[int, ROMBlock] = {}
+        self.selected_upper_rom_bank = 0
 
         if rom_data is not None:
             self.lower_rom.load_bytes(rom_data)
         if basic_rom_data is not None:
-            self.upper_rom.load_bytes(basic_rom_data)
+            self.load_upper_rom_bank(0, basic_rom_data)
+        if amsdos_rom_data is not None:
+            self.load_upper_rom_bank(7, amsdos_rom_data)
 
         self.lower_rom_enabled = True
-        self.upper_rom_enabled = basic_rom_data is not None
-        self._has_upper_rom = basic_rom_data is not None
+        self.upper_rom_enabled = bool(self.upper_rom_banks)
+        self._has_upper_rom = bool(self.upper_rom_banks)
         self.samples_per_frame = int(round(audio_sample_rate / self.FRAMES_PER_SECOND))
 
         self.memory_map = CPCMemoryMap(self)
@@ -148,6 +157,8 @@ class CPC464(Z80MachineBase):
             if tape_data is not None
             else None
         )
+        self.disk = CPCDiskImage.from_dsk_bytes(disk_data) if disk_data is not None else None
+        self.fdc = CPCFDC(self.disk)
         self.audio_samples = array("h", [0] * self.samples_per_frame)
         self._frame_audio = array("h")
         self._audio_rendered_samples = 0
@@ -188,10 +199,12 @@ class CPC464(Z80MachineBase):
         super().reset()
         self.lower_rom_enabled = True
         self.upper_rom_enabled = self._has_upper_rom
+        self.selected_upper_rom_bank = 0
         self.gate_array.reset()
         self.crtc.reset()
         self.psg.reset()
         self.ppi.reset()
+        self.fdc.reset()
         self.keyboard_lines = [0xFF] * self.KEYBOARD_LINES
         self.last_keyboard_line_read = 0xFF
         self.interrupt_counter = 0
@@ -328,9 +341,26 @@ class CPC464(Z80MachineBase):
     def load_upper_rom(self, data: bytes):
         """Load the CPC upper ROM image and expose it by default."""
 
-        self.upper_rom.load_bytes(data)
+        self.load_upper_rom_bank(0, data)
+
+    def load_upper_rom_bank(self, bank: int, data: bytes):
+        """Load a banked upper ROM image, e.g. BASIC or AMSDOS."""
+
+        rom = ROMBlock(self.ROM_SIZE)
+        rom.load_bytes(data)
+        bank &= 0xFF
+        self.upper_rom_banks[bank] = rom
+        if bank == 0:
+            self.upper_rom = rom
         self._has_upper_rom = True
         self.upper_rom_enabled = True
+
+    @property
+    def active_upper_rom(self) -> ROMBlock | None:
+        rom = self.upper_rom_banks.get(self.selected_upper_rom_bank)
+        if rom is not None:
+            return rom
+        return self.upper_rom_banks.get(0)
 
     def poke(self, addr: int, value: int):
         """Write to CPC RAM, including areas currently hidden by ROM."""
@@ -362,6 +392,8 @@ class CPC464(Z80MachineBase):
         snap["frame_tstates"] = self.frame_tstates
         snap["lower_rom_enabled"] = self.lower_rom_enabled
         snap["upper_rom_enabled"] = self.upper_rom_enabled
+        snap["upper_rom_bank"] = self.selected_upper_rom_bank
+        snap["fdc_motor_on"] = self.fdc.motor_on
         snap["ga_mode"] = self.gate_array.mode
         snap["ga_border_hardware_color"] = self.gate_array.border_hardware_color
         snap["ga_selected_pen"] = self.gate_array.selected_pen
@@ -439,6 +471,11 @@ class CPC464(Z80MachineBase):
     def _port_read(self, port: int) -> int:
         """Return the default floating bus value for unimplemented I/O reads."""
 
+        if (port & 0xFFFE) == 0xFB7E:
+            if port & 0x0001:
+                return self.fdc.read_data()
+            return self.fdc.read_main_status()
+
         if (port & 0x0800) == 0:
             ppi_function = (port >> 8) & 0x03
             if ppi_function == 0x00:
@@ -451,6 +488,17 @@ class CPC464(Z80MachineBase):
 
     def _port_write(self, port: int, value: int) -> None:
         """Dispatch CPC I/O writes to the Gate Array or future devices."""
+
+        if (port & 0xFF00) == 0xDF00:
+            self.selected_upper_rom_bank = value & 0xFF
+            return
+
+        if (port & 0xFFFE) == 0xFB7E:
+            if port & 0x0001:
+                self.fdc.write_data(value)
+            else:
+                self.fdc.write_motor_control(value)
+            return
 
         if (port & 0xC000) == 0x4000:
             self.gate_array.write(value)

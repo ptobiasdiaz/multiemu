@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Checks for the reusable AY-3-8912 core."""
 
-from devices import AY38912
+from chipsets import AY38912
 
 
 def test_ay38912_register_read_write_roundtrip():
