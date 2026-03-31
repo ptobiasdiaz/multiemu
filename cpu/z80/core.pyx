@@ -1164,7 +1164,8 @@ cdef class Z80Core:
             return 16
 
         else:
-            raise NotImplementedError(f"ED opcode {op:02X}")
+            # Undocumented ED-prefixed opcodes behave as inert two-byte NOPs.
+            return 8
 
     cdef int exec_index_cb(self, bint use_iy):
         cdef int8_t d = <int8_t>self.fetch8()
@@ -1300,6 +1301,13 @@ cdef class Z80Core:
             if use_iy: self.IY = idx
             else: self.IX = idx
             return 14
+        elif op == 0xE3:
+            nn = <uint16_t>(self.bus.mem_read(self.SP) | (self.bus.mem_read(<uint16_t>((self.SP + 1) & 0xFFFF)) << 8))
+            self.bus.mem_write(self.SP, <uint8_t>(idx & 0xFF))
+            self.bus.mem_write(<uint16_t>((self.SP + 1) & 0xFFFF), <uint8_t>((idx >> 8) & 0xFF))
+            if use_iy: self.IY = nn
+            else: self.IX = nn
+            return 23
         elif op == 0xE9:
             self.PC = idx; return 8
         elif op == 0xF9:
@@ -1513,8 +1521,32 @@ cdef class Z80Core:
                 self.cp8(self.A, val)
             return 19
 
+        elif op in (0x84, 0x85, 0x8C, 0x8D, 0x94, 0x95, 0x9C, 0x9D, 0xA4, 0xA5, 0xAC, 0xAD, 0xB4, 0xB5, 0xBC, 0xBD):
+            if op in (0x84, 0x8C, 0x94, 0x9C, 0xA4, 0xAC, 0xB4, 0xBC):
+                val = self.get_IYH() if use_iy else self.get_IXH()
+            else:
+                val = self.get_IYL() if use_iy else self.get_IXL()
+
+            if op in (0x84, 0x85):
+                self.A = self.add8(self.A, val)
+            elif op in (0x8C, 0x8D):
+                self.A = self.adc8(self.A, val)
+            elif op in (0x94, 0x95):
+                self.A = self.sub8(self.A, val)
+            elif op in (0x9C, 0x9D):
+                self.A = self.sbc8(self.A, val)
+            elif op in (0xA4, 0xA5):
+                self.A = self.and8(self.A, val)
+            elif op in (0xAC, 0xAD):
+                self.A = self.xor8(self.A, val)
+            elif op in (0xB4, 0xB5):
+                self.A = self.or8(self.A, val)
+            else:
+                self.cp8(self.A, val)
+            return 8
+
         else:
-            raise NotImplementedError(f"{'FD' if use_iy else 'DD'} opcode {op:02X}")
+            return self.exec_main(op)
 
     cdef int exec_dd(self):
         return self.exec_index(self.fetch8(), False)

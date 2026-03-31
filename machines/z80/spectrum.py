@@ -16,6 +16,7 @@ class SpectrumBase(Z80MachineBase):
     RAM_SIZE = 0x4000
     RAM_BASE = 0x4000
     TSTATES_PER_FRAME = 69888
+    FRAMES_PER_SECOND = 50
 
     def __init__(
         self,

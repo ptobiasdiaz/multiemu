@@ -62,7 +62,7 @@ class TcpFrontend(RemoteFrontendSession):
         *,
         host: str = "127.0.0.1",
         port: int = 8765,
-        fps_limit: int = 50,
+        fps_limit: int | None = None,
         audio_sample_rate: int = 44100,
         audio_chunk_size: int = 512,
     ):

@@ -8,11 +8,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "multiemu"
-version = "0.2.0"
+version = "0.2.1"
 description = "Work-in-progress retro machine emulator in Python and Cython"
 readme = "README.md"
 requires-python = ">=3.13"
 license = "MIT"
+dependencies = [
+    "pygame",
+]
 authors = [
     {name = "Tobias Diaz", email = "tobias.diaz@uclm.es"}
 ]
@@ -29,6 +32,5 @@ multiemu = "multiemu.cli:main"
 
 [project.optional-dependencies]
 frontend = [
-    "pygame",
     "numpy",
 ]

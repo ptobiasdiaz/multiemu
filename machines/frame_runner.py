@@ -57,7 +57,10 @@ class ScanlineFrameRunner:
 
     def __init__(self, scanline_count: int, tstates_per_line: int):
         self.scanline_count = int(scanline_count)
-        self.tstates_per_line = int(tstates_per_line)
+        if isinstance(tstates_per_line, (list, tuple)):
+            self.tstates_per_line = [int(v) for v in tstates_per_line]
+        else:
+            self.tstates_per_line = int(tstates_per_line)
 
     def run(
         self,
@@ -78,7 +81,12 @@ class ScanlineFrameRunner:
             if before_scanline is not None:
                 before_scanline(scanline)
 
-            used = cpu_run_cycles(self.tstates_per_line)
+            if isinstance(self.tstates_per_line, list):
+                line_tstates = self.tstates_per_line[scanline]
+            else:
+                line_tstates = self.tstates_per_line
+
+            used = cpu_run_cycles(line_tstates)
             machine.tstates += used
             machine.frame_tstates += used
 

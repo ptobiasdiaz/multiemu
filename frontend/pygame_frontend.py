@@ -29,7 +29,7 @@ class PygameFrontend:
         *,
         scale: int = 2,
         window_title: str = "MultiEmu",
-        fps_limit: int = 50,
+        fps_limit: int | None = None,
         audio_sample_rate: int = 44100,
         audio_chunk_size: int = 512,
     ):
@@ -37,7 +37,8 @@ class PygameFrontend:
 
         self.scale = scale
         self.window_title = window_title
-        self.fps_limit = fps_limit
+        target_fps = getattr(self.backend, "target_fps", None)
+        self.fps_limit = int(target_fps) if fps_limit is None and target_fps else fps_limit
         self.audio_sample_rate = audio_sample_rate
         self.audio_chunk_size = audio_chunk_size
         self.audio_play_chunk_size = max(audio_chunk_size, 2048)
@@ -63,6 +64,7 @@ class PygameFrontend:
         self.audio_started = False
         self.audio_queue = deque()
         self.audio_prebuffer_chunks = 4
+        self.audio_max_queue_chunks = 12
         self.audio_byte_buffer = bytearray()
         self.use_surfarray = np is not None and hasattr(pygame, "surfarray")
         self._configure_audio_profile()
@@ -108,10 +110,18 @@ class PygameFrontend:
 
         if machine_id.startswith("cpc"):
             self.audio_prebuffer_chunks = 1
+            self.audio_max_queue_chunks = 8
             self.audio_play_chunk_size = max(1024, self.audio_chunk_size)
             return
 
+        if machine_id.startswith("vic20"):
+            self.audio_prebuffer_chunks = 4
+            self.audio_max_queue_chunks = 12
+            self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
+            return
+
         self.audio_prebuffer_chunks = 4
+        self.audio_max_queue_chunks = 12
         self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
 
     def run(self):
@@ -148,7 +158,7 @@ class PygameFrontend:
                 self._pump_audio_queue()
                 self._draw_framebuffer(self.backend.framebuffer_rgb24)
 
-                if self.fps_limit > 0 and frame_batch_size == 1:
+                if self.fps_limit is not None and self.fps_limit > 0 and frame_batch_size == 1:
                     self.clock.tick(self.fps_limit)
         finally:
             pygame.quit()
@@ -242,6 +252,9 @@ class PygameFrontend:
             del self.audio_byte_buffer[:chunk_bytes]
             self.audio_queue.append(pygame.mixer.Sound(buffer=chunk))
 
+        while len(self.audio_queue) > self.audio_max_queue_chunks:
+            self.audio_queue.popleft()
+
         self._pump_audio_queue()
 
     def _pump_audio_queue(self):
@@ -257,6 +270,8 @@ class PygameFrontend:
         if not self.audio_channel.get_busy():
             if self.audio_queue:
                 self.audio_channel.play(self.audio_queue.popleft())
+            else:
+                self.audio_started = False
             return
 
         while self.audio_channel.get_queue() is None and self.audio_queue:

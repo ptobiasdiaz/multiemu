@@ -122,7 +122,7 @@ def _add_common_machine_options(parser: argparse.ArgumentParser) -> None:
         default=[],
         help="ROM path or slot=path; repeat for machines with multiple ROMs",
     )
-    parser.add_argument("--fps", type=int, default=50, help="frame rate limit")
+    parser.add_argument("--fps", type=int, default=None, help="frame rate limit")
     parser.add_argument(
         "--audio-sample-rate",
         type=int,

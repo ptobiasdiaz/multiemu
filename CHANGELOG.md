@@ -2,6 +2,55 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.1
+
+Versión en desarrollo centrada en abrir `vic20ntsc` como siguiente máquina
+6502 real y en seguir cerrando lagunas del Z80 detectadas al ejecutar software
+más exigente.
+
+### Incluye
+
+- Nueva máquina `vic20ntsc` como variante explícita del Commodore VIC-20 NTSC,
+  con `vic20` mantenido como alias temporal, y nueva variante `vic20pal`.
+- Primer bloque funcional del `VIC-I` (`6560`) y del `VIA6522` para el
+  arranque real de ROMs/cartuchos del VIC-20.
+- Soporte inicial de cartuchos `VIC-20` tanto en formato `.prg` como en ROM
+  autostart cruda de `BLK5`, incluyendo autoload de cartuchos `16K`
+  partidos entre `BLK3 + BLK5`.
+- Soporte adicional de imágenes crudas de cartucho `VIC-20` por extensión:
+  - `.20`
+  - `.40`
+  - `.60`
+  - `.a0`
+- Nuevos opcodes/casos `DD/FD` del Z80 necesarios para software real:
+  - `EX (SP),IX/IY`
+  - ALU sobre `IXH/IXL` e `IYH/IYL`
+  - fallback correcto para opcodes `DD/FD` no afectados por el prefijo
+- Fallback de opcodes `ED` no documentados del Z80 como `NOP` temporizado,
+  incluyendo `ED ED`.
+- `VIA6522` y `VIC-I` (`6560`) convertidos en implementaciones canónicas en
+  Cython, con referencias Python movidas a `tests/fallbacks/` cuando aplica.
+- `M6502Bus` y `memory` del `m6502` cythonizados como implementación activa.
+- `memory` del `LR35902` cythonizada como implementación activa.
+- Mejora visible de rendimiento del `VIC-20` al mover a Cython:
+  - fetch visible del `VIC-I`
+  - RAM de color e I/O pequeña del `VIC-20`
+  - partes del render por scanline
+- Frontend remoto `tcp` estabilizado:
+  - `serve` y `connect` ya toleran `fps_limit=None`
+  - cliente `tcp + pygame` arreglado para handshakes con `fps: null`
+- `Spectrum` vuelve a anunciar `50 fps` como objetivo en frontend local y
+  remoto.
+
+### Testing
+
+- Cobertura nueva de `vic20ntsc` para vídeo, teclado, cartuchos, timing del
+  `VIC-I` y semántica del `VIA6522`.
+- Nuevos tests de Z80 para `EX (SP),IX/IY` y para el comportamiento de
+  prefijos `DD/FD` ignorados cuando el opcode no se ve afectado.
+- Nuevos tests de CLI/registro para cartuchos VIC-20 crudos `.20`.
+- Nuevos tests para runtime remoto TCP y handshake del cliente `pygame`.
+
 ## 0.2.0
 
 Versión centrada en abrir la familia `m6502`, consolidar `KIM-1` como primera

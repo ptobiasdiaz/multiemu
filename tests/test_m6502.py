@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from cpu.m6502 import M6502Bus, M6502Core, RAMBlock, ROMBlock
 from cpu.m6502.core import FLAG_B, FLAG_C, FLAG_D, FLAG_I, FLAG_N, FLAG_U, FLAG_V, FLAG_Z
 
@@ -236,6 +238,82 @@ def test_m6502_branch_cycle_counts_include_page_cross():
     assert cpu.snapshot()["PC"] == 0xF901
 
 
+@pytest.mark.parametrize(
+    ("program", "setup", "expected_cycles"),
+    [
+            (
+                bytes([0xBD, 0xFF, 0x01, 0x00]),  # LDA $01FF,X
+                lambda bus, cpu, ram: (
+                    setattr(cpu, "X", 0x01),
+                    ram.write(0x0200, 0x42),
+                ),
+                5,
+            ),
+        (
+                bytes([0xB9, 0xFF, 0x01, 0x00]),  # LDA $01FF,Y
+                lambda bus, cpu, ram: (
+                    setattr(cpu, "Y", 0x01),
+                    ram.write(0x0200, 0x42),
+                ),
+                5,
+            ),
+        (
+                bytes([0xB1, 0x10, 0x00]),  # LDA ($10),Y
+                lambda bus, cpu, ram: (
+                    setattr(cpu, "Y", 0x01),
+                    ram.write(0x0010, 0xFF),
+                    ram.write(0x0011, 0x01),
+                    ram.write(0x0200, 0x42),
+                ),
+                6,
+            ),
+        (
+                bytes([0x79, 0xFF, 0x01, 0x00]),  # ADC $01FF,Y
+                lambda bus, cpu, ram: (
+                    setattr(cpu, "Y", 0x01),
+                    setattr(cpu, "A", 0x01),
+                    ram.write(0x0200, 0x01),
+                ),
+                5,
+            ),
+        (
+                bytes([0xDD, 0xFF, 0x01, 0x00]),  # CMP $01FF,X
+                lambda bus, cpu, ram: (
+                    setattr(cpu, "X", 0x01),
+                    setattr(cpu, "A", 0x42),
+                    ram.write(0x0200, 0x42),
+                ),
+                5,
+            ),
+        (
+                bytes([0xBE, 0xFF, 0x01, 0x00]),  # LDX $01FF,Y
+                lambda bus, cpu, ram: (
+                    setattr(cpu, "Y", 0x01),
+                    ram.write(0x0200, 0x42),
+                ),
+                5,
+            ),
+        (
+                bytes([0xBC, 0xFF, 0x01, 0x00]),  # LDY $01FF,X
+                lambda bus, cpu, ram: (
+                    setattr(cpu, "X", 0x01),
+                    ram.write(0x0200, 0x42),
+                ),
+                5,
+            ),
+    ],
+)
+def test_m6502_indexed_read_cycle_counts_include_page_cross(program, setup, expected_cycles):
+    bus, cpu = _make_test_cpu(program)
+    ram = RAMBlock(0x0800)
+    bus.map_block(0x0000, ram, size=ram.size)
+    setup(bus, cpu, ram)
+
+    cycles = cpu.step()
+
+    assert cycles == expected_cycles
+
+
 def test_m6502_zero_page_and_absolute_indexed_modes_can_load_and_store():
     bus, cpu = _make_test_cpu(
         bytes(
@@ -445,7 +523,7 @@ def test_m6502_rti_restores_pc_and_status_after_brk_handler():
     assert (snap["P"] & FLAG_U) != 0
 
 
-def test_m6502_irq_respects_i_flag_and_uses_irq_vector():
+def test_m6502_irq_after_cli_is_delayed_one_instruction_and_sei_uses_previous_mask():
     bus = M6502Bus()
     ram = RAMBlock(0x0800)
     rom = _make_rom(
@@ -467,23 +545,32 @@ def test_m6502_irq_respects_i_flag_and_uses_irq_vector():
 
     cpu.step()  # CLI
     bus.request_irq()
-    cycles = cpu.step()  # service IRQ before NOP at F801
+    cycles = cpu.step()  # NOP at F801, IRQ still delayed by CLI
+    assert cycles == 2
+    assert cpu.snapshot()["PC"] == 0xF802
+
+    cycles = cpu.step()  # service IRQ before SEI at F802
     snap = cpu.snapshot()
 
     assert cycles == 7
     assert snap["PC"] == 0xF805
     assert snap["SP"] == 0xFA
     assert ram.peek(0x01FD) == 0xF8
-    assert ram.peek(0x01FC) == 0x01
+    assert ram.peek(0x01FC) == 0x02
     assert (ram.peek(0x01FB) & FLAG_B) == 0
 
     bus.clear_irq()
     cpu.step()  # RTI
-    cpu.step()  # NOP at F801
     cpu.step()  # SEI
     bus.request_irq()
-    cycles = cpu.step()  # NOP at F803, IRQ masked
+    cycles = cpu.step()  # IRQ still sees pre-SEI mask and fires before F803
 
+    assert cycles == 7
+    assert cpu.snapshot()["PC"] == 0xF805
+
+    bus.clear_irq()
+    cpu.step()  # RTI
+    cycles = cpu.step()  # NOP at F803, IRQ now masked
     assert cycles == 2
     assert cpu.snapshot()["PC"] == 0xF804
 
@@ -521,3 +608,38 @@ def test_m6502_nmi_ignores_i_flag_and_uses_nmi_vector():
     assert ram.peek(0x01FD) == 0xF8
     assert ram.peek(0x01FC) == 0x01
     assert (ram.peek(0x01FB) & FLAG_B) == 0
+
+
+def test_m6502_plp_delays_irq_recognition_by_one_instruction():
+    bus = M6502Bus()
+    ram = RAMBlock(0x0800)
+    rom = _make_rom(
+        bytes(
+            [
+                0x08,              # F800: PHP
+                0x28,              # F801: PLP
+                0xEA,              # F802: NOP
+                0xEA,              # F803
+                0xEA,              # F804
+                0x40,              # F805: RTI
+            ]
+        ),
+        irq_vector=0xF805,
+    )
+    bus.map_block(0x0000, ram, size=ram.size)
+    bus.map_block(0xF800, rom, size=rom.size)
+    cpu = M6502Core(bus)
+
+    cpu.P &= ~FLAG_I
+    cpu.step()  # PHP pushes I=0
+    cpu.P |= FLAG_I
+    cpu.step()  # PLP restores I=0, but IRQ decision still uses old I=1 once
+    bus.request_irq()
+
+    cycles = cpu.step()  # NOP at F802, IRQ delayed by PLP
+    assert cycles == 2
+    assert cpu.snapshot()["PC"] == 0xF803
+
+    cycles = cpu.step()  # IRQ now visible
+    assert cycles == 7
+    assert cpu.snapshot()["PC"] == 0xF805

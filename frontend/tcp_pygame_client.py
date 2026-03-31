@@ -154,7 +154,9 @@ class TcpPygameClient:
         self.src_height = int(video["height"])
         self.win_width = self.src_width * self.scale
         self.win_height = self.src_height * self.scale
-        self.fps_limit = int(video.get("fps", self.fps_limit))
+        fps_value = video.get("fps", self.fps_limit)
+        if fps_value is not None:
+            self.fps_limit = int(fps_value)
         self.audio_sample_rate = int(audio.get("sample_rate", self.audio_sample_rate))
         self.audio_chunk_size = int(audio.get("chunk_samples", self.audio_chunk_size))
         self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
@@ -176,10 +178,18 @@ class TcpPygameClient:
 
         if machine_id.startswith("cpc"):
             self.audio_prebuffer_chunks = 1
+            self.audio_max_queue_chunks = 8
             self.audio_play_chunk_size = max(1024, self.audio_chunk_size)
             return
 
+        if machine_id.startswith("vic20"):
+            self.audio_prebuffer_chunks = 4
+            self.audio_max_queue_chunks = 12
+            self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
+            return
+
         self.audio_prebuffer_chunks = 4
+        self.audio_max_queue_chunks = 12
         self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
 
     def _handle_local_events(self):
@@ -282,6 +292,8 @@ class TcpPygameClient:
         if not self.audio_channel.get_busy():
             if self.audio_queue:
                 self.audio_channel.play(self.audio_queue.popleft())
+            else:
+                self.audio_started = False
             return
 
         while self.audio_channel.get_queue() is None and self.audio_queue:

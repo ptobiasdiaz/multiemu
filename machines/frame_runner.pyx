@@ -67,11 +67,14 @@ cdef class ScanlineFrameRunner:
     """Generic frame runner for machines that advance one scanline at a time."""
 
     cdef public int scanline_count
-    cdef public int tstates_per_line
+    cdef public object tstates_per_line
 
-    def __init__(self, int scanline_count, int tstates_per_line):
+    def __init__(self, int scanline_count, object tstates_per_line):
         self.scanline_count = scanline_count
-        self.tstates_per_line = tstates_per_line
+        if isinstance(tstates_per_line, (list, tuple)):
+            self.tstates_per_line = [int(v) for v in tstates_per_line]
+        else:
+            self.tstates_per_line = int(tstates_per_line)
 
     cpdef object run(
         self,
@@ -85,6 +88,7 @@ cdef class ScanlineFrameRunner:
     ):
         cdef int scanline
         cdef int used
+        cdef int line_tstates
 
         machine.frame_tstates = 0
         if before_frame is not None:
@@ -94,7 +98,12 @@ cdef class ScanlineFrameRunner:
             if before_scanline is not None:
                 before_scanline(scanline)
 
-            used = cpu_run_cycles(self.tstates_per_line)
+            if isinstance(self.tstates_per_line, list):
+                line_tstates = self.tstates_per_line[scanline]
+            else:
+                line_tstates = self.tstates_per_line
+
+            used = cpu_run_cycles(line_tstates)
             machine.tstates += used
             machine.frame_tstates += used
 

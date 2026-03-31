@@ -74,6 +74,10 @@ class LocalMachineBackend:
     def input_keymap_name(self):
         return getattr(self.machine, "input_keymap_name", None)
 
+    @property
+    def target_fps(self):
+        return getattr(self.machine, "FRAMES_PER_SECOND", None)
+
     def render_frame(self):
         return self.machine.render_frame()
 

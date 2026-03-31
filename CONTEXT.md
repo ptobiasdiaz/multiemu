@@ -237,6 +237,146 @@ Decision vigente:
 - si se quiere acelerar carga, debe ser por una via explicita de control o modo
   turbo
 
+## Variantes regionales de maquina
+
+Las maquinas cuya identidad real dependa de una variante regional o de un chip
+distinto no deben exponerse con un identificador ambiguo si la implementacion
+solo cubre una de esas variantes.
+
+Decision vigente:
+
+- la variante actual de `VIC-20` expuesta en produccion es `vic20ntsc`
+- `vic20` puede mantenerse como alias de compatibilidad mientras no exista una
+  variante `vic20pal`
+- cuando exista una implementacion PAL real, debe exponerse como entrada
+  separada y no como simple flag cosmetico
+
+Motivo:
+
+- `VIC 6560` (NTSC) y `VIC 6561` (PAL) no son solo distinta etiqueta; cambian
+  chip, temporizacion y expectativas de software
+- evita ambigüedad al probar cartuchos o ROMs marcados como `NTSC` o `PAL`
+- prepara una evolucion limpia de registro y CLI
+
+Decision vigente actualizada:
+
+- `vic20ntsc` y `vic20pal` se exponen como maquinas separadas
+- `vic20` se mantiene solo como alias de compatibilidad de `vic20ntsc`
+
+Motivo del cambio:
+
+- ya existe una variante PAL cableada en el registro de maquinas
+- mantener un id ambiguo como entrada principal ya no aporta claridad
+
+## Cartuchos VIC-20
+
+Los cartuchos del `VIC-20` no deben modelarse solo como `PRG` con direccion de
+carga.
+
+Decision vigente:
+
+- aceptar tanto `PRG` de bloque unico como dumps crudos de cartucho cuando el
+  formato lo permita inferir de forma estable
+- el registro de maquinas debe resolver esos formatos hacia slots concretos
+  (`blk1`, `blk2`, `blk3`, `blk5`) antes de construir la maquina
+- la logica de deteccion de formato y mapeo debe vivir en
+  `multiemu/machine_registry.py`, no en la CLI ni dentro de la maquina
+
+Estado actual de la decision:
+
+- `PRG` soportados para `0x2000`, `0x4000`, `0x6000` y `0xA000`
+- ROM autostart cruda `BLK5` soportada por firma `A0CBM`
+- dumps crudos soportados por extension:
+  - `.20`
+  - `.40`
+  - `.60`
+  - `.a0`
+
+Motivo:
+
+- varios sets reales de preservacion del `VIC-20` distribuyen cartuchos como
+  dumps crudos y no como `PRG`
+- mantener la resolucion de slots en el registro evita contaminar la maquina
+  con parsing de formatos de fichero
+
+## Implementaciones canonicas aceleradas
+
+Cuando una implementacion Cython ya es la ruta activa del paquete, la copia
+Python no debe quedarse como ruta ambigua en el mismo namespace salvo necesidad
+clara.
+
+Decision vigente:
+
+- cuando una implementacion acelerada pase a ser canonica, la referencia Python
+  debe moverse a `tests/fallbacks/` siempre que siga siendo util para
+  equivalencia o diagnostico
+- el namespace activo del paquete debe apuntar de forma clara a la
+  implementacion canonica en ejecucion
+
+Estado actual de la decision:
+
+- aplicado en `m6502` para `bus` y `memory`
+- aplicado en `VIA6522`
+- aplicado en `VIC-I` con `vic6560.pyx` como ruta canonica y aceleradores
+  auxiliares separados
+
+Motivo:
+
+- reduce confusion sobre que codigo esta realmente vivo
+- mantiene la separacion de responsabilidades compatible con el patron usado en
+  `spectrum48k`
+
+## Politica de madurez previa a Cython
+
+Antes de acelerar una maquina nueva, la semantica visible del hardware debe
+quedar suficientemente centralizada en los chips Python.
+
+Decision vigente para `vic20ntsc`:
+
+- `VIC-I` debe concentrar:
+  - geometria visible
+  - fetch visible
+  - direccionamiento de screen/color/chargen
+  - modo efectivo de celda
+  - decodificacion efectiva de pixel
+- el renderer Python de maquina debe quedar reducido a consumir ese fetch y
+  producir `rgb24`
+- `VIA6522` debe cerrarse hasta un punto "sin huecos estructurales claros"
+  antes de plantear aceleracion
+
+Motivo:
+
+- evita portar a Cython una semantica aun repartida o claramente provisional
+- deja rutas calientes mas faciles de acelerar de forma selectiva
+- mantiene visible en Python la arquitectura real de la maquina
+
+Estado vigente:
+
+- `vic20ntsc` ya esta en el punto de empezar una primera Cythonizacion
+  selectiva
+- la prioridad de aceleracion debe ser el hot path de `VIC-I`, no el chip
+  entero de golpe
+
+## Mapa de expansion e I/O de VIC-20
+
+Las zonas de expansion e I/O del `VIC-20` deben modelarse segun el hardware
+real y no reutilizarse como espejos convenientes de otras memorias internas.
+
+Decision vigente:
+
+- `0x9800-0x9BFF` debe tratarse como `IO2`
+- `0x9C00-0x9FFF` debe tratarse como `IO3`
+- esas zonas no deben mapearse globalmente como espejo de `color RAM`
+- si un cartucho concreto necesita RAM en `IO2/IO3`, debe habilitarse como
+  comportamiento explicito del cartucho o expansion correspondiente
+
+Motivo:
+
+- alinea `vic20ntsc` con el mapa real de hardware y con referencias maduras
+  como `VICE`
+- evita falsos positivos en diagnosticos o cartuchos que usan `IO2/IO3`
+- separa con claridad RAM de color, I/O interno y expansiones de cartucho
+
 ---
 
 # Politica de implementacion acelerada

@@ -10,9 +10,9 @@ La intención del proyecto es separar con claridad:
 - transporte y presentación en el CLI
 
 El repositorio ya incluye soporte para máquinas ZX Spectrum, Amstrad CPC 464 y
-Nintendo Game Boy, además de un primer scaffold para MOS KIM-1. La estructura
-sigue pensada para crecer hacia más máquinas y más frontends sin mezclar toda
-la lógica en un único punto de entrada.
+Nintendo Game Boy, además de scaffolds iniciales para MOS KIM-1 y Commodore
+VIC-20. La estructura sigue pensada para crecer hacia más máquinas y más
+frontends sin mezclar toda la lógica en un único punto de entrada.
 
 ## Estado actual
 
@@ -23,6 +23,9 @@ Máquinas soportadas hoy:
 - `cpc464` (experimental)
 - `gameboy` (experimental)
 - `kim1` (experimental)
+- `vic20ntsc` (experimental)
+- `vic20` (alias temporal de `vic20ntsc`)
+- `vic20pal` (experimental)
 
 Frontends y transportes disponibles hoy:
 
@@ -30,6 +33,24 @@ Frontends y transportes disponibles hoy:
 - `serve --transport tcp`
 - `connect --transport tcp --frontend pygame`
 - perfiles de display: `default`, `full-border`
+
+### Resumen de soporte por sistema
+
+| Sistema | Estado | Vídeo | Audio | Teclado | Joystick | Cinta/Disco | Cartuchos/ROMs | Notas |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `spectrum16k` | usable | sí | beeper básico | sí | no | cinta `TZX/TAP` | ROM principal | soporte estable de arranque y carga básica |
+| `spectrum48k` | usable | sí | beeper básico | sí | no | cinta `TZX/TAP` | ROM principal | base más madura del proyecto |
+| `cpc464` | experimental | sí | AY básico | sí | no | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | timings y fidelidad aún incompletos |
+| `gameboy` | experimental | sí | sí | sí | n/a | n/a | cartuchos `.gb`, mappers principales | buena base, no aún cobertura total del catálogo |
+| `kim1` | usable/experimental | display monitor | n/a | keypad/TTY | n/a | n/a | ROMs `6530` | monitor funcional |
+| `vic20ntsc` | experimental avanzada | sí | sí, aún frágil | sí | no | no | ROMs, `.prg`, carts crudos `.20/.40/.60/.a0` | la máquina 6502 más avanzada ahora mismo |
+| `vic20pal` | experimental | sí | sí, aún frágil | sí | no | no | ROMs, `.prg`, carts crudos `.20/.40/.60/.a0` | validado menos que NTSC |
+
+Notas rápidas:
+
+- `joystick` sigue sin estar implementado donde sería relevante.
+- `tcp` se usa hoy con `serve/connect`, no como `run --frontend tcp`.
+- `vic20ntsc` y `vic20pal` arrancan ROMs y varios cartuchos reales, pero aún no tienen fidelidad completa de `VIC-I` ni audio cerrado.
 
 ## Requisitos
 
@@ -86,6 +107,16 @@ Slots y nombres esperados por defecto:
   - `main` -> `gameboy.gb`, `cart.gb`
 - `kim1`
   - requiere `--rom lower=... --rom upper=...`
+- `vic20ntsc`
+  - `basic` -> `BASIC.901486-01.bin`, `vic20_basic.bin`, `vic20-basic.bin`
+  - `kernal` -> `KERNAL.901486-07.bin`, `vic20_kernal.bin`, `vic20-kernal.bin`
+  - `char` -> `CHAR.901460-03.bin`, `vic20_char.bin`, `vic20-char.bin`
+  - `blk1` -> `vic20_blk1.bin`, `vic20-blk1.bin`
+  - `blk2` -> `vic20_blk2.bin`, `vic20-blk2.bin`
+  - `blk3` -> `vic20_blk3.bin`, `vic20-blk3.bin`
+  - `blk5` -> `vic20_blk5.bin`, `vic20-blk5.bin`
+- `vic20pal`
+  - mismos slots y nombres por defecto que `vic20ntsc`
 
 Puedes pasar ROMs explícitas con `--rom`:
 
@@ -99,6 +130,7 @@ multiemu run spectrum48k --rom spec48k.rom
 multiemu run cpc464 --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
 multiemu run gameboy --rom game.gb
 multiemu run kim1 --rom lower=6530-002.bin --rom upper=6530-003.bin
+multiemu run vic20ntsc --rom basic=basic.bin --rom kernal=kernal.bin --rom char=char.bin
 ```
 
 Nota sobre `cpc464`:
@@ -198,6 +230,18 @@ Ejemplo para KIM-1:
 multiemu run kim1 --frontend pygame --rom lower=6530-002.bin --rom upper=6530-003.bin
 ```
 
+Ejemplo para VIC-20 NTSC:
+
+```bash
+multiemu run vic20ntsc --frontend pygame --rom basic=basic.bin --rom kernal=kernal.bin --rom char=char.bin
+```
+
+Ejemplo para VIC-20 PAL:
+
+```bash
+multiemu run vic20pal --frontend pygame --rom basic=basic.bin --rom kernal=kernal.bin --rom char=char.bin
+```
+
 ## Uso básico de `kim1`
 
 El frontend `pygame` usa un mapeo orientado al teclado numérico:
@@ -242,6 +286,12 @@ Si la ROM está en una ruta conocida:
 
 ```bash
 multiemu serve spectrum48k --transport tcp --host 127.0.0.1 --port 8765
+```
+
+Ejemplo equivalente para Game Boy:
+
+```bash
+multiemu serve gameboy --transport tcp --rom game.gb
 ```
 
 El servidor captura `Ctrl-C` y cierra limpiamente.

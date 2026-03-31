@@ -28,6 +28,24 @@ def test_machine_registry_exposes_gameboy():
     assert spec.rom_slots[0].slot_id == "main"
 
 
+def test_machine_registry_exposes_vic20ntsc():
+    spec = get_machine_spec("vic20ntsc")
+    assert spec.display_name == "Commodore VIC-20 NTSC (experimental)"
+    assert spec.rom_slots[0].slot_id == "basic"
+
+
+def test_machine_registry_exposes_vic20pal():
+    spec = get_machine_spec("vic20pal")
+    assert spec.display_name == "Commodore VIC-20 PAL (experimental)"
+    assert spec.rom_slots[0].slot_id == "basic"
+
+
+def test_machine_registry_keeps_vic20_as_compatibility_alias():
+    spec = get_machine_spec("vic20")
+    assert spec.display_name == "Commodore VIC-20 (alias de vic20ntsc)"
+    assert spec.rom_slots[0].slot_id == "basic"
+
+
 def test_default_rom_search_dirs_follow_priority(monkeypatch, tmp_path):
     fake_home = tmp_path / "home"
     fake_home.mkdir()
@@ -104,6 +122,18 @@ def test_parse_cli_rom_specs_accepts_named_slots_for_multi_rom_machine():
         "basic": Path("BASIC_1.0.ROM"),
         "tape": Path("demo.cdt"),
     }
+
+
+def test_parse_cli_rom_specs_accepts_vic20ntsc_cart_slot():
+    roms = parse_cli_rom_specs("vic20ntsc", ["cart=Videomania.prg"])
+
+    assert roms == {"cart": Path("Videomania.prg")}
+
+
+def test_parse_cli_rom_specs_accepts_vic20pal_cart_slot():
+    roms = parse_cli_rom_specs("vic20pal", ["cart=Videomania.prg"])
+
+    assert roms == {"cart": Path("Videomania.prg")}
 
 
 def test_resolve_machine_rom_paths_searches_missing_slots_next_to_explicit_rom(monkeypatch, tmp_path):
@@ -204,3 +234,187 @@ def test_instantiate_gameboy_machine(tmp_path):
     assert machine.machine_id == "gameboy"
     assert machine.display_name == "Nintendo Game Boy (early scaffold)"
     assert machine.frame_width == 160
+
+
+def test_instantiate_vic20_machine_accepts_4k_cartridge_prg(tmp_path):
+    basic = tmp_path / "basic.bin"
+    kernal = tmp_path / "kernal.bin"
+    char = tmp_path / "char.bin"
+    cart = tmp_path / "videomania.prg"
+    basic.write_bytes(b"\xEA" * 0x2000)
+    kernal_data = bytearray(b"\xEA" * 0x2000)
+    kernal_data[-4] = 0x00
+    kernal_data[-3] = 0xE0
+    kernal.write_bytes(kernal_data)
+    char.write_bytes(b"\x00" * 0x1000)
+    cart.write_bytes(b"\x00\xA0" + (b"\x5A" * 0x1000))
+
+    machine = instantiate_machine(
+        "vic20ntsc",
+        roms={"basic": basic, "kernal": kernal, "char": char, "cart": cart},
+    )
+
+    assert machine.bus.read8(0xA000) == 0x5A
+    assert machine.bus.read8(0xAFFF) == 0x5A
+    assert machine.bus.read8(0xB000) == 0xFF
+
+
+def test_instantiate_vic20_machine_accepts_8k_cartridge_prg_in_blk3(tmp_path):
+    basic = tmp_path / "basic.bin"
+    kernal = tmp_path / "kernal.bin"
+    char = tmp_path / "char.bin"
+    cart = tmp_path / "ae-6000.prg"
+    basic.write_bytes(b"\xEA" * 0x2000)
+    kernal_data = bytearray(b"\xEA" * 0x2000)
+    kernal_data[-4] = 0x00
+    kernal_data[-3] = 0xE0
+    kernal.write_bytes(kernal_data)
+    char.write_bytes(b"\x00" * 0x1000)
+    cart.write_bytes(b"\x00\x60" + (b"\x33" * 0x2000))
+
+    machine = instantiate_machine(
+        "vic20ntsc",
+        roms={"basic": basic, "kernal": kernal, "char": char, "cart": cart},
+    )
+
+    assert machine.bus.read8(0x6000) == 0x33
+    assert machine.bus.read8(0x7FFF) == 0x33
+
+
+def test_instantiate_vic20_machine_rejects_cart_slot_conflict(tmp_path):
+    basic = tmp_path / "basic.bin"
+    kernal = tmp_path / "kernal.bin"
+    char = tmp_path / "char.bin"
+    cart = tmp_path / "ae-a000.prg"
+    blk5 = tmp_path / "blk5.bin"
+    basic.write_bytes(b"\xEA" * 0x2000)
+    kernal_data = bytearray(b"\xEA" * 0x2000)
+    kernal_data[-4] = 0x00
+    kernal_data[-3] = 0xE0
+    kernal.write_bytes(kernal_data)
+    char.write_bytes(b"\x00" * 0x1000)
+    cart.write_bytes(b"\x00\xA0" + (b"\x77" * 0x2000))
+    blk5.write_bytes(b"\x55" * 0x2000)
+
+    try:
+        instantiate_machine(
+            "vic20",
+            roms={"basic": basic, "kernal": kernal, "char": char, "cart": cart, "blk5": blk5},
+        )
+    except ValueError as exc:
+        assert "ya se proporcionó explícitamente" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for cart/blk5 conflict")
+
+
+def test_instantiate_vic20_machine_autoloads_companion_16k_cartridge_half(tmp_path):
+    basic = tmp_path / "basic.bin"
+    kernal = tmp_path / "kernal.bin"
+    char = tmp_path / "char.bin"
+    cart_lo = tmp_path / "AE-6000.prg"
+    cart_hi = tmp_path / "AE-a000.prg"
+    basic.write_bytes(b"\xEA" * 0x2000)
+    kernal_data = bytearray(b"\xEA" * 0x2000)
+    kernal_data[-4] = 0x00
+    kernal_data[-3] = 0xE0
+    kernal.write_bytes(kernal_data)
+    char.write_bytes(b"\x00" * 0x1000)
+    cart_lo.write_bytes(b"\x00\x60" + (b"\x33" * 0x2000))
+    cart_hi.write_bytes(b"\x00\xA0" + (b"\x55" * 0x2000))
+
+    machine = instantiate_machine(
+        "vic20",
+        roms={"basic": basic, "kernal": kernal, "char": char, "cart": cart_lo},
+    )
+
+    assert machine.bus.read8(0x6000) == 0x33
+    assert machine.bus.read8(0xA000) == 0x55
+
+
+def test_instantiate_vic20_machine_accepts_raw_blk5_autostart_rom_in_cart_slot(tmp_path):
+    basic = tmp_path / "basic.bin"
+    kernal = tmp_path / "kernal.bin"
+    char = tmp_path / "char.bin"
+    cart = tmp_path / "diag-vic20.bin"
+    basic.write_bytes(b"\xEA" * 0x2000)
+    kernal_data = bytearray(b"\xEA" * 0x2000)
+    kernal_data[-4] = 0x00
+    kernal_data[-3] = 0xE0
+    kernal.write_bytes(kernal_data)
+    char.write_bytes(b"\x00" * 0x1000)
+    cart.write_bytes(
+        bytes(
+            [
+                0x19,
+                0xA0,
+                0x19,
+                0xA0,
+                0x41,
+                0x30,
+                0xC3,
+                0xC2,
+                0xCD,
+            ]
+        )
+        + (b"\x5A" * (0x1000 - 9))
+    )
+
+    machine = instantiate_machine(
+        "vic20ntsc",
+        roms={"basic": basic, "kernal": kernal, "char": char, "cart": cart},
+    )
+
+    assert machine.bus.read8(0xA000) == 0x19
+    assert machine.bus.read8(0xA004) == 0x41
+    assert machine.bus.read8(0xAFFF) == 0x5A
+
+
+def test_instantiate_vic20_machine_accepts_raw_16k_20_cartridge_image(tmp_path):
+    basic = tmp_path / "basic.bin"
+    kernal = tmp_path / "kernal.bin"
+    char = tmp_path / "char.bin"
+    cart = tmp_path / "Donkey Kong (Japan, USA).20"
+    basic.write_bytes(b"\xEA" * 0x2000)
+    kernal_data = bytearray(b"\xEA" * 0x2000)
+    kernal_data[-4] = 0x00
+    kernal_data[-3] = 0xE0
+    kernal.write_bytes(kernal_data)
+    char.write_bytes(b"\x00" * 0x1000)
+    cart.write_bytes((b"\x11" * 0x2000) + (b"\x22" * 0x2000))
+
+    machine = instantiate_machine(
+        "vic20ntsc",
+        roms={"basic": basic, "kernal": kernal, "char": char, "cart": cart},
+    )
+
+    assert machine.bus.read8(0x2000) == 0x11
+    assert machine.bus.read8(0x3FFF) == 0x11
+    assert machine.bus.read8(0x4000) == 0x22
+    assert machine.bus.read8(0x5FFF) == 0x22
+
+
+def test_instantiate_vic20_diag_cart_enables_io2_and_io3_ram(tmp_path):
+    basic = tmp_path / "basic.bin"
+    kernal = tmp_path / "kernal.bin"
+    char = tmp_path / "char.bin"
+    cart = tmp_path / "diag-vic20.bin"
+    basic.write_bytes(b"\xEA" * 0x2000)
+    kernal_data = bytearray(b"\xEA" * 0x2000)
+    kernal_data[-4] = 0x00
+    kernal_data[-3] = 0xE0
+    kernal.write_bytes(kernal_data)
+    char.write_bytes(b"\x00" * 0x1000)
+    cart.write_bytes(
+        bytes([0x19, 0xA0, 0x19, 0xA0, 0x41, 0x30, 0xC3, 0xC2, 0xCD]) + (b"\x00" * (0x1000 - 9))
+    )
+
+    machine = instantiate_machine(
+        "vic20ntsc",
+        roms={"basic": basic, "kernal": kernal, "char": char, "cart": cart},
+    )
+
+    machine.bus.write8(0x9800, 0x12)
+    machine.bus.write8(0x9C00, 0x34)
+
+    assert machine.bus.read8(0x9800) == 0x12
+    assert machine.bus.read8(0x9C00) == 0x34

@@ -183,3 +183,65 @@ def test_z80_fd_61_loads_iyh_from_c():
     assert snap["C"] == 0x9A
     assert snap["IY"] == 0x9A78
     assert snap["halted"] is True
+
+
+def test_z80_dd_e3_exchanges_ix_with_word_at_sp():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x2000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([
+        0x31, 0x00, 0x10,             # LD SP,1000h
+        0xDD, 0x21, 0x78, 0x56,       # LD IX,5678h
+        0xDD, 0xE3,                   # EX (SP),IX
+        0x76,                         # HALT
+    ]))
+    ram.load(0x1000, bytes([0x34, 0x12]))
+
+    cpu.run_cycles(100)
+    snap = cpu.snapshot()
+
+    assert snap["IX"] == 0x1234
+    assert ram.peek(0x1000) == 0x78
+    assert ram.peek(0x1001) == 0x56
+    assert snap["halted"] is True
+
+
+def test_z80_dd_prefix_ignores_unaffected_opcode():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([
+        0x3E, 0x12,             # LD A,12h
+        0xDD, 0x47,             # DD-prefixed LD B,A -> prefix ignored
+        0x76,                   # HALT
+    ]))
+
+    cpu.run_cycles(100)
+    snap = cpu.snapshot()
+
+    assert snap["A"] == 0x12
+    assert snap["B"] == 0x12
+    assert snap["halted"] is True
+
+
+def test_z80_ed_ed_behaves_as_undocumented_nop():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([
+        0x06, 0x34,       # LD B,34h
+        0xED, 0xED,       # undocumented ED opcode -> NOP
+        0x78,             # LD A,B
+        0x76,             # HALT
+    ]))
+
+    cpu.run_cycles(100)
+    snap = cpu.snapshot()
+
+    assert snap["A"] == 0x34
+    assert snap["B"] == 0x34
+    assert snap["PC"] == 0x0006
+    assert snap["halted"] is True

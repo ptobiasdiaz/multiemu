@@ -27,6 +27,8 @@ class M6502Core:
         self.P = FLAG_I | FLAG_U
         self.PC = self.bus.read16(0xFFFC)
         self.halted = False
+        self.irq_mask_delay_active = False
+        self.irq_mask_delay_value = self.P & FLAG_I
 
     def _fetch8(self) -> int:
         value = self.bus.read8(self.PC)
@@ -70,6 +72,16 @@ class M6502Core:
     def _read_abs_y(self) -> int:
         return self.bus.read8((self._fetch16() + self.Y) & 0xFFFF)
 
+    def _read_abs_x_crossed(self) -> tuple[int, bool]:
+        base = self._fetch16()
+        addr = (base + self.X) & 0xFFFF
+        return self.bus.read8(addr), (base & 0xFF00) != (addr & 0xFF00)
+
+    def _read_abs_y_crossed(self) -> tuple[int, bool]:
+        base = self._fetch16()
+        addr = (base + self.Y) & 0xFFFF
+        return self.bus.read8(addr), (base & 0xFF00) != (addr & 0xFF00)
+
     def _read_ind_x(self) -> int:
         zp_addr = (self._fetch8() + self.X) & 0xFF
         addr = self.bus.read8(zp_addr) | (self.bus.read8((zp_addr + 1) & 0xFF) << 8)
@@ -79,6 +91,12 @@ class M6502Core:
         zp_addr = self._fetch8()
         base = self.bus.read8(zp_addr) | (self.bus.read8((zp_addr + 1) & 0xFF) << 8)
         return self.bus.read8((base + self.Y) & 0xFFFF)
+
+    def _read_ind_y_crossed(self) -> tuple[int, bool]:
+        zp_addr = self._fetch8()
+        base = self.bus.read8(zp_addr) | (self.bus.read8((zp_addr + 1) & 0xFF) << 8)
+        addr = (base + self.Y) & 0xFFFF
+        return self.bus.read8(addr), (base & 0xFF00) != (addr & 0xFF00)
 
     def _write_zp(self, value: int) -> None:
         self.bus.write8(self._fetch8(), value)
@@ -232,9 +250,14 @@ class M6502Core:
         return 7
 
     def _service_pending_interrupts(self) -> int | None:
+        if self.irq_mask_delay_active:
+            irq_mask = self.irq_mask_delay_value
+            self.irq_mask_delay_active = False
+        else:
+            irq_mask = self.P & FLAG_I
         if self.bus.pull_nmi():
             return self._service_interrupt(0xFFFA, pushed_status=self.P & ~FLAG_B)
-        if self.bus.irq_pending and (self.P & FLAG_I) == 0:
+        if self.bus.irq_pending and irq_mask == 0:
             return self._service_interrupt(0xFFFE, pushed_status=self.P & ~FLAG_B)
         return None
 
@@ -271,9 +294,10 @@ class M6502Core:
             self._set_zn(self.A)
             return 4
         if op == 0x11:  # ORA (zp),Y
-            self.A |= self._read_ind_y()
+            value, crossed = self._read_ind_y_crossed()
+            self.A |= value
             self._set_zn(self.A)
-            return 5
+            return 5 + crossed
         if op == 0x15:  # ORA zp,X
             self.A |= self._read_zp_x()
             self._set_zn(self.A)
@@ -365,9 +389,10 @@ class M6502Core:
             self.bus.write8(addr, value)
             return 6
         if op == 0x5D:  # EOR abs,X
-            self.A ^= self._read_abs_x()
+            value, crossed = self._read_abs_x_crossed()
+            self.A ^= value
             self._set_zn(self.A)
-            return 4
+            return 4 + crossed
         if op == 0x1C or op == 0x3C or op == 0x5C or op == 0x7C or op == 0xDC or op == 0xFC:  # unofficial NOP abs,X
             self._fetch16()
             return 4
@@ -415,9 +440,13 @@ class M6502Core:
             self._set_flag(FLAG_C, True)
             return 2
         if op == 0x58:  # CLI
+            self.irq_mask_delay_active = True
+            self.irq_mask_delay_value = self.P & FLAG_I
             self._set_flag(FLAG_I, False)
             return 2
         if op == 0x78:  # SEI
+            self.irq_mask_delay_active = True
+            self.irq_mask_delay_value = self.P & FLAG_I
             self._set_flag(FLAG_I, True)
             return 2
         if op == 0xB8:  # CLV
@@ -442,9 +471,9 @@ class M6502Core:
             self._set_zn(self.A)
             return 3
         if op == 0xB1:  # LDA (zp),Y
-            self.A = self._read_ind_y()
+            self.A, crossed = self._read_ind_y_crossed()
             self._set_zn(self.A)
-            return 5
+            return 5 + crossed
         if op == 0xB5:  # LDA zp,X
             self.A = self._read_zp_x()
             self._set_zn(self.A)
@@ -454,13 +483,13 @@ class M6502Core:
             self._set_zn(self.A)
             return 4
         if op == 0xBD:  # LDA abs,X
-            self.A = self._read_abs_x()
+            self.A, crossed = self._read_abs_x_crossed()
             self._set_zn(self.A)
-            return 4
+            return 4 + crossed
         if op == 0xB9:  # LDA abs,Y
-            self.A = self._read_abs_y()
+            self.A, crossed = self._read_abs_y_crossed()
             self._set_zn(self.A)
-            return 4
+            return 4 + crossed
         if op == 0xA2:  # LDX #imm
             self.X = self._fetch8()
             self._set_zn(self.X)
@@ -478,9 +507,9 @@ class M6502Core:
             self._set_zn(self.X)
             return 4
         if op == 0xBE:  # LDX abs,Y
-            self.X = self._read_abs_y()
+            self.X, crossed = self._read_abs_y_crossed()
             self._set_zn(self.X)
-            return 4
+            return 4 + crossed
         if op == 0xA0:  # LDY #imm
             self.Y = self._fetch8()
             self._set_zn(self.Y)
@@ -498,9 +527,9 @@ class M6502Core:
             self._set_zn(self.Y)
             return 4
         if op == 0xBC:  # LDY abs,X
-            self.Y = self._read_abs_x()
+            self.Y, crossed = self._read_abs_x_crossed()
             self._set_zn(self.Y)
-            return 4
+            return 4 + crossed
         if op == 0x85:  # STA zp
             self._write_zp(self.A)
             return 3
@@ -596,6 +625,8 @@ class M6502Core:
             self._push8(self.P | FLAG_B | FLAG_U)
             return 3
         if op == 0x28:  # PLP
+            self.irq_mask_delay_active = True
+            self.irq_mask_delay_value = self.P & FLAG_I
             self.P = (self._pop8() | FLAG_U) & 0xEF
             return 4
         if op == 0x69:  # ADC #imm
@@ -608,8 +639,9 @@ class M6502Core:
             self._adc(self._read_zp())
             return 3
         if op == 0x71:  # ADC (zp),Y
-            self._adc(self._read_ind_y())
-            return 5
+            value, crossed = self._read_ind_y_crossed()
+            self._adc(value)
+            return 5 + crossed
         if op == 0x6D:  # ADC abs
             self._adc(self._read_abs())
             return 4
@@ -617,11 +649,13 @@ class M6502Core:
             self._adc(self._read_zp_x())
             return 4
         if op == 0x7D:  # ADC abs,X
-            self._adc(self._read_abs_x())
-            return 4
+            value, crossed = self._read_abs_x_crossed()
+            self._adc(value)
+            return 4 + crossed
         if op == 0x79:  # ADC abs,Y
-            self._adc(self._read_abs_y())
-            return 4
+            value, crossed = self._read_abs_y_crossed()
+            self._adc(value)
+            return 4 + crossed
         if op == 0xE9:  # SBC #imm
             self._sbc(self._fetch8())
             return 2
@@ -632,20 +666,23 @@ class M6502Core:
             self._sbc(self._read_zp())
             return 3
         if op == 0xF1:  # SBC (zp),Y
-            self._sbc(self._read_ind_y())
-            return 5
+            value, crossed = self._read_ind_y_crossed()
+            self._sbc(value)
+            return 5 + crossed
         if op == 0xED:  # SBC abs
             self._sbc(self._read_abs())
             return 4
         if op == 0xF9:  # SBC abs,Y
-            self._sbc(self._read_abs_y())
-            return 4
+            value, crossed = self._read_abs_y_crossed()
+            self._sbc(value)
+            return 4 + crossed
         if op == 0xF5:  # SBC zp,X
             self._sbc(self._read_zp_x())
             return 4
         if op == 0xFD:  # SBC abs,X
-            self._sbc(self._read_abs_x())
-            return 4
+            value, crossed = self._read_abs_x_crossed()
+            self._sbc(value)
+            return 4 + crossed
         if op == 0x29:  # AND #imm
             self.A &= self._fetch8()
             self._set_zn(self.A)
@@ -667,29 +704,34 @@ class M6502Core:
             self._set_zn(self.A)
             return 6
         if op == 0x31:  # AND (zp),Y
-            self.A &= self._read_ind_y()
+            value, crossed = self._read_ind_y_crossed()
+            self.A &= value
             self._set_zn(self.A)
-            return 5
+            return 5 + crossed
         if op == 0x39:  # AND abs,Y
-            self.A &= self._read_abs_y()
+            value, crossed = self._read_abs_y_crossed()
+            self.A &= value
             self._set_zn(self.A)
-            return 4
+            return 4 + crossed
         if op == 0x3D:  # AND abs,X
-            self.A &= self._read_abs_x()
+            value, crossed = self._read_abs_x_crossed()
+            self.A &= value
             self._set_zn(self.A)
-            return 4
+            return 4 + crossed
         if op == 0x09:  # ORA #imm
             self.A |= self._fetch8()
             self._set_zn(self.A)
             return 2
         if op == 0x19:  # ORA abs,Y
-            self.A |= self._read_abs_y()
+            value, crossed = self._read_abs_y_crossed()
+            self.A |= value
             self._set_zn(self.A)
-            return 4
+            return 4 + crossed
         if op == 0x1D:  # ORA abs,X
-            self.A |= self._read_abs_x()
+            value, crossed = self._read_abs_x_crossed()
+            self.A |= value
             self._set_zn(self.A)
-            return 4
+            return 4 + crossed
         if op == 0x49:  # EOR #imm
             self.A ^= self._fetch8()
             self._set_zn(self.A)
@@ -703,13 +745,15 @@ class M6502Core:
             self._set_zn(self.A)
             return 6
         if op == 0x51:  # EOR (zp),Y
-            self.A ^= self._read_ind_y()
+            value, crossed = self._read_ind_y_crossed()
+            self.A ^= value
             self._set_zn(self.A)
-            return 5
+            return 5 + crossed
         if op == 0x59:  # EOR abs,Y
-            self.A ^= self._read_abs_y()
+            value, crossed = self._read_abs_y_crossed()
+            self.A ^= value
             self._set_zn(self.A)
-            return 4
+            return 4 + crossed
         if op == 0xC9:  # CMP #imm
             self._compare(self.A, self._fetch8())
             return 2
@@ -720,8 +764,9 @@ class M6502Core:
             self._compare(self.A, self._read_ind_x())
             return 6
         if op == 0xD1:  # CMP (zp),Y
-            self._compare(self.A, self._read_ind_y())
-            return 5
+            value, crossed = self._read_ind_y_crossed()
+            self._compare(self.A, value)
+            return 5 + crossed
         if op == 0xD5:  # CMP zp,X
             self._compare(self.A, self._read_zp_x())
             return 4
@@ -729,11 +774,13 @@ class M6502Core:
             self._compare(self.A, self._read_abs())
             return 4
         if op == 0xD9:  # CMP abs,Y
-            self._compare(self.A, self._read_abs_y())
-            return 4
+            value, crossed = self._read_abs_y_crossed()
+            self._compare(self.A, value)
+            return 4 + crossed
         if op == 0xDD:  # CMP abs,X
-            self._compare(self.A, self._read_abs_x())
-            return 4
+            value, crossed = self._read_abs_x_crossed()
+            self._compare(self.A, value)
+            return 4 + crossed
         if op == 0xE0:  # CPX #imm
             self._compare(self.X, self._fetch8())
             return 2

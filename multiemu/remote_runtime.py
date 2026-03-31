@@ -20,12 +20,13 @@ class RemoteFrontendSession(ABC):
         self,
         backend,
         *,
-        fps_limit: int = 50,
+        fps_limit: int | None = None,
         audio_sample_rate: int = 44100,
         audio_chunk_size: int = 512,
     ):
         self.backend = wrap_backend(backend)
-        self.fps_limit = fps_limit
+        target_fps = getattr(self.backend, "target_fps", None)
+        self.fps_limit = int(target_fps) if fps_limit is None and target_fps else fps_limit
         self.audio_sample_rate = audio_sample_rate
         self.audio_chunk_size = audio_chunk_size
         self.running = False
@@ -60,7 +61,7 @@ class RemoteFrontendSession(ABC):
                 self.flush_writes()
                 self.remove_disconnected_clients()
 
-                if self.fps_limit > 0:
+                if self.fps_limit is not None and self.fps_limit > 0:
                     elapsed = time.monotonic() - frame_start
                     frame_budget = 1.0 / self.fps_limit
                     if elapsed < frame_budget:
