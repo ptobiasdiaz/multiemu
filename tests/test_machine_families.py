@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from machines import DMG, LR35902MachineBase, M6502MachineBase, SingleCPUMachineBase, VIC20NTSC, VIC20PAL, Z80MachineBase
+from machines import BaseMachine, CGB, DMG, GameBoyMachineBase, M6502MachineBase, VIC20NTSC, VIC20PAL
 from machines.z80 import Spectrum48K
 
 
@@ -10,18 +10,27 @@ def _make_gameboy_rom() -> bytes:
     return bytes(rom)
 
 
-def test_z80_family_machines_still_inherit_from_single_cpu_base():
+def test_z80_family_machines_still_inherit_from_base_machine():
     machine = Spectrum48K(bytes([0x00]) * 0x4000)
 
-    assert isinstance(machine, Z80MachineBase)
-    assert isinstance(machine, SingleCPUMachineBase)
+    assert isinstance(machine, BaseMachine)
 
 
-def test_gameboy_family_uses_lr35902_family_base():
+def test_gameboy_family_uses_gameboy_base():
     machine = DMG(_make_gameboy_rom())
 
-    assert isinstance(machine, LR35902MachineBase)
-    assert isinstance(machine, SingleCPUMachineBase)
+    assert isinstance(machine, GameBoyMachineBase)
+    assert isinstance(machine, BaseMachine)
+
+
+def test_gameboy_color_family_uses_gameboy_base():
+    machine = CGB(_make_gameboy_rom())
+
+    assert isinstance(machine, GameBoyMachineBase)
+    assert isinstance(machine, BaseMachine)
+    assert machine.bus.read8(0xFF4D) == 0x7E
+    assert machine.bus.read8(0xFF4F) == 0xFE
+    assert machine.bus.read8(0xFF70) == 0xF9
 
 
 def test_m6502_family_anchor_is_exposed_from_top_level_machines_package():
@@ -36,7 +45,7 @@ def test_vic20_uses_m6502_family_base():
     )
 
     assert isinstance(machine, M6502MachineBase)
-    assert isinstance(machine, SingleCPUMachineBase)
+    assert isinstance(machine, BaseMachine)
 
 
 def test_vic20pal_uses_m6502_family_base():
@@ -47,4 +56,4 @@ def test_vic20pal_uses_m6502_family_base():
     )
 
     assert isinstance(machine, M6502MachineBase)
-    assert isinstance(machine, SingleCPUMachineBase)
+    assert isinstance(machine, BaseMachine)

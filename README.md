@@ -9,10 +9,11 @@ La intención del proyecto es separar con claridad:
 - frontends locales y remotos
 - transporte y presentación en el CLI
 
-El repositorio ya incluye soporte para máquinas ZX Spectrum, Amstrad CPC 464 y
-Nintendo Game Boy, además de scaffolds iniciales para MOS KIM-1 y Commodore
-VIC-20. La estructura sigue pensada para crecer hacia más máquinas y más
-frontends sin mezclar toda la lógica en un único punto de entrada.
+El repositorio ya incluye soporte para máquinas ZX Spectrum, Amstrad CPC 464,
+Nintendo Game Boy y una primera variante de Game Boy Color, además de
+scaffolds iniciales para MOS KIM-1 y Commodore VIC-20. La estructura sigue
+pensada para crecer hacia más máquinas y más frontends sin mezclar toda la
+lógica en un único punto de entrada.
 
 ## Estado actual
 
@@ -22,6 +23,7 @@ Máquinas soportadas hoy:
 - `spectrum48k`
 - `cpc464` (experimental)
 - `gameboy` (experimental)
+- `gameboycolor` / `gbc` (experimental)
 - `kim1` (experimental)
 - `vic20ntsc` (experimental)
 - `vic20` (alias temporal de `vic20ntsc`)
@@ -42,6 +44,7 @@ Frontends y transportes disponibles hoy:
 | `spectrum48k` | usable | sí | beeper básico | sí | no | cinta `TZX/TAP` | ROM principal | base más madura del proyecto |
 | `cpc464` | experimental | sí | AY básico | sí | no | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | timings y fidelidad aún incompletos |
 | `gameboy` | experimental | sí | sí | sí | n/a | n/a | cartuchos `.gb`, mappers principales | buena base, no aún cobertura total del catálogo |
+| `gameboycolor` / `gbc` | experimental | sí, con color | sí, aún algo lento | sí | n/a | n/a | cartuchos `.gb`/`.gbc`, VRAM DMA, palettes CGB | doble velocidad y rendimiento aún por madurar |
 | `kim1` | usable/experimental | display monitor | n/a | keypad/TTY | n/a | n/a | ROMs `6530` | monitor funcional |
 | `vic20ntsc` | experimental avanzada | sí | sí, aún frágil | sí | no | no | ROMs, `.prg`, carts crudos `.20/.40/.60/.a0` | la máquina 6502 más avanzada ahora mismo |
 | `vic20pal` | experimental | sí | sí, aún frágil | sí | no | no | ROMs, `.prg`, carts crudos `.20/.40/.60/.a0` | validado menos que NTSC |
@@ -105,6 +108,8 @@ Slots y nombres esperados por defecto:
   - `tape` -> `program.cdt`, `tape.cdt`
 - `gameboy`
   - `main` -> `gameboy.gb`, `cart.gb`
+- `gameboycolor`
+  - `main` -> `gameboy.gbc`, `cart.gbc`, `gameboy.gb`, `cart.gb`
 - `kim1`
   - requiere `--rom lower=... --rom upper=...`
 - `vic20ntsc`
@@ -129,6 +134,7 @@ Ejemplos:
 multiemu run spectrum48k --rom spec48k.rom
 multiemu run cpc464 --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
 multiemu run gameboy --rom game.gb
+multiemu run gameboycolor --rom game.gbc
 multiemu run kim1 --rom lower=6530-002.bin --rom upper=6530-003.bin
 multiemu run vic20ntsc --rom basic=basic.bin --rom kernal=kernal.bin --rom char=char.bin
 ```
@@ -222,6 +228,12 @@ Ejemplo para Game Boy:
 
 ```bash
 multiemu run gameboy --frontend pygame --rom game.gb
+```
+
+Ejemplo para Game Boy Color:
+
+```bash
+multiemu run gameboycolor --frontend pygame --rom game.gbc
 ```
 
 Ejemplo para KIM-1:

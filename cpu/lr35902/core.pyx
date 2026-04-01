@@ -11,15 +11,17 @@ execution core lives in its own module instead of subclassing the Z80.
 
 from __future__ import annotations
 
+from cpu.lr35902.bus cimport LR35902Bus
+
 
 cdef class LR35902Core:
     """Cythonized LR35902 CPU core."""
 
-    cdef public object bus
+    cdef public LR35902Bus bus
     cdef public int A, F, B, C, D, E, H, L, SP, PC, cycles
     cdef public bint halted, ime
 
-    def __init__(self, bus):
+    def __init__(self, LR35902Bus bus):
         self.bus = bus
         self.reset()
 
@@ -60,7 +62,8 @@ cdef class LR35902Core:
         self.L = value & 0xFF
 
     cdef inline int _fetch8(self):
-        cdef int value = self.bus.read8(self.PC)
+        cdef LR35902Bus bus = self.bus
+        cdef int value = bus.read8(self.PC)
         self.PC = (self.PC + 1) & 0xFFFF
         return value
 
@@ -70,17 +73,26 @@ cdef class LR35902Core:
         return lo | (hi << 8)
 
     cdef inline int _pending_interrupt_mask(self):
-        return self.bus.read8(0xFFFF) & self.bus.read8(0xFF0F) & 0x1F
+        cdef LR35902Bus bus = self.bus
+        cdef object interrupts = bus.interrupts
+        if interrupts is None:
+            return 0
+        return bus.interrupt_enable & interrupts.interrupt_flags & 0x1F
 
     cdef int _service_interrupt(self, int pending):
         cdef tuple vectors = (0x40, 0x48, 0x50, 0x58, 0x60)
+        cdef LR35902Bus bus = self.bus
+        cdef object interrupts = bus.interrupts
         cdef int bit, vector, mask
         for bit, vector in enumerate(vectors):
             mask = 1 << bit
             if pending & mask:
                 self.ime = False
                 self.halted = False
-                self.bus.write8(0xFF0F, self.bus.read8(0xFF0F) & ~mask)
+                if interrupts is not None:
+                    interrupts.interrupt_flags &= ~mask
+                else:
+                    bus.write8(0xFF0F, bus.read8(0xFF0F) & ~mask)
                 self._push16(self.PC)
                 self.PC = vector
                 self.cycles += 20
@@ -308,6 +320,7 @@ cdef class LR35902Core:
         return 16 if reg == 6 else 8
 
     cdef int _read_reg(self, int reg_id):
+        cdef LR35902Bus bus
         if reg_id == 0:
             return self.B
         if reg_id == 1:
@@ -321,10 +334,12 @@ cdef class LR35902Core:
         if reg_id == 5:
             return self.L
         if reg_id == 6:
-            return self.bus.read8(self._get_HL())
+            bus = self.bus
+            return bus.read8(self._get_HL())
         return self.A
 
     cdef void _write_reg(self, int reg_id, int value):
+        cdef LR35902Bus bus
         value &= 0xFF
         if reg_id == 0:
             self.B = value
@@ -339,13 +354,15 @@ cdef class LR35902Core:
         elif reg_id == 5:
             self.L = value
         elif reg_id == 6:
-            self.bus.write8(self._get_HL(), value)
+            bus = self.bus
+            bus.write8(self._get_HL(), value)
         else:
             self.A = value
 
     cpdef int step(self):
         cdef int pending = self._pending_interrupt_mask()
         cdef int pc, op, used, dst, src, value, hl, target, offset, vector
+        cdef LR35902Bus bus = self.bus
 
         if pending:
             if self.halted:
@@ -360,391 +377,395 @@ cdef class LR35902Core:
         pc = self.PC
         op = self._fetch8()
 
-        try:
-            if op == 0x00:
-                used = 4
-            elif op == 0x10:
-                self._fetch8()
+        if op == 0x00:
+            used = 4
+        elif op == 0x10:
+            self._fetch8()
+            if bus.cgb_mode and (bus.key1_state & 0x01):
+                bus.key1_state ^= 0x80
+                bus.key1_state &= 0x80
+                self.halted = False
+            else:
                 self.halted = True
-                used = 4
-            elif op == 0x07:
+            used = 4
+        elif op == 0x07:
                 value = (self.A >> 7) & 1
                 self.A = ((self.A << 1) | value) & 0xFF
                 self._set_flags(z=False, n=False, h=False, c=value)
                 used = 4
-            elif op == 0x0F:
+        elif op == 0x0F:
                 value = self.A & 1
                 self.A = ((value << 7) | (self.A >> 1)) & 0xFF
                 self._set_flags(z=False, n=False, h=False, c=value)
                 used = 4
-            elif op == 0x17:
+        elif op == 0x17:
                 src = 1 if self._get_flag_c() else 0
                 value = (self.A >> 7) & 1
                 self.A = ((self.A << 1) | src) & 0xFF
                 self._set_flags(z=False, n=False, h=False, c=value)
                 used = 4
-            elif op == 0x1F:
+        elif op == 0x1F:
                 src = 0x80 if self._get_flag_c() else 0
                 value = self.A & 1
                 self.A = ((self.A >> 1) | src) & 0xFF
                 self._set_flags(z=False, n=False, h=False, c=value)
                 used = 4
-            elif op == 0xF3:
+        elif op == 0xF3:
                 self.ime = False
                 used = 4
-            elif op == 0xFB:
+        elif op == 0xFB:
                 self.ime = True
                 used = 4
-            elif op == 0x76:
+        elif op == 0x76:
                 self.halted = True
                 used = 4
-            elif op == 0xCB:
+        elif op == 0xCB:
                 used = self._exec_cb()
-            elif 0x40 <= op <= 0x7F:
+        elif 0x40 <= op <= 0x7F:
                 dst = (op >> 3) & 0x07
                 src = op & 0x07
                 self._write_reg(dst, self._read_reg(src))
                 used = 8 if 6 in {dst, src} else 4
-            elif op == 0x3E:
+        elif op == 0x3E:
                 self.A = self._fetch8()
                 used = 8
-            elif op == 0x06:
+        elif op == 0x06:
                 self.B = self._fetch8()
                 used = 8
-            elif op == 0x0E:
+        elif op == 0x0E:
                 self.C = self._fetch8()
                 used = 8
-            elif op == 0x16:
+        elif op == 0x16:
                 self.D = self._fetch8()
                 used = 8
-            elif op == 0x14:
+        elif op == 0x14:
                 self.D = self._inc8(self.D)
                 used = 4
-            elif op == 0x15:
+        elif op == 0x15:
                 self.D = self._dec8(self.D)
                 used = 4
-            elif op == 0x1E:
+        elif op == 0x1E:
                 self.E = self._fetch8()
                 used = 8
-            elif op == 0x1C:
+        elif op == 0x1C:
                 self.E = self._inc8(self.E)
                 used = 4
-            elif op == 0x1D:
+        elif op == 0x1D:
                 self.E = self._dec8(self.E)
                 used = 4
-            elif op == 0x26:
+        elif op == 0x26:
                 self.H = self._fetch8()
                 used = 8
-            elif op == 0x24:
+        elif op == 0x24:
                 self.H = self._inc8(self.H)
                 used = 4
-            elif op == 0x25:
+        elif op == 0x25:
                 self.H = self._dec8(self.H)
                 used = 4
-            elif op == 0x2E:
+        elif op == 0x2E:
                 self.L = self._fetch8()
                 used = 8
-            elif op == 0x27:
+        elif op == 0x27:
                 self._daa()
                 used = 4
-            elif op == 0x2C:
+        elif op == 0x2C:
                 self.L = self._inc8(self.L)
                 used = 4
-            elif op == 0x2D:
+        elif op == 0x2D:
                 self.L = self._dec8(self.L)
                 used = 4
-            elif op == 0x21:
+        elif op == 0x21:
                 self._set_HL(self._fetch16())
                 used = 12
-            elif op == 0x09:
+        elif op == 0x09:
                 self._add16_hl(self._get_BC())
                 used = 8
-            elif op == 0x19:
+        elif op == 0x19:
                 self._add16_hl(self._get_DE())
                 used = 8
-            elif op == 0x29:
+        elif op == 0x29:
                 self._add16_hl(self._get_HL())
                 used = 8
-            elif op == 0x39:
+        elif op == 0x39:
                 self._add16_hl(self.SP)
                 used = 8
-            elif op == 0x23:
+        elif op == 0x23:
                 self._set_HL((self._get_HL() + 1) & 0xFFFF)
                 used = 8
-            elif op == 0x2B:
+        elif op == 0x2B:
                 self._set_HL((self._get_HL() - 1) & 0xFFFF)
                 used = 8
-            elif op == 0x31:
+        elif op == 0x31:
                 self.SP = self._fetch16()
                 used = 12
-            elif op == 0xF9:
+        elif op == 0xF9:
                 self.SP = self._get_HL()
                 used = 8
-            elif op == 0xE8:
+        elif op == 0xE8:
                 self.SP = self._add_sp_signed(self._fetch8())
                 used = 16
-            elif op == 0xF8:
+        elif op == 0xF8:
                 self._set_HL(self._add_sp_signed(self._fetch8()))
                 used = 12
-            elif op == 0x33:
+        elif op == 0x33:
                 self.SP = (self.SP + 1) & 0xFFFF
                 used = 8
-            elif op == 0x3B:
+        elif op == 0x3B:
                 self.SP = (self.SP - 1) & 0xFFFF
                 used = 8
-            elif op == 0x01:
+        elif op == 0x01:
                 self._set_BC(self._fetch16())
                 used = 12
-            elif op == 0x03:
+        elif op == 0x03:
                 self._set_BC((self._get_BC() + 1) & 0xFFFF)
                 used = 8
-            elif op == 0x0B:
+        elif op == 0x0B:
                 self._set_BC((self._get_BC() - 1) & 0xFFFF)
                 used = 8
-            elif op == 0x11:
+        elif op == 0x11:
                 self._set_DE(self._fetch16())
                 used = 12
-            elif op == 0x13:
+        elif op == 0x13:
                 self._set_DE((self._get_DE() + 1) & 0xFFFF)
                 used = 8
-            elif op == 0x1B:
+        elif op == 0x1B:
                 self._set_DE((self._get_DE() - 1) & 0xFFFF)
                 used = 8
-            elif op == 0x02:
+        elif op == 0x02:
                 self.bus.write8(self._get_BC(), self.A)
                 used = 8
-            elif op == 0x0A:
+        elif op == 0x0A:
                 self.A = self.bus.read8(self._get_BC())
                 used = 8
-            elif op == 0x12:
+        elif op == 0x12:
                 self.bus.write8(self._get_DE(), self.A)
                 used = 8
-            elif op == 0x1A:
+        elif op == 0x1A:
                 self.A = self.bus.read8(self._get_DE())
                 used = 8
-            elif op == 0x77:
+        elif op == 0x77:
                 self.bus.write8(self._get_HL(), self.A)
                 used = 8
-            elif op == 0x34:
+        elif op == 0x34:
                 self.bus.write8(self._get_HL(), self._inc8(self.bus.read8(self._get_HL())))
                 used = 12
-            elif op == 0x35:
+        elif op == 0x35:
                 self.bus.write8(self._get_HL(), self._dec8(self.bus.read8(self._get_HL())))
                 used = 12
-            elif op == 0x36:
+        elif op == 0x36:
                 self.bus.write8(self._get_HL(), self._fetch8())
                 used = 12
-            elif op == 0x7E:
+        elif op == 0x7E:
                 self.A = self.bus.read8(self._get_HL())
                 used = 8
-            elif op == 0x22:
+        elif op == 0x22:
                 hl = self._get_HL()
                 self.bus.write8(hl, self.A)
                 self._set_HL((hl + 1) & 0xFFFF)
                 used = 8
-            elif op == 0x32:
+        elif op == 0x32:
                 hl = self._get_HL()
                 self.bus.write8(hl, self.A)
                 self._set_HL((hl - 1) & 0xFFFF)
                 used = 8
-            elif op == 0x2A:
+        elif op == 0x2A:
                 hl = self._get_HL()
                 self.A = self.bus.read8(hl)
                 self._set_HL((hl + 1) & 0xFFFF)
                 used = 8
-            elif op == 0x3A:
+        elif op == 0x3A:
                 hl = self._get_HL()
                 self.A = self.bus.read8(hl)
                 self._set_HL((hl - 1) & 0xFFFF)
                 used = 8
-            elif op == 0xEA:
+        elif op == 0xEA:
                 self.bus.write8(self._fetch16(), self.A)
                 used = 16
-            elif op == 0xFA:
+        elif op == 0xFA:
                 self.A = self.bus.read8(self._fetch16())
                 used = 16
-            elif op == 0xE0:
+        elif op == 0xE0:
                 self.bus.write8(0xFF00 | self._fetch8(), self.A)
                 used = 12
-            elif op == 0xF0:
+        elif op == 0xF0:
                 self.A = self.bus.read8(0xFF00 | self._fetch8())
                 used = 12
-            elif op == 0xE2:
+        elif op == 0xE2:
                 self.bus.write8(0xFF00 | self.C, self.A)
                 used = 8
-            elif op == 0xF2:
+        elif op == 0xF2:
                 self.A = self.bus.read8(0xFF00 | self.C)
                 used = 8
-            elif op == 0xAF:
+        elif op == 0xAF:
                 self.A ^= self.A
                 self._set_flags(z=True, n=False, h=False, c=False)
                 used = 4
-            elif 0xA0 <= op <= 0xA7:
+        elif 0xA0 <= op <= 0xA7:
                 value = self._read_reg(op & 0x07)
                 self.A &= value
                 self._set_flags(z=self.A == 0, n=False, h=True, c=False)
                 used = 8 if (op & 0x07) == 6 else 4
-            elif 0xA8 <= op <= 0xAF:
+        elif 0xA8 <= op <= 0xAF:
                 value = self._read_reg(op & 0x07)
                 self.A ^= value
                 self._set_flags(z=self.A == 0, n=False, h=False, c=False)
                 used = 8 if (op & 0x07) == 6 else 4
-            elif 0xB0 <= op <= 0xB7:
+        elif 0xB0 <= op <= 0xB7:
                 value = self._read_reg(op & 0x07)
                 self.A |= value
                 self._set_flags(z=self.A == 0, n=False, h=False, c=False)
                 used = 8 if (op & 0x07) == 6 else 4
-            elif 0xB8 <= op <= 0xBF:
+        elif 0xB8 <= op <= 0xBF:
                 value = self._read_reg(op & 0x07)
                 self._cp8(value)
                 used = 8 if (op & 0x07) == 6 else 4
-            elif op == 0xE6:
+        elif op == 0xE6:
                 self.A &= self._fetch8()
                 self._set_flags(z=self.A == 0, n=False, h=True, c=False)
                 used = 8
-            elif op == 0xEE:
+        elif op == 0xEE:
                 self.A ^= self._fetch8()
                 self._set_flags(z=self.A == 0, n=False, h=False, c=False)
                 used = 8
-            elif op == 0xF6:
+        elif op == 0xF6:
                 self.A |= self._fetch8()
                 self._set_flags(z=self.A == 0, n=False, h=False, c=False)
                 used = 8
-            elif op == 0xFE:
+        elif op == 0xFE:
                 self._cp8(self._fetch8())
                 used = 8
-            elif op == 0x3C:
+        elif op == 0x3C:
                 self.A = self._inc8(self.A)
                 used = 4
-            elif op == 0x3D:
+        elif op == 0x3D:
                 self.A = self._dec8(self.A)
                 used = 4
-            elif op == 0x04:
+        elif op == 0x04:
                 self.B = self._inc8(self.B)
                 used = 4
-            elif op == 0x05:
+        elif op == 0x05:
                 self.B = self._dec8(self.B)
                 used = 4
-            elif op == 0x0C:
+        elif op == 0x0C:
                 self.C = self._inc8(self.C)
                 used = 4
-            elif op == 0x0D:
+        elif op == 0x0D:
                 self.C = self._dec8(self.C)
                 used = 4
-            elif 0x80 <= op <= 0x87:
+        elif 0x80 <= op <= 0x87:
                 value = self._read_reg(op & 0x07)
                 self._add8(value)
                 used = 8 if (op & 0x07) == 6 else 4
-            elif 0x88 <= op <= 0x8F:
+        elif 0x88 <= op <= 0x8F:
                 value = self._read_reg(op & 0x07)
                 self._add8(value, 1 if self._get_flag_c() else 0)
                 used = 8 if (op & 0x07) == 6 else 4
-            elif op == 0xC6:
+        elif op == 0xC6:
                 self._add8(self._fetch8())
                 used = 8
-            elif op == 0xCE:
+        elif op == 0xCE:
                 self._add8(self._fetch8(), 1 if self._get_flag_c() else 0)
                 used = 8
-            elif 0x90 <= op <= 0x97:
+        elif 0x90 <= op <= 0x97:
                 value = self._read_reg(op & 0x07)
                 self._sub8(value)
                 used = 8 if (op & 0x07) == 6 else 4
-            elif 0x98 <= op <= 0x9F:
+        elif 0x98 <= op <= 0x9F:
                 value = self._read_reg(op & 0x07)
                 self._sub8(value, 1 if self._get_flag_c() else 0)
                 used = 8 if (op & 0x07) == 6 else 4
-            elif op == 0xD6:
+        elif op == 0xD6:
                 self._sub8(self._fetch8())
                 used = 8
-            elif op == 0xDE:
+        elif op == 0xDE:
                 self._sub8(self._fetch8(), 1 if self._get_flag_c() else 0)
                 used = 8
-            elif op == 0x2F:
+        elif op == 0x2F:
                 self.A ^= 0xFF
                 self._set_flags(n=True, h=True)
                 used = 4
-            elif op == 0x37:
+        elif op == 0x37:
                 self._set_flags(n=False, h=False, c=True)
                 used = 4
-            elif op == 0x3F:
+        elif op == 0x3F:
                 self._set_flags(n=False, h=False, c=not self._get_flag_c())
                 used = 4
-            elif op == 0xC3:
+        elif op == 0xC3:
                 self.PC = self._fetch16()
                 used = 16
-            elif op == 0xE9:
+        elif op == 0xE9:
                 self.PC = self._get_HL()
                 used = 4
-            elif op == 0xC2:
+        elif op == 0xC2:
                 target = self._fetch16()
                 if not self._get_flag_z():
                     self.PC = target
                     used = 16
                 else:
                     used = 12
-            elif op == 0xCA:
+        elif op == 0xCA:
                 target = self._fetch16()
                 if self._get_flag_z():
                     self.PC = target
                     used = 16
                 else:
                     used = 12
-            elif op == 0xD2:
+        elif op == 0xD2:
                 target = self._fetch16()
                 if not self._get_flag_c():
                     self.PC = target
                     used = 16
                 else:
                     used = 12
-            elif op == 0xDA:
+        elif op == 0xDA:
                 target = self._fetch16()
                 if self._get_flag_c():
                     self.PC = target
                     used = 16
                 else:
                     used = 12
-            elif op == 0xC9:
+        elif op == 0xC9:
                 self.PC = self._pop16()
                 used = 16
-            elif op == 0xD9:
+        elif op == 0xD9:
                 self.PC = self._pop16()
                 self.ime = True
                 used = 16
-            elif op == 0xC0:
+        elif op == 0xC0:
                 if not self._get_flag_z():
                     self.PC = self._pop16()
                     used = 20
                 else:
                     used = 8
-            elif op == 0xC8:
+        elif op == 0xC8:
                 if self._get_flag_z():
                     self.PC = self._pop16()
                     used = 20
                 else:
                     used = 8
-            elif op == 0xD0:
+        elif op == 0xD0:
                 if not self._get_flag_c():
                     self.PC = self._pop16()
                     used = 20
                 else:
                     used = 8
-            elif op == 0xD8:
+        elif op == 0xD8:
                 if self._get_flag_c():
                     self.PC = self._pop16()
                     used = 20
                 else:
                     used = 8
-            elif op == 0xCD:
+        elif op == 0xCD:
                 target = self._fetch16()
                 self._push16(self.PC)
                 self.PC = target
                 used = 24
-            elif op in {0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF}:
+        elif op in {0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF}:
                 vector = op & 0x38
                 self._push16(self.PC)
                 self.PC = vector
                 used = 16
-            elif op == 0xC4:
+        elif op == 0xC4:
                 target = self._fetch16()
                 if not self._get_flag_z():
                     self._push16(self.PC)
@@ -752,7 +773,7 @@ cdef class LR35902Core:
                     used = 24
                 else:
                     used = 12
-            elif op == 0xCC:
+        elif op == 0xCC:
                 target = self._fetch16()
                 if self._get_flag_z():
                     self._push16(self.PC)
@@ -760,7 +781,7 @@ cdef class LR35902Core:
                     used = 24
                 else:
                     used = 12
-            elif op == 0xD4:
+        elif op == 0xD4:
                 target = self._fetch16()
                 if not self._get_flag_c():
                     self._push16(self.PC)
@@ -768,7 +789,7 @@ cdef class LR35902Core:
                     used = 24
                 else:
                     used = 12
-            elif op == 0xDC:
+        elif op == 0xDC:
                 target = self._fetch16()
                 if self._get_flag_c():
                     self._push16(self.PC)
@@ -776,39 +797,39 @@ cdef class LR35902Core:
                     used = 24
                 else:
                     used = 12
-            elif op == 0xC5:
+        elif op == 0xC5:
                 self._push16(self._get_BC())
                 used = 16
-            elif op == 0xD5:
+        elif op == 0xD5:
                 self._push16(self._get_DE())
                 used = 16
-            elif op == 0xE5:
+        elif op == 0xE5:
                 self._push16(self._get_HL())
                 used = 16
-            elif op == 0xF5:
+        elif op == 0xF5:
                 self._push16((self.A << 8) | self.F)
                 used = 16
-            elif op == 0xC1:
+        elif op == 0xC1:
                 self._set_BC(self._pop16())
                 used = 12
-            elif op == 0xD1:
+        elif op == 0xD1:
                 self._set_DE(self._pop16())
                 used = 12
-            elif op == 0xE1:
+        elif op == 0xE1:
                 self._set_HL(self._pop16())
                 used = 12
-            elif op == 0xF1:
+        elif op == 0xF1:
                 value = self._pop16()
                 self.A = (value >> 8) & 0xFF
                 self.F = value & 0xF0
                 used = 12
-            elif op == 0x18:
+        elif op == 0x18:
                 offset = self._fetch8()
                 if offset & 0x80:
                     offset -= 0x100
                 self.PC = (self.PC + offset) & 0xFFFF
                 used = 12
-            elif op == 0x20:
+        elif op == 0x20:
                 offset = self._fetch8()
                 if not self._get_flag_z():
                     if offset & 0x80:
@@ -817,7 +838,7 @@ cdef class LR35902Core:
                     used = 12
                 else:
                     used = 8
-            elif op == 0x28:
+        elif op == 0x28:
                 offset = self._fetch8()
                 if self._get_flag_z():
                     if offset & 0x80:
@@ -826,7 +847,7 @@ cdef class LR35902Core:
                     used = 12
                 else:
                     used = 8
-            elif op == 0x30:
+        elif op == 0x30:
                 offset = self._fetch8()
                 if not self._get_flag_c():
                     if offset & 0x80:
@@ -835,7 +856,7 @@ cdef class LR35902Core:
                     used = 12
                 else:
                     used = 8
-            elif op == 0x38:
+        elif op == 0x38:
                 offset = self._fetch8()
                 if self._get_flag_c():
                     if offset & 0x80:
@@ -844,12 +865,8 @@ cdef class LR35902Core:
                     used = 12
                 else:
                     used = 8
-            else:
-                raise NotImplementedError(f"opcode {op:02X}")
-        except NotImplementedError as exc:
-            raise NotImplementedError(
-                f"LR35902 opcode {op:02X} en PC={pc:04X}: {exc}"
-            ) from exc
+        else:
+            raise NotImplementedError(f"LR35902 opcode {op:02X} en PC={pc:04X}")
 
         self.cycles += used
         return used

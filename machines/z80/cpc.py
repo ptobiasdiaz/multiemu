@@ -12,10 +12,10 @@ import os
 from array import array
 
 from chipsets import AY38912, CPCGateArray, CPCVideo, HD6845, Intel8255
-from cpu.z80 import MemoryDevice, PythonPortHandler, RAMBlock, ROMBlock
+from cpu.z80 import MemoryDevice, PythonPortHandler, RAMBlock, ROMBlock, Z80Bus, Z80Core
 from devices import CPCDiskImage, CPCFDC, CPCCassetteTape
+from machines.base import BaseMachine
 from machines.frame_runner import ScanlineFrameRunner
-from machines.z80.base import Z80MachineBase
 from video import get_display_profile
 
 
@@ -42,7 +42,7 @@ class CPCMemoryMap(MemoryDevice):
         self.machine.ram.load(addr, bytes([value & 0xFF]))
 
 
-class CPC464(Z80MachineBase):
+class CPC464(BaseMachine):
     """Amstrad CPC 464 with a first-pass memory and execution model.
 
     Current scope:
@@ -95,7 +95,9 @@ class CPC464(Z80MachineBase):
         audio_sample_rate: int = 44100,
         display_profile: str = "default",
     ):
-        super().__init__(audio_sample_rate=audio_sample_rate)
+        bus = Z80Bus()
+        cpu = Z80Core(bus)
+        super().__init__(bus=bus, cpu=cpu, audio_sample_rate=audio_sample_rate)
         self.display_profile_name = display_profile
         self.display_profile = get_display_profile(display_profile)
         self.frame_width = self.display_profile.cpc_frame_width or self.FRAME_WIDTH

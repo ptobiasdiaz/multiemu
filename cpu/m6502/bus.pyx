@@ -5,6 +5,11 @@
 
 from __future__ import annotations
 
+cdef int PAGE_SHIFT = 8
+cdef int PAGE_SIZE = 0x100
+cdef int PAGE_MASK = 0xFF
+cdef int PAGE_COUNT = 0x100
+
 
 cdef class MemoryDevice:
 
@@ -17,16 +22,23 @@ cdef class MemoryDevice:
 
 cdef class M6502Bus:
     cdef list _mapped
+    cdef list _page_entries
     cdef public bint irq_pending
     cdef public bint nmi_pending
 
     def __cinit__(self):
         self._mapped = []
+        self._page_entries = [None] * PAGE_COUNT
         self.irq_pending = False
         self.nmi_pending = False
 
     cpdef map_block(self, int start, object device, object size=None):
         cdef int end
+        cdef int page_start
+        cdef int page_end
+        cdef int page
+        cdef tuple entry
+        cdef object bucket
         if size is None:
             size = getattr(device, "size", None)
         if size is None:
@@ -35,16 +47,29 @@ cdef class M6502Bus:
         end = (start + int(size) - 1) & 0xFFFF
         if end < start:
             raise ValueError("no se soportan rangos que crucen 0xFFFF")
-        self._mapped.append((start, end, device))
+        entry = (start, end, device)
+        self._mapped.append(entry)
+        page_start = start >> PAGE_SHIFT
+        page_end = end >> PAGE_SHIFT
+        for page in range(page_start, page_end + 1):
+            bucket = self._page_entries[page]
+            if bucket is None:
+                bucket = []
+                self._page_entries[page] = bucket
+            bucket.append(entry)
 
     cdef inline object _find_device(self, int addr):
         cdef Py_ssize_t i
         cdef tuple entry
+        cdef object bucket
         cdef int start
         cdef int end
         addr &= 0xFFFF
-        for i in range(len(self._mapped) - 1, -1, -1):
-            entry = self._mapped[i]
+        bucket = self._page_entries[addr >> PAGE_SHIFT]
+        if bucket is None:
+            return None
+        for i in range(len(bucket) - 1, -1, -1):
+            entry = bucket[i]
             start = <int>entry[0]
             end = <int>entry[1]
             if start <= addr <= end:

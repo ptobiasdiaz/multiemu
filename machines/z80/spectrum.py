@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from cpu.z80 import RAMBlock, ROMBlock, PythonPortHandler
+from cpu.z80 import RAMBlock, ROMBlock, PythonPortHandler, Z80Bus, Z80Core
 from chipsets.ula import Spectrum48KULA
 from devices import SpectrumCassetteTape
 from frontend.input_events import InputEvent
+from machines.base import BaseMachine
 from machines.frame_runner import SteppedFrameRunner
-from machines.z80.base import Z80MachineBase
 from video import get_display_profile
 
 
-class SpectrumBase(Z80MachineBase):
+class SpectrumBase(BaseMachine):
     """Common ZX Spectrum machine behavior shared across memory variants."""
 
     ROM_SIZE = 0x4000
@@ -25,7 +25,9 @@ class SpectrumBase(Z80MachineBase):
         tape_data: bytes | None = None,
         display_profile: str = "default",
     ):
-        super().__init__()
+        bus = Z80Bus()
+        cpu = Z80Core(bus)
+        super().__init__(bus=bus, cpu=cpu)
         self.display_profile_name = display_profile
         self.display_profile = get_display_profile(display_profile)
 

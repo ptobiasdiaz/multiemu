@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from machines.gameboy import DMG
+from machines.gameboy import CGB, DMG
 
 
 def _pixel_at_rgb24(packed: bytes, width: int, x: int, y: int) -> tuple[int, int, int]:
@@ -261,6 +261,138 @@ def test_gameboy_accepts_huc1_cartridges():
 
     assert snap["cartridge_title"] == "HUC1TEST"
     assert snap["cartridge_type"] == "HuC1+RAM+BATTERY"
+
+
+def test_gameboy_color_vbk_switches_cpu_visible_vram_bank():
+    machine = CGB(_make_test_rom(title="CGBTEST", cartridge_type=0x1B))
+
+    machine.bus.write8(0x8000, 0x12)
+    machine.bus.write8(0xFF4F, 0x01)
+    machine.bus.write8(0x8000, 0x34)
+
+    assert machine.bus.read8(0x8000) == 0x34
+    machine.bus.write8(0xFF4F, 0x00)
+    assert machine.bus.read8(0x8000) == 0x12
+
+
+def test_gameboy_color_svbk_switches_cpu_visible_wram_bank():
+    machine = CGB(_make_test_rom(title="CGBTEST", cartridge_type=0x1B))
+
+    machine.bus.write8(0xD000, 0x56)
+    machine.bus.write8(0xFF70, 0x02)
+    machine.bus.write8(0xD000, 0x78)
+
+    assert machine.bus.read8(0xD000) == 0x78
+    machine.bus.write8(0xFF70, 0x01)
+    assert machine.bus.read8(0xD000) == 0x56
+
+
+def test_gameboy_color_stop_toggles_key1_speed_switch_instead_of_halt():
+    program = bytes(
+        [
+            0x3E, 0x81,  # LD A,$81
+            0xE0, 0x4D,  # LDH ($4D),A
+            0x10, 0x00,  # STOP 00
+            0x00,        # NOP
+        ]
+    )
+    rom = bytearray(_make_test_rom(title="CGBSTOP", cartridge_type=0x1B))
+    rom[0x0143] = 0xC0
+    rom[0x0100 : 0x0100 + len(program)] = program
+    machine = CGB(bytes(rom))
+    machine.reset()
+
+    machine.cpu.step()
+    machine.cpu.step()
+    used = machine.cpu.step()
+
+    assert used == 4
+    assert machine.cpu.halted is False
+    assert machine.cpu.PC == 0x0106
+    assert machine.bus.read8(0xFF4D) == 0xFE
+
+
+def test_gameboy_color_renders_background_using_cgb_palette_ram():
+    machine = CGB(_make_test_rom(title="CGBPAL", cartridge_type=0x1B))
+
+    machine.bus.write8(0xFF68, 0x80)
+    machine.bus.write8(0xFF69, 0x00)
+    machine.bus.write8(0xFF69, 0x00)
+    machine.bus.write8(0xFF69, 0x1F)
+    machine.bus.write8(0xFF69, 0x00)
+
+    machine.bus.vram[0x1800] = 0x00
+    machine.bus.vram[0x0000] = 0x80
+    machine.bus.vram[0x0001] = 0x00
+
+    packed = machine.render_frame()
+
+    assert _pixel_at_rgb24(packed, machine.frame_width, 0, 0) == (255, 0, 0)
+
+
+def test_gameboy_color_uses_tile_attribute_bank_for_background_fetch():
+    machine = CGB(_make_test_rom(title="CGBBANK", cartridge_type=0x1B))
+
+    machine.bus.write8(0xFF68, 0x80)
+    machine.bus.write8(0xFF69, 0x00)
+    machine.bus.write8(0xFF69, 0x00)
+    machine.bus.write8(0xFF69, 0x1F)
+    machine.bus.write8(0xFF69, 0x00)
+    machine.bus.write8(0xFF69, 0x00)
+    machine.bus.write8(0xFF69, 0x7C)
+
+    machine.bus.vram[0x1800] = 0x00
+    machine.bus.vram[0x2000 + 0x1800] = 0x08
+    machine.bus.vram[0x0000] = 0x80
+    machine.bus.vram[0x0001] = 0x00
+    machine.bus.vram[0x2000 + 0x0000] = 0x00
+    machine.bus.vram[0x2000 + 0x0001] = 0x80
+
+    packed = machine.render_frame()
+
+    assert _pixel_at_rgb24(packed, machine.frame_width, 0, 0) == (0, 0, 255)
+
+
+def test_gameboy_color_keeps_background_visible_when_lcdc_bg_bit_is_clear():
+    machine = CGB(_make_test_rom(title="CGBBGPRI", cartridge_type=0x1B))
+
+    machine.bus.write8(0xFF68, 0x80)
+    machine.bus.write8(0xFF69, 0x00)
+    machine.bus.write8(0xFF69, 0x00)
+    machine.bus.write8(0xFF69, 0x1F)
+    machine.bus.write8(0xFF69, 0x00)
+
+    machine.bus.vram[0x1800] = 0x00
+    machine.bus.vram[0x0000] = 0x80
+    machine.bus.vram[0x0001] = 0x00
+    machine.ppu.write_lcdc(machine.ppu.read_lcdc() & ~0x01)
+
+    packed = machine.render_frame()
+
+    assert _pixel_at_rgb24(packed, machine.frame_width, 0, 0) == (255, 0, 0)
+
+
+def test_gameboy_color_sprite_priority_uses_oam_index_not_x_position():
+    machine = CGB(_make_test_rom(title="CGBOBJ", cartridge_type=0x1B))
+    machine.ppu.write_lcdc(machine.ppu.read_lcdc() | 0x02)
+
+    machine.bus.write8(0xFF6A, 0x80)
+    machine.bus.write8(0xFF6B, 0x00)
+    machine.bus.write8(0xFF6B, 0x00)
+    machine.bus.write8(0xFF6B, 0x1F)
+    machine.bus.write8(0xFF6B, 0x00)
+    machine.bus.write8(0xFF6B, 0x00)
+    machine.bus.write8(0xFF6B, 0x7C)
+
+    machine.bus.vram[0x0010] = 0xFF
+    machine.bus.vram[0x0011] = 0x00
+
+    machine.bus.oam[0:4] = bytes([16, 12, 0x01, 0x00])
+    machine.bus.oam[4:8] = bytes([16, 8, 0x01, 0x01])
+
+    packed = machine.render_frame()
+
+    assert _pixel_at_rgb24(packed, machine.frame_width, 4, 0) == (255, 0, 0)
 
 
 def test_gameboy_run_frame_advances_frame_counter():
@@ -796,3 +928,57 @@ def test_gameboy_dma_progressively_copies_bytes_into_oam():
 
     assert list(machine.bus.oam[:16]) == list(range(16))
     assert machine.bus.read8(0xFE00) == 0
+
+
+def test_gameboy_color_general_vram_dma_copies_data_into_vram():
+    machine = CGB(_make_test_rom(title="CGBHDMA", cartridge_type=0x1B))
+    for i in range(0x20):
+        machine.bus.write8(0xC000 + i, (0x80 + i) & 0xFF)
+
+    machine.bus.write8(0xFF51, 0xC0)
+    machine.bus.write8(0xFF52, 0x00)
+    machine.bus.write8(0xFF53, 0x00)
+    machine.bus.write8(0xFF54, 0x00)
+    machine.bus.write8(0xFF55, 0x01)
+
+    assert list(machine.bus.vram[:0x20]) == [(0x80 + i) & 0xFF for i in range(0x20)]
+    assert machine.bus.read8(0xFF55) == 0xFF
+
+
+def test_gameboy_color_general_vram_dma_respects_selected_vram_bank():
+    machine = CGB(_make_test_rom(title="CGBHDMA", cartridge_type=0x1B))
+    for i in range(0x10):
+        machine.bus.write8(0xC200 + i, (0x20 + i) & 0xFF)
+
+    machine.bus.write8(0xFF4F, 0x01)
+    machine.bus.write8(0xFF51, 0xC2)
+    machine.bus.write8(0xFF52, 0x00)
+    machine.bus.write8(0xFF53, 0x00)
+    machine.bus.write8(0xFF54, 0x00)
+    machine.bus.write8(0xFF55, 0x00)
+
+    assert list(machine.bus.vram[0x2000:0x2010]) == [(0x20 + i) & 0xFF for i in range(0x10)]
+    assert list(machine.bus.vram[:0x10]) == [0] * 0x10
+
+
+def test_gameboy_color_hblank_dma_copies_one_block_per_hblank():
+    machine = CGB(_make_test_rom(title="CGBHDMA", cartridge_type=0x1B))
+    for i in range(0x20):
+        machine.bus.write8(0xC100 + i, (0x40 + i) & 0xFF)
+
+    machine.bus.write8(0xFF51, 0xC1)
+    machine.bus.write8(0xFF52, 0x00)
+    machine.bus.write8(0xFF53, 0x00)
+    machine.bus.write8(0xFF54, 0x00)
+    machine.bus.write8(0xFF55, 0x81)
+
+    machine.ppu.begin_frame()
+    machine.ppu.run_until(252)
+    machine.dma.run_cycles(4)
+    assert list(machine.bus.vram[:0x10]) == [(0x40 + i) & 0xFF for i in range(0x10)]
+    assert list(machine.bus.vram[0x10:0x20]) == [0] * 0x10
+
+    machine.ppu.run_until(456 + 252)
+    machine.dma.run_cycles(4)
+    assert list(machine.bus.vram[:0x20]) == [(0x40 + i) & 0xFF for i in range(0x20)]
+    assert machine.bus.read8(0xFF55) == 0xFF

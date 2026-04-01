@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from cpu.m6502 import M6502Bus, M6502Core
-from machines.base import Bus, CPU
-from machines.single_cpu import SingleCPUMachineBase
+from machines.base import BaseMachine, Bus, CPU
 
 
-class M6502MachineBase(SingleCPUMachineBase):
+class M6502MachineBase(BaseMachine):
     """Family anchor for future 6502-based machines.
 
     The 6502 bus/device model differs enough from Z80-derived machines that it

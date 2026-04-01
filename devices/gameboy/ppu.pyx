@@ -3,9 +3,11 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 
-"""PPU support for the original Game Boy."""
+"""PPU support for the original Game Boy and a first CGB path."""
 
 from __future__ import annotations
+
+from cpu.lr35902.bus cimport LR35902Bus
 
 
 cdef class GameBoyPPU:
@@ -26,6 +28,12 @@ cdef class GameBoyPPU:
     cdef public object bus, interrupts
     cdef public int frame_width, frame_height
     cdef public int lcdc, stat, scy, scx, ly, lyc, bgp, obp0, obp1, wy, wx
+    cdef public bint cgb_mode
+    cdef public int bgpi, obpi
+    cdef public bytearray bg_palette_data, obj_palette_data
+    cdef public bytearray bg_palette_rgb, obj_palette_rgb
+    cdef bytearray _render_buffer, _bg_color_ids_buffer, _bg_priorities_buffer
+    cdef LR35902Bus _fast_bus
     cdef int _last_tstates, _last_mode, _last_ly
     cdef object _line_scx, _line_scy, _line_wx, _line_wy, _line_lcdc, _line_bgp, _line_obp0, _line_obp1, _line_latched
     cdef public bytes framebuffer_rgb24
@@ -33,6 +41,10 @@ cdef class GameBoyPPU:
     def __init__(self, bus, interrupts=None):
         self.bus = bus
         self.interrupts = interrupts
+        if isinstance(bus, LR35902Bus):
+            self._fast_bus = <LR35902Bus>bus
+        else:
+            self._fast_bus = None
         self.frame_width = self.FRAME_WIDTH
         self.frame_height = self.FRAME_HEIGHT
         self.reset()
@@ -49,6 +61,16 @@ cdef class GameBoyPPU:
         self.obp1 = 0xFF
         self.wy = 0x00
         self.wx = 0x00
+        self.cgb_mode = getattr(self.bus, "cgb_mode", False)
+        self.bgpi = 0x00
+        self.obpi = 0x00
+        self.bg_palette_data = bytearray(0x40)
+        self.obj_palette_data = bytearray(0x40)
+        self.bg_palette_rgb = bytearray(0x40 * 3)
+        self.obj_palette_rgb = bytearray(0x40 * 3)
+        self._render_buffer = bytearray(self.FRAME_WIDTH * self.FRAME_HEIGHT * 3)
+        self._bg_color_ids_buffer = bytearray(self.FRAME_WIDTH * self.FRAME_HEIGHT)
+        self._bg_priorities_buffer = bytearray(self.FRAME_WIDTH * self.FRAME_HEIGHT)
         self._last_tstates = 0
         self._last_mode = 0
         self._last_ly = 0
@@ -77,7 +99,7 @@ cdef class GameBoyPPU:
 
     cpdef void run_until(self, int tstates):
         cdef int cursor
-        cdef object boundary
+        cdef int boundary
         if tstates < 0:
             tstates = 0
         if tstates < self._last_tstates:
@@ -88,7 +110,7 @@ cdef class GameBoyPPU:
         cursor = self._last_tstates
         while True:
             boundary = self._next_boundary_after(cursor)
-            if boundary is None or boundary > tstates:
+            if boundary < 0 or boundary > tstates:
                 break
             self._sync_state(boundary)
             cursor = boundary
@@ -142,52 +164,66 @@ cdef class GameBoyPPU:
             return 3
         return 0
 
-    cdef object _next_boundary_after(self, int tstates):
+    cdef inline int _next_boundary_after(self, int tstates):
         cdef int line = min(tstates // self.CYCLES_PER_LINE, self.TOTAL_LINES - 1)
         cdef int line_cycle = tstates % self.CYCLES_PER_LINE
-        cdef list candidates = []
+        cdef int next_boundary = -1
         cdef int next_line_start
         if line >= self.TOTAL_LINES - 1 and line_cycle >= self.CYCLES_PER_LINE - 1:
-            return None
+            return -1
 
         if line < self.VISIBLE_LINES:
             if line_cycle < 80:
-                candidates.append(line * self.CYCLES_PER_LINE + 80)
-            if line_cycle < 252:
-                candidates.append(line * self.CYCLES_PER_LINE + 252)
+                next_boundary = line * self.CYCLES_PER_LINE + 80
+            elif line_cycle < 252:
+                next_boundary = line * self.CYCLES_PER_LINE + 252
         next_line_start = (line + 1) * self.CYCLES_PER_LINE
         if next_line_start <= (self.TOTAL_LINES - 1) * self.CYCLES_PER_LINE:
-            candidates.append(next_line_start)
-        if not candidates:
-            return None
-        return min(candidate for candidate in candidates if candidate > tstates)
+            if next_boundary < 0 or next_line_start < next_boundary:
+                next_boundary = next_line_start
+        return next_boundary
 
     def render_frame(self) -> bytes:
         cdef bytearray out
-        cdef bytearray bg_color_ids
-        cdef tuple default_rgb, rgb
-        cdef int y, x, offset
+        cdef bytearray bg_color_ids, bg_priorities
+        cdef bytearray vram
+        cdef LR35902Bus fast_bus = self._fast_bus
+        cdef int y, x, offset, line_base, rgb_index
+        cdef int default_r, default_g, default_b, shade
         cdef int line_lcdc, line_scx, line_scy, line_wx, line_wy, line_bgp
         cdef int line_bg_tile_map_base, line_window_tile_map_base
-        cdef bint line_signed_tile_data, window_enabled, use_window
-        cdef int window_x_start, map_base, source_y, source_x, tile_row, row_in_tile, tile_col, tile_index
-        cdef int low, high, bit, color_id
+        cdef bint line_signed_tile_data, window_enabled, use_window, bg_master_priority
+        cdef int window_x_start, map_base, source_y, source_x, tile_row, row_in_tile, tile_col, tile_index, map_index
+        cdef int low, high, bit, color_id, tile_attr, tile_bank, palette_index, tile_addr, signed_index
+        cdef bint x_flip, y_flip, bg_priority
 
         if (self.lcdc & 0x80) == 0:
             self.framebuffer_rgb24 = self._make_blank_frame(self._palette_color(0))
             return self.framebuffer_rgb24
 
-        out = bytearray(self.FRAME_WIDTH * self.FRAME_HEIGHT * 3)
-        bg_color_ids = bytearray(self.FRAME_WIDTH * self.FRAME_HEIGHT)
-        default_rgb = self._palette_color(0)
+        out = self._render_buffer
+        bg_color_ids = self._bg_color_ids_buffer
+        bg_priorities = self._bg_priorities_buffer
+        if fast_bus is not None:
+            vram = fast_bus.vram
+        else:
+            vram = self.bus.vram
+        shade = self.bgp & 0x03
+        default_r = self.PALETTE[shade][0]
+        default_g = self.PALETTE[shade][1]
+        default_b = self.PALETTE[shade][2]
         for y in range(self.FRAME_HEIGHT):
+            line_base = y * self.FRAME_WIDTH
             line_lcdc = self._line_lcdc[y] if self._line_latched[y] else self.lcdc
-            if (line_lcdc & 0x01) == 0:
+            bg_master_priority = (line_lcdc & 0x01) != 0
+            if not self.cgb_mode and not bg_master_priority:
                 for x in range(self.FRAME_WIDTH):
-                    offset = (y * self.FRAME_WIDTH + x) * 3
-                    out[offset] = default_rgb[0]
-                    out[offset + 1] = default_rgb[1]
-                    out[offset + 2] = default_rgb[2]
+                    bg_color_ids[line_base + x] = 0
+                    bg_priorities[line_base + x] = 0
+                    offset = (line_base + x) * 3
+                    out[offset] = default_r
+                    out[offset + 1] = default_g
+                    out[offset + 2] = default_b
                 continue
 
             line_scx = self._line_scx[y] if self._line_latched[y] else self.scx
@@ -213,20 +249,54 @@ cdef class GameBoyPPU:
                     source_x = (line_scx + x) & 0xFF
 
                 tile_row = (source_y // 8) & 0x1F
-                row_in_tile = source_y & 0x07
                 tile_col = (source_x // 8) & 0x1F
-                tile_index = self.bus.vram[map_base + tile_row * 32 + tile_col]
-                low, high = self._read_tile_row(tile_index, row_in_tile, line_signed_tile_data)
+                map_index = map_base + tile_row * 32 + tile_col
+                tile_index = vram[map_index]
+                row_in_tile = source_y & 0x07
                 bit = 7 - (source_x & 0x07)
-                color_id = (((high >> bit) & 1) << 1) | ((low >> bit) & 1)
-                bg_color_ids[y * self.FRAME_WIDTH + x] = color_id
-                rgb = self._palette_color(color_id, palette_reg=line_bgp)
-                offset = (y * self.FRAME_WIDTH + x) * 3
-                out[offset] = rgb[0]
-                out[offset + 1] = rgb[1]
-                out[offset + 2] = rgb[2]
+                tile_bank = 0
+                palette_index = 0
+                x_flip = False
+                y_flip = False
+                bg_priority = False
+                if self.cgb_mode:
+                    tile_attr = vram[0x2000 + map_index]
+                    tile_bank = (tile_attr >> 3) & 0x01
+                    palette_index = tile_attr & 0x07
+                    x_flip = (tile_attr & 0x20) != 0
+                    y_flip = (tile_attr & 0x40) != 0
+                    bg_priority = (tile_attr & 0x80) != 0
+                    if y_flip:
+                        row_in_tile = 7 - row_in_tile
+                    if x_flip:
+                        bit = source_x & 0x07
 
-        self._render_sprites(out, bg_color_ids)
+                if line_signed_tile_data:
+                    signed_index = tile_index if tile_index < 0x80 else tile_index - 0x100
+                    tile_addr = 0x1000 + signed_index * 16
+                else:
+                    tile_addr = tile_index * 16
+                tile_addr = (tile_addr + row_in_tile * 2) & 0x1FFF
+                if self.cgb_mode and tile_bank:
+                    tile_addr += 0x2000
+                low = vram[tile_addr & 0x3FFF]
+                high = vram[(tile_addr + 1) & 0x3FFF]
+                color_id = (((high >> bit) & 1) << 1) | ((low >> bit) & 1)
+                bg_color_ids[line_base + x] = color_id
+                bg_priorities[line_base + x] = 1 if (bg_master_priority and bg_priority) else 0
+                offset = (line_base + x) * 3
+                if self.cgb_mode:
+                    rgb_index = (((palette_index & 0x07) * 4) + (color_id & 0x03)) * 3
+                    out[offset] = self.bg_palette_rgb[rgb_index]
+                    out[offset + 1] = self.bg_palette_rgb[rgb_index + 1]
+                    out[offset + 2] = self.bg_palette_rgb[rgb_index + 2]
+                else:
+                    shade = (line_bgp >> (color_id * 2)) & 0x03
+                    out[offset] = self.PALETTE[shade][0]
+                    out[offset + 1] = self.PALETTE[shade][1]
+                    out[offset + 2] = self.PALETTE[shade][2]
+
+        self._render_sprites(out, bg_color_ids, bg_priorities)
         self.framebuffer_rgb24 = bytes(out)
         return self.framebuffer_rgb24
 
@@ -304,20 +374,65 @@ cdef class GameBoyPPU:
     def write_wx(self, int value) -> None:
         self.wx = value & 0xFF
 
+    def read_bgpi(self) -> int:
+        return self.bgpi | 0x40
+
+    def write_bgpi(self, int value) -> None:
+        self.bgpi = value & 0xBF
+
+    def read_bgpd(self) -> int:
+        return self.bg_palette_data[self.bgpi & 0x3F]
+
+    def write_bgpd(self, int value) -> None:
+        cdef int index = self.bgpi & 0x3F
+        self.bg_palette_data[index] = value & 0xFF
+        self._update_cgb_palette_rgb(self.bg_palette_data, self.bg_palette_rgb, index >> 1)
+        if self.bgpi & 0x80:
+            self.bgpi = (self.bgpi & 0x80) | ((index + 1) & 0x3F)
+
+    def read_obpi(self) -> int:
+        return self.obpi | 0x40
+
+    def write_obpi(self, int value) -> None:
+        self.obpi = value & 0xBF
+
+    def read_obpd(self) -> int:
+        return self.obj_palette_data[self.obpi & 0x3F]
+
+    def write_obpd(self, int value) -> None:
+        cdef int index = self.obpi & 0x3F
+        self.obj_palette_data[index] = value & 0xFF
+        self._update_cgb_palette_rgb(self.obj_palette_data, self.obj_palette_rgb, index >> 1)
+        if self.obpi & 0x80:
+            self.obpi = (self.obpi & 0x80) | ((index + 1) & 0x3F)
+
     cdef inline void _update_stat_mode(self, int mode):
         self.stat = (self.stat & ~0x03) | (mode & 0x03)
 
     cdef void _apply_bus_access(self, int mode):
+        cdef LR35902Bus fast_bus = self._fast_bus
         if (self.lcdc & 0x80) == 0:
-            self.bus.set_ppu_access(vram_accessible=True, oam_accessible=True)
+            if fast_bus is not None:
+                fast_bus.apply_ppu_access(True, True)
+            else:
+                self.bus.set_ppu_access(vram_accessible=True, oam_accessible=True)
             return
         if mode == 2:
-            self.bus.set_ppu_access(vram_accessible=True, oam_accessible=False)
+            if fast_bus is not None:
+                fast_bus.apply_ppu_access(True, False)
+            else:
+                self.bus.set_ppu_access(vram_accessible=True, oam_accessible=False)
             return
         if mode == 3:
-            self.bus.set_ppu_access(vram_accessible=False, oam_accessible=False)
+            if fast_bus is not None:
+                fast_bus.apply_ppu_access(False, False)
+            else:
+                self.bus.set_ppu_access(vram_accessible=False, oam_accessible=False)
             return
-        self.bus.set_ppu_access(vram_accessible=True, oam_accessible=True)
+        if fast_bus is not None:
+            fast_bus.apply_ppu_access(True, True)
+        else:
+            self.bus.set_ppu_access(vram_accessible=True, oam_accessible=True)
 
     cdef void _latch_line_registers(self, int line):
         if not (0 <= line < self.FRAME_HEIGHT):
@@ -334,30 +449,23 @@ cdef class GameBoyPPU:
         self._line_obp1[line] = self.obp1
         self._line_latched[line] = True
 
-    cdef tuple _read_tile_row(self, int tile_index, int row_in_tile, bint signed_tile_data):
-        cdef int signed_index
-        cdef int tile_addr
-        cdef int low, high
-        if signed_tile_data:
-            signed_index = tile_index if tile_index < 0x80 else tile_index - 0x100
-            tile_addr = 0x1000 + signed_index * 16
-        else:
-            tile_addr = tile_index * 16
-
-        tile_addr &= 0x1FFF
-        low = self.bus.vram[(tile_addr + row_in_tile * 2) & 0x1FFF]
-        high = self.bus.vram[(tile_addr + row_in_tile * 2 + 1) & 0x1FFF]
-        return low, high
-
-    cdef void _render_sprites(self, bytearray out, bytearray bg_color_ids):
-        cdef int screen_y, line_lcdc, sprite_height, index, base, y_pos, x_pos, tile_index, attrs
+    cdef void _render_sprites(self, bytearray out, bytearray bg_color_ids, bytearray bg_priorities):
+        cdef int screen_y, line_lcdc, sprite_height, index, base, y_pos, x_pos, tile_index, attrs, line_base
         cdef list line_sprites
-        cdef int line_obp0, line_obp1, palette_reg, sprite_row, tile_y, tile_addr, low, high, sx, screen_x, bit, color_id, offset, shade
-        cdef bint x_flip, y_flip, priority_behind_bg
-        cdef tuple rgb
+        cdef bytearray vram, oam
+        cdef LR35902Bus fast_bus = self._fast_bus
+        cdef int line_obp0, line_obp1, palette_reg, sprite_row, tile_y, tile_addr, low, high, sx, screen_x, bit, color_id, offset, shade, palette_index, tile_bank, rgb_index
+        cdef bint x_flip, y_flip, priority_behind_bg, bg_master_priority
 
         sprite_height = 16 if (self.lcdc & 0x04) else 8
+        if fast_bus is not None:
+            vram = fast_bus.vram
+            oam = fast_bus.oam
+        else:
+            vram = self.bus.vram
+            oam = self.bus.oam
         for screen_y in range(self.FRAME_HEIGHT):
+            line_base = screen_y * self.FRAME_WIDTH
             line_lcdc = self._line_lcdc[screen_y] if self._line_latched[screen_y] else self.lcdc
             if (line_lcdc & 0x02) == 0:
                 continue
@@ -365,10 +473,10 @@ cdef class GameBoyPPU:
             line_sprites = []
             for index in range(40):
                 base = index * 4
-                y_pos = self.bus.oam[base] - 16
-                x_pos = self.bus.oam[base + 1] - 8
-                tile_index = self.bus.oam[base + 2]
-                attrs = self.bus.oam[base + 3]
+                y_pos = oam[base] - 16
+                x_pos = oam[base + 1] - 8
+                tile_index = oam[base + 2]
+                attrs = oam[base + 3]
                 if x_pos <= -8 or x_pos >= self.FRAME_WIDTH:
                     continue
                 if not (y_pos <= screen_y < y_pos + sprite_height):
@@ -377,12 +485,18 @@ cdef class GameBoyPPU:
                 if len(line_sprites) == 10:
                     break
 
-            line_sprites.sort(key=lambda item: (item[0], item[1]), reverse=True)
+            if self.cgb_mode:
+                line_sprites.sort(key=lambda item: item[1], reverse=True)
+            else:
+                line_sprites.sort(key=lambda item: (item[0], item[1]), reverse=True)
 
             for x_pos, index, y_pos, tile_index, attrs in line_sprites:
                 line_obp0 = self._line_obp0[screen_y] if self._line_latched[screen_y] else self.obp0
                 line_obp1 = self._line_obp1[screen_y] if self._line_latched[screen_y] else self.obp1
+                bg_master_priority = (line_lcdc & 0x01) != 0
                 palette_reg = line_obp1 if (attrs & 0x10) else line_obp0
+                palette_index = attrs & 0x07
+                tile_bank = (attrs >> 3) & 0x01
                 x_flip = (attrs & 0x20) != 0
                 y_flip = (attrs & 0x40) != 0
                 priority_behind_bg = (attrs & 0x80) != 0
@@ -393,8 +507,10 @@ cdef class GameBoyPPU:
                 sprite_row = screen_y - y_pos
                 tile_y = sprite_height - 1 - sprite_row if y_flip else sprite_row
                 tile_addr = (tile_index * 16 + tile_y * 2) & 0x1FFF
-                low = self.bus.vram[tile_addr]
-                high = self.bus.vram[(tile_addr + 1) & 0x1FFF]
+                if self.cgb_mode and tile_bank:
+                    tile_addr += 0x2000
+                low = vram[tile_addr]
+                high = vram[(tile_addr + 1) & 0x3FFF]
 
                 for sx in range(8):
                     screen_x = x_pos + sx
@@ -404,14 +520,23 @@ cdef class GameBoyPPU:
                     color_id = (((high >> bit) & 1) << 1) | ((low >> bit) & 1)
                     if color_id == 0:
                         continue
-                    offset = (screen_y * self.FRAME_WIDTH + screen_x) * 3
-                    if priority_behind_bg and bg_color_ids[screen_y * self.FRAME_WIDTH + screen_x] != 0:
-                        continue
-                    shade = (palette_reg >> (color_id * 2)) & 0x03
-                    rgb = self.PALETTE[shade]
-                    out[offset] = rgb[0]
-                    out[offset + 1] = rgb[1]
-                    out[offset + 2] = rgb[2]
+                    offset = (line_base + screen_x) * 3
+                    if self.cgb_mode:
+                        if bg_master_priority and bg_priorities[line_base + screen_x] and bg_color_ids[line_base + screen_x] != 0:
+                            continue
+                        if bg_master_priority and priority_behind_bg and bg_color_ids[line_base + screen_x] != 0:
+                            continue
+                        rgb_index = (((palette_index & 0x07) * 4) + (color_id & 0x03)) * 3
+                        out[offset] = self.obj_palette_rgb[rgb_index]
+                        out[offset + 1] = self.obj_palette_rgb[rgb_index + 1]
+                        out[offset + 2] = self.obj_palette_rgb[rgb_index + 2]
+                    else:
+                        if priority_behind_bg and bg_color_ids[line_base + screen_x] != 0:
+                            continue
+                        shade = (palette_reg >> (color_id * 2)) & 0x03
+                        out[offset] = self.PALETTE[shade][0]
+                        out[offset + 1] = self.PALETTE[shade][1]
+                        out[offset + 2] = self.PALETTE[shade][2]
 
     cdef tuple _palette_color(self, int color_id, int palette_reg=-1):
         cdef int shade
@@ -419,6 +544,27 @@ cdef class GameBoyPPU:
             palette_reg = self.bgp
         shade = (palette_reg >> (color_id * 2)) & 0x03
         return self.PALETTE[shade]
+
+    cdef tuple _cgb_palette_color(self, bytearray palette_data, int palette_index, int color_id):
+        cdef int base = ((palette_index & 0x07) * 8) + ((color_id & 0x03) * 2)
+        cdef int raw = palette_data[base] | (palette_data[(base + 1) & 0x3F] << 8)
+        cdef int red = raw & 0x1F
+        cdef int green = (raw >> 5) & 0x1F
+        cdef int blue = (raw >> 10) & 0x1F
+        return (
+            (red * 255) // 31,
+            (green * 255) // 31,
+            (blue * 255) // 31,
+        )
+
+    cdef inline void _update_cgb_palette_rgb(self, bytearray palette_data, bytearray rgb_data, int color_slot):
+        cdef int slot = color_slot & 0x1F
+        cdef int base = slot * 2
+        cdef int raw = palette_data[base] | (palette_data[base + 1] << 8)
+        cdef int rgb_index = slot * 3
+        rgb_data[rgb_index] = ((raw & 0x1F) * 255) // 31
+        rgb_data[rgb_index + 1] = (((raw >> 5) & 0x1F) * 255) // 31
+        rgb_data[rgb_index + 2] = (((raw >> 10) & 0x1F) * 255) // 31
 
     cdef bytes _make_blank_frame(self, tuple rgb):
         cdef bytes pixel = bytes(rgb)

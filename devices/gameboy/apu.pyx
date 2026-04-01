@@ -36,22 +36,22 @@ cdef class GameBoyAPU:
     cdef public bint _ch1_enabled, _ch1_length_enabled, _ch1_envelope_increase, _ch1_sweep_negate, _ch1_sweep_enabled
     cdef public int _ch1_length_counter, _ch1_duty, _ch1_initial_volume, _ch1_volume, _ch1_envelope_period, _ch1_envelope_timer
     cdef public int _ch1_frequency, _ch1_sweep_period, _ch1_sweep_timer, _ch1_sweep_shift, _ch1_sweep_shadow_frequency
-    cdef double _ch1_phase
+    cdef double _ch1_phase, _ch1_phase_step
 
     cdef public bint _ch2_enabled, _ch2_length_enabled, _ch2_envelope_increase
     cdef public int _ch2_length_counter, _ch2_duty, _ch2_initial_volume, _ch2_volume, _ch2_envelope_period, _ch2_envelope_timer
     cdef public int _ch2_frequency
-    cdef double _ch2_phase
+    cdef double _ch2_phase, _ch2_phase_step
 
     cdef public bint _ch3_enabled, _ch3_dac_enabled, _ch3_length_enabled
     cdef public int _ch3_length_counter, _ch3_output_level, _ch3_frequency
-    cdef double _ch3_phase
+    cdef double _ch3_phase, _ch3_phase_step
     cdef bytearray _ch3_wave_ram
 
     cdef public bint _ch4_enabled, _ch4_length_enabled, _ch4_envelope_increase, _ch4_width_mode
     cdef public int _ch4_length_counter, _ch4_initial_volume, _ch4_volume, _ch4_envelope_period, _ch4_envelope_timer
     cdef public int _ch4_clock_shift, _ch4_divisor_code, _ch4_lfsr
-    cdef double _ch4_phase
+    cdef double _ch4_phase, _ch4_phase_step
 
     def __init__(self, *, sample_rate: int = 44100):
         self.sample_rate = int(sample_rate)
@@ -98,6 +98,7 @@ cdef class GameBoyAPU:
         self._ch1_envelope_increase = False
         self._ch1_frequency = 0
         self._ch1_phase = 0.0
+        self._ch1_phase_step = 0.0
         self._ch1_sweep_period = 0
         self._ch1_sweep_timer = 0
         self._ch1_sweep_shift = 0
@@ -116,6 +117,7 @@ cdef class GameBoyAPU:
         self._ch2_envelope_increase = False
         self._ch2_frequency = 0
         self._ch2_phase = 0.0
+        self._ch2_phase_step = 0.0
 
         self._ch3_enabled = False
         self._ch3_dac_enabled = False
@@ -124,6 +126,7 @@ cdef class GameBoyAPU:
         self._ch3_output_level = 0
         self._ch3_frequency = 0
         self._ch3_phase = 0.0
+        self._ch3_phase_step = 0.0
         self._ch3_wave_ram = bytearray(16)
 
         self._ch4_enabled = False
@@ -138,6 +141,7 @@ cdef class GameBoyAPU:
         self._ch4_width_mode = False
         self._ch4_divisor_code = 0
         self._ch4_phase = 0.0
+        self._ch4_phase_step = 0.0
         self._ch4_lfsr = 0x7FFF
 
     cpdef void begin_frame(self):
@@ -312,6 +316,7 @@ cdef class GameBoyAPU:
         self._ch4_clock_shift = (self.nr43 >> 4) & 0x0F
         self._ch4_width_mode = (self.nr43 & 0x08) != 0
         self._ch4_divisor_code = self.nr43 & 0x07
+        self._update_ch4_phase_step()
 
     def read_nr44(self) -> int:
         return self.nr44
@@ -372,6 +377,7 @@ cdef class GameBoyAPU:
 
     cdef inline void _update_ch1_frequency(self):
         self._ch1_frequency = ((self.nr14 & 0x07) << 8) | self.nr13
+        self._ch1_phase_step = self._calc_phase_step(131072.0, self._ch1_frequency)
 
     cdef void _trigger_ch1(self):
         self._update_ch1_frequency()
@@ -390,6 +396,7 @@ cdef class GameBoyAPU:
 
     cdef inline void _update_ch2_frequency(self):
         self._ch2_frequency = ((self.nr24 & 0x07) << 8) | self.nr23
+        self._ch2_phase_step = self._calc_phase_step(131072.0, self._ch2_frequency)
 
     cdef void _trigger_ch2(self):
         self._update_ch2_frequency()
@@ -403,6 +410,7 @@ cdef class GameBoyAPU:
 
     cdef inline void _update_ch3_frequency(self):
         self._ch3_frequency = ((self.nr34 & 0x07) << 8) | self.nr33
+        self._ch3_phase_step = self._calc_phase_step(65536.0, self._ch3_frequency)
 
     cdef void _trigger_ch3(self):
         self._update_ch3_frequency()
@@ -459,58 +467,44 @@ cdef class GameBoyAPU:
         return int(max(-32767, min(32767, mix * 2048)))
 
     cdef double _render_ch1_sample(self):
-        cdef double frequency
-        cdef tuple duty_pattern
         cdef int duty_index
         cdef double level
         if not self._master_enabled or not self._ch1_enabled or self._ch1_volume == 0:
             return 0.0
-        frequency = self._ch1_output_hz()
-        if frequency <= 0.0:
+        if self._ch1_phase_step <= 0.0:
             return 0.0
-        self._ch1_phase = (self._ch1_phase + frequency / self.sample_rate) % 1.0
-        duty_pattern = self.DUTY_PATTERNS[self._ch1_duty]
+        self._ch1_phase += self._ch1_phase_step
+        if self._ch1_phase >= 1.0:
+            self._ch1_phase -= 1.0
         duty_index = int(self._ch1_phase * 8.0) & 0x07
-        level = 1.0 if duty_pattern[duty_index] else -1.0
+        level = 1.0 if self.DUTY_PATTERNS[self._ch1_duty][duty_index] else -1.0
         return level * (self._ch1_volume / 15.0)
 
-    cdef inline double _ch1_output_hz(self):
-        if self._ch1_frequency >= 2048:
-            return 0.0
-        return 131072.0 / (2048 - self._ch1_frequency)
-
     cdef double _render_ch2_sample(self):
-        cdef double frequency
-        cdef tuple duty_pattern
         cdef int duty_index
         cdef double level
         if not self._master_enabled or not self._ch2_enabled or self._ch2_volume == 0:
             return 0.0
-        frequency = self._ch2_output_hz()
-        if frequency <= 0.0:
+        if self._ch2_phase_step <= 0.0:
             return 0.0
-        self._ch2_phase = (self._ch2_phase + frequency / self.sample_rate) % 1.0
-        duty_pattern = self.DUTY_PATTERNS[self._ch2_duty]
+        self._ch2_phase += self._ch2_phase_step
+        if self._ch2_phase >= 1.0:
+            self._ch2_phase -= 1.0
         duty_index = int(self._ch2_phase * 8.0) & 0x07
-        level = 1.0 if duty_pattern[duty_index] else -1.0
+        level = 1.0 if self.DUTY_PATTERNS[self._ch2_duty][duty_index] else -1.0
         return level * (self._ch2_volume / 15.0)
 
-    cdef inline double _ch2_output_hz(self):
-        if self._ch2_frequency >= 2048:
-            return 0.0
-        return 131072.0 / (2048 - self._ch2_frequency)
-
     cdef double _render_ch3_sample(self):
-        cdef double frequency
         cdef int sample_index, sample_byte, sample, scaled
         if not self._master_enabled or not self._ch3_enabled or not self._ch3_dac_enabled:
             return 0.0
         if self._ch3_output_level == 0:
             return 0.0
-        frequency = self._ch3_output_hz()
-        if frequency <= 0.0:
+        if self._ch3_phase_step <= 0.0:
             return 0.0
-        self._ch3_phase = (self._ch3_phase + frequency / self.sample_rate) % 1.0
+        self._ch3_phase += self._ch3_phase_step
+        if self._ch3_phase >= 1.0:
+            self._ch3_phase -= 1.0
         sample_index = int(self._ch3_phase * 32.0) & 0x1F
         sample_byte = self._ch3_wave_ram[sample_index >> 1]
         if (sample_index & 0x01) == 0:
@@ -525,21 +519,14 @@ cdef class GameBoyAPU:
             scaled = sample >> 2
         return ((scaled / 7.5) - 1.0) if scaled else -1.0
 
-    cdef inline double _ch3_output_hz(self):
-        if self._ch3_frequency >= 2048:
-            return 0.0
-        return 65536.0 / (2048 - self._ch3_frequency)
-
     cdef double _render_ch4_sample(self):
-        cdef double frequency
         cdef int xor_bit
         cdef double level
         if not self._master_enabled or not self._ch4_enabled or self._ch4_volume == 0:
             return 0.0
-        frequency = self._ch4_output_hz()
-        if frequency <= 0.0:
+        if self._ch4_phase_step <= 0.0:
             return 0.0
-        self._ch4_phase += frequency / self.sample_rate
+        self._ch4_phase += self._ch4_phase_step
         while self._ch4_phase >= 1.0:
             self._ch4_phase -= 1.0
             xor_bit = (self._ch4_lfsr & 0x01) ^ ((self._ch4_lfsr >> 1) & 0x01)
@@ -549,10 +536,10 @@ cdef class GameBoyAPU:
         level = -1.0 if (self._ch4_lfsr & 0x01) else 1.0
         return level * (self._ch4_volume / 15.0)
 
-    cdef inline double _ch4_output_hz(self):
-        cdef tuple divisors = (8, 16, 32, 48, 64, 80, 96, 112)
-        cdef int divisor = divisors[self._ch4_divisor_code]
-        return 524288.0 / divisor / (2 ** (self._ch4_clock_shift + 1))
+    cdef inline double _calc_phase_step(self, double base_hz, int frequency):
+        if frequency >= 2048:
+            return 0.0
+        return (base_hz / (2048 - frequency)) / self.sample_rate
 
     cdef void _run_frame_sequencer(self, int cycles):
         cdef int step_cycles
@@ -573,6 +560,14 @@ cdef class GameBoyAPU:
         if step == 7:
             self._clock_envelopes()
         self._sequencer_step = (self._sequencer_step + 1) & 0x07
+
+    cdef inline void _update_ch4_phase_step(self):
+        cdef int divisor
+        if self._ch4_divisor_code == 0:
+            divisor = 8
+        else:
+            divisor = self._ch4_divisor_code * 16
+        self._ch4_phase_step = (524288.0 / divisor / (2 ** (self._ch4_clock_shift + 1))) / self.sample_rate
 
     cdef void _clock_sweep(self):
         cdef object new_frequency

@@ -28,6 +28,13 @@ def test_machine_registry_exposes_gameboy():
     assert spec.rom_slots[0].slot_id == "main"
 
 
+def test_machine_registry_exposes_gameboycolor():
+    spec = get_machine_spec("gameboycolor")
+    assert spec.display_name == "Nintendo Game Boy Color (early scaffold)"
+    assert spec.rom_slots[0].slot_id == "main"
+    assert "cart.gbc" in spec.rom_slots[0].filenames
+
+
 def test_machine_registry_exposes_vic20ntsc():
     spec = get_machine_spec("vic20ntsc")
     assert spec.display_name == "Commodore VIC-20 NTSC (experimental)"
@@ -234,6 +241,23 @@ def test_instantiate_gameboy_machine(tmp_path):
     assert machine.machine_id == "gameboy"
     assert machine.display_name == "Nintendo Game Boy (early scaffold)"
     assert machine.frame_width == 160
+
+
+def test_instantiate_gameboycolor_machine(tmp_path):
+    rom = bytearray(0x8000)
+    rom[0x0134:0x013A] = b"GBCROM"
+    rom[0x0143] = 0x80
+    rom_path = tmp_path / "gameboycolor.gbc"
+    rom_path.write_bytes(rom)
+
+    machine = instantiate_machine("gameboycolor", roms={"main": rom_path})
+
+    assert machine.machine_id == "gameboycolor"
+    assert machine.display_name == "Nintendo Game Boy Color (early scaffold)"
+    assert machine.frame_width == 160
+    assert machine.bus.read8(0xFF4D) == 0x7E
+    assert machine.bus.read8(0xFF4F) == 0xFE
+    assert machine.bus.read8(0xFF70) == 0xF9
 
 
 def test_instantiate_vic20_machine_accepts_4k_cartridge_prg(tmp_path):

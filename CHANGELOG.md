@@ -2,6 +2,45 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.2
+
+Versión centrada en abrir `gameboycolor` como variante visible y en cerrar el
+primer bloque funcional real de hardware `CGB` sobre la base previa de
+`gameboy`.
+
+### Incluye
+
+- Nueva máquina `gameboycolor` con alias `gbc`.
+- Primer bloque funcional de hardware `CGB`:
+  - `KEY1` y cambio de velocidad con `STOP`
+  - banking de `VRAM` y `WRAM` mediante `VBK` y `SVBK`
+  - paletas CGB (`FF68-FF6B`)
+  - atributos de tile y selección de banco en `PPU`
+  - soporte inicial de `GDMA` y `HDMA`
+- Correcciones del `PPU` CGB para:
+  - prioridad de sprites por índice de `OAM`
+  - semántica de `LCDC.0` en modo `CGB`
+  - fetch correcto de tiles desde `VRAM bank 1`
+- Optimización importante de rendimiento en Game Boy / Game Boy Color:
+  - hot path del `LR35902`
+  - bus tipado en Cython
+  - `PPU` con rutas rápidas para `VRAM/OAM` y scheduler interno más barato
+  - `APU` con pasos de fase precalculados por canal
+- Limpieza adicional de arquitectura:
+  - eliminación de capas base vacías en varias familias
+  - mejora del bus `m6502` con lookup paginado más barato
+
+### Testing
+
+- Nuevos tests para `CGB`:
+  - `KEY1` + `STOP`
+  - `VBK` / `SVBK`
+  - paletas CGB
+  - atributos y bancos de tile
+  - `GDMA` / `HDMA`
+- Cobertura adicional para prioridades de `PPU` CGB y acceso a `VRAM` por
+  banco.
+
 ## 0.2.1
 
 Versión en desarrollo centrada en abrir `vic20ntsc` como siguiente máquina

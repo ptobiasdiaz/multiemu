@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from cpu.lr35902 import LR35902Bus, LR35902Core
 from frontend.input_events import InputEvent
+from machines.base import BaseMachine
 from machines.frame_runner import SteppedFrameRunner
-from machines.lr35902 import LR35902MachineBase
 
 from devices.gameboy import (
     GameBoyAPU,
@@ -18,7 +19,7 @@ from devices.gameboy import (
 )
 
 
-class GameBoyMachineBase(LR35902MachineBase):
+class GameBoyMachineBase(BaseMachine):
     """Shared DMG machine wiring.
 
     The machine remains in Python, while the future hot paths can move to
@@ -26,10 +27,13 @@ class GameBoyMachineBase(LR35902MachineBase):
     """
 
     TSTATES_PER_FRAME = 70224
+    FRAMES_PER_SECOND = 60
 
     def __init__(self, rom_data: bytes):
         self.cartridge = GameBoyCartridge(rom_data)
-        super().__init__(memory=self.cartridge, audio_sample_rate=44100)
+        bus = LR35902Bus(self.cartridge)
+        cpu = LR35902Core(bus)
+        super().__init__(bus=bus, cpu=cpu, audio_sample_rate=44100)
 
         self.interrupts = GameBoyInterruptController()
         self.joypad = GameBoyJoypad(self.interrupts)
@@ -38,6 +42,7 @@ class GameBoyMachineBase(LR35902MachineBase):
         self.ppu = GameBoyPPU(self.bus, self.interrupts)
         self.apu = GameBoyAPU(sample_rate=44100)
         self.dma = GameBoyDMAController(self.bus)
+        self.dma.set_ppu(self.ppu)
         self.bus.set_interrupt_controller(self.interrupts)
         self.bus.set_dma_controller(self.dma)
 
@@ -152,6 +157,14 @@ class GameBoyMachineBase(LR35902MachineBase):
         return self.framebuffer_rgb24
 
     def _run_devices_until(self, tstates: int):
+        """Compatibility wrapper for the shared BaseMachine contract.
+
+        The stepped frame runner already advances devices through the
+        `run_delta_devices`/`run_tstate_devices` hooks, so this path is not the
+        hot path anymore. Keeping it here preserves the base-machine contract
+        and the ad hoc `run_cycles()` flow.
+        """
+
         delta = tstates - self._device_clock
         if delta <= 0:
             return

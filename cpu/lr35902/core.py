@@ -66,7 +66,9 @@ class LR35902Core:
         return lo | (hi << 8)
 
     def _pending_interrupt_mask(self) -> int:
-        return self.bus.read8(0xFFFF) & self.bus.read8(0xFF0F) & 0x1F
+        if self.bus.interrupts is None:
+            return 0
+        return self.bus.interrupt_enable & self.bus.interrupts.interrupt_flags & 0x1F
 
     def _service_interrupt(self, pending: int) -> int:
         vectors = (0x40, 0x48, 0x50, 0x58, 0x60)
@@ -75,7 +77,10 @@ class LR35902Core:
             if pending & mask:
                 self.ime = False
                 self.halted = False
-                self.bus.write8(0xFF0F, self.bus.read8(0xFF0F) & ~mask)
+                if self.bus.interrupts is not None:
+                    self.bus.interrupts.interrupt_flags &= ~mask
+                else:
+                    self.bus.write8(0xFF0F, self.bus.read8(0xFF0F) & ~mask)
                 self._push16(self.PC)
                 self.PC = vector
                 self.cycles += 20
@@ -357,10 +362,13 @@ class LR35902Core:
                 used = 4
             elif op == 0x10:  # STOP
                 # In DMG software this is commonly encoded as STOP 00.
-                # Treat it as a low-power stop compatible with our HALT path
-                # so ROMs can advance without tripping the decoder.
                 self._fetch8()
-                self.halted = True
+                if getattr(self.bus, "cgb_mode", False) and (getattr(self.bus, "key1_state", 0) & 0x01):
+                    self.bus.key1_state ^= 0x80
+                    self.bus.key1_state &= 0x80
+                    self.halted = False
+                else:
+                    self.halted = True
                 used = 4
             elif op == 0x07:  # RLCA
                 carry = (self.A >> 7) & 1

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable
 import warnings
 
-from machines.gameboy import DMG
+from machines.gameboy import CGB, DMG
 from machines.m6502 import KIM1, VIC20NTSC, VIC20PAL
 from machines.z80 import CPC464, Spectrum16K, Spectrum48K
 from video import get_display_profile
@@ -141,6 +141,30 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 slot_id="main",
                 description="ROM principal/cartucho de Game Boy",
                 filenames=("gameboy.gb", "cart.gb"),
+            ),
+        ),
+    ),
+    "gameboycolor": MachineSpec(
+        machine_id="gameboycolor",
+        display_name="Nintendo Game Boy Color (early scaffold)",
+        factory=lambda roms, display_profile: CGB(roms["main"]),
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="main",
+                description="ROM principal/cartucho de Game Boy Color",
+                filenames=("gameboycolor.gbc", "gameboy.gbc", "cart.gbc", "cart.gb"),
+            ),
+        ),
+    ),
+    "gbc": MachineSpec(
+        machine_id="gbc",
+        display_name="Nintendo Game Boy Color (alias de gameboycolor)",
+        factory=lambda roms, display_profile: CGB(roms["main"]),
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="main",
+                description="ROM principal/cartucho de Game Boy Color",
+                filenames=("gameboycolor.gbc", "gameboy.gbc", "cart.gbc", "cart.gb"),
             ),
         ),
     ),
