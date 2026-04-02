@@ -93,6 +93,13 @@ def build_parser() -> argparse.ArgumentParser:
     connect_parser.add_argument("--port", type=int, default=8765, help="server port")
     connect_parser.add_argument("--scale", type=int, default=2, help="window scale factor")
     connect_parser.add_argument("--title", default="MultiEmu TCP Client", help="window title")
+    connect_parser.add_argument(
+        "--joystick-player",
+        type=int,
+        choices=(1, 2),
+        default=1,
+        help="preferred remote joystick slot for local gamepads",
+    )
     connect_parser.set_defaults(handler=_handle_connect)
 
     client_parser = subparsers.add_parser("client", help="alias for connect")
@@ -256,6 +263,7 @@ def _handle_connect(args) -> int:
         port=args.port,
         scale=args.scale,
         window_title=args.title,
+        joystick_player=args.joystick_player,
     )
     app.run()
     return 0

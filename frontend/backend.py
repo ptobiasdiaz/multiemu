@@ -75,6 +75,14 @@ class LocalMachineBackend:
         return getattr(self.machine, "input_keymap_name", None)
 
     @property
+    def input_gamepad_map_name(self):
+        return getattr(self.machine, "input_gamepad_map_name", None)
+
+    @property
+    def input_joystick_count(self):
+        return int(getattr(self.machine, "input_joystick_count", 0))
+
+    @property
     def target_fps(self):
         return getattr(self.machine, "FRAMES_PER_SECOND", None)
 

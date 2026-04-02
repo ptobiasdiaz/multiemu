@@ -17,7 +17,15 @@ except ImportError:  # pragma: no cover - fallback when extension is unavailable
     _build_scanline_contexts_accel = None
 
 from cpu.m6502 import RAMBlock, ROMBlock
-from frontend.input_events import InputEvent
+from frontend.input_events import (
+    InputEvent,
+    JOYSTICK_DOWN,
+    JOYSTICK_FIRE,
+    JOYSTICK_FIRE_2,
+    JOYSTICK_LEFT,
+    JOYSTICK_RIGHT,
+    JOYSTICK_UP,
+)
 from machines.frame_runner import ScanlineFrameRunner
 from machines.m6502.base import M6502MachineBase
 from machines.m6502.vic20_io import ColorRAM as _ColorRAM
@@ -92,6 +100,8 @@ class VIC20(M6502MachineBase):
         self.machine_id = "vic20ntsc"
         self.display_name = "Commodore VIC-20 NTSC (early scaffold)"
         self.input_keymap_name = "vic20"
+        self.input_gamepad_map_name = "vic20"
+        self.input_joystick_count = 1
         self.input_tap_hold_frames = 2
         self.input_quick_tap_max_frames = 1
 
@@ -110,7 +120,10 @@ class VIC20(M6502MachineBase):
         self.via1.connect_irq(self.bus.request_nmi, self._clear_nmi)
         self.via2.connect_irq(self.bus.request_irq, self.bus.clear_irq)
         self.key_matrix = [0x00] * 8
+        self.joystick_state = 0
+        self.via1.set_port_a_input_callback(self._read_via1_port_a)
         self.via2.set_port_a_input_callback(self._read_keyboard_rows)
+        self.via2.set_port_b_input_callback(self._read_via2_port_b)
 
         self.char_rom = self._make_rom(self.CHAR_ROM_SIZE, char_rom_data, slot_id="char")
         self.basic_rom = self._make_rom(self.BASIC_ROM_SIZE, basic_rom_data, slot_id="basic")
@@ -194,10 +207,13 @@ class VIC20(M6502MachineBase):
         self.vic.reset()
         self.via1.reset()
         self.via2.reset()
+        self.via1.set_port_a_input_callback(self._read_via1_port_a)
         self.via2.set_port_a_input_callback(self._read_keyboard_rows)
+        self.via2.set_port_b_input_callback(self._read_via2_port_b)
         self.bus.clear_irq()
         self.bus.nmi_pending = False
         self.key_matrix = [0x00] * 8
+        self.joystick_state = 0
         self._device_clock = 0
         self.current_scanline = 0
         self._vic_bus_last_data = 0xFF
@@ -314,20 +330,34 @@ class VIC20(M6502MachineBase):
 
     def clear_input_state(self):
         self.key_matrix = [0x00] * 8
+        self.joystick_state = 0
 
     def handle_input_event(self, event):
         if not isinstance(event, InputEvent):
             raise TypeError(f"evento de input inválido: {type(event)!r}")
-        if event.kind != "key_matrix":
-            raise ValueError(f"tipo de input no soportado: {event.kind}")
+        if event.kind == "key_matrix":
+            row = max(0, min(7, event.control_a))
+            col = max(0, min(7, event.control_b))
+            mask = 1 << col
+            if event.active:
+                self.key_matrix[row] |= mask
+            else:
+                self.key_matrix[row] &= ~mask
+            return
 
-        row = max(0, min(7, event.control_a))
-        col = max(0, min(7, event.control_b))
-        mask = 1 << col
-        if event.active:
-            self.key_matrix[row] |= mask
-        else:
-            self.key_matrix[row] &= ~mask
+        if event.kind == "joystick":
+            joystick_index = int(event.control_a)
+            if joystick_index != 0:
+                raise ValueError(f"joystick fuera de rango: {joystick_index}")
+            mask = int(event.control_b) & 0x3F
+            if event.active:
+                self.joystick_state |= mask
+            else:
+                self.joystick_state &= ~mask
+            self.joystick_state &= 0x3F
+            return
+
+        raise ValueError(f"tipo de input no soportado: {event.kind}")
 
     def _read_keyboard_rows(self) -> int:
         selected_columns = (~self.via2.orb) & self.via2.ddrb & 0xFF
@@ -336,6 +366,24 @@ class VIC20(M6502MachineBase):
             if self.key_matrix[row] & selected_columns:
                 rows &= ~(1 << row)
         return rows
+
+    def _read_via1_port_a(self) -> int:
+        value = 0xFF
+        if self.joystick_state & JOYSTICK_UP:
+            value &= ~(1 << 2)
+        if self.joystick_state & JOYSTICK_DOWN:
+            value &= ~(1 << 3)
+        if self.joystick_state & JOYSTICK_LEFT:
+            value &= ~(1 << 4)
+        if self.joystick_state & (JOYSTICK_FIRE | JOYSTICK_FIRE_2):
+            value &= ~(1 << 5)
+        return value
+
+    def _read_via2_port_b(self) -> int:
+        value = 0xFF
+        if self.joystick_state & JOYSTICK_RIGHT:
+            value &= ~(1 << 7)
+        return value
 
     def _read_vic_visible(self, addr: int) -> int:
         """Read memory as seen by the VIC-I, not as seen by the CPU.

@@ -39,7 +39,7 @@ extensions = [
 
 setup(
     name="multiemu",
-    version="0.2.3",
+    version="0.2.4",
     description="Work-in-progress retro machine emulator in Python and Cython",
     packages=find_packages(),
     entry_points={

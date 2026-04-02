@@ -14,10 +14,13 @@ class _FakeMachine:
         self.frame_height = 144
         self.framebuffer_rgb24 = bytes(self.frame_width * self.frame_height * 3)
         self.input_keymap_name = None
+        self.input_gamepad_map_name = None
+        self.input_joystick_count = 0
         self.cassette = type("Cassette", (), {"motor_on": tape_motor_on, "playing": False})()
         self._audio_samples = audio_samples
         self.popped_audio = 0
         self.tape_toggles = 0
+        self.events = []
 
     def render_frame(self):
         return self.framebuffer_rgb24
@@ -29,6 +32,7 @@ class _FakeMachine:
         return None
 
     def handle_input_event(self, event):
+        self.events.append(event)
         return None
 
     def get_audio_buffered_samples(self) -> int:
@@ -167,3 +171,40 @@ def test_pygame_frontend_alt_enter_toggles_fullscreen(monkeypatch):
     assert frontend.fullscreen is True
     assert calls[0] == ((frontend.win_width, frontend.win_height), 0)
     assert calls[1] == ((0, 0), pygame.FULLSCREEN)
+
+
+def test_pygame_frontend_applies_gamepad_button_mapping(monkeypatch):
+    machine = _FakeMachine("gameboy")
+    machine.input_gamepad_map_name = "gameboy"
+    frontend = PygameFrontend(machine)
+
+    class _Event:
+        type = pygame.JOYBUTTONDOWN
+        instance_id = 1
+        button = 0
+
+    monkeypatch.setattr("pygame.event.get", lambda: [_Event()])
+    frontend._handle_events()
+
+    assert any(event.control_a == 1 and event.control_b == 0 and event.active for event in machine.events)
+
+
+def test_pygame_frontend_applies_gamepad_joystick_mapping(monkeypatch):
+    machine = _FakeMachine("spectrum48k")
+    machine.input_gamepad_map_name = "spectrum"
+    machine.input_joystick_count = 2
+    frontend = PygameFrontend(machine)
+
+    class _Event:
+        type = pygame.JOYBUTTONDOWN
+        instance_id = 1
+        button = 0
+
+    frontend._gamepad_assignments[1] = 0
+    monkeypatch.setattr("pygame.event.get", lambda: [_Event()])
+    frontend._handle_events()
+
+    assert any(
+        event.kind == "joystick" and event.control_a == 0 and event.control_b == 0x10 and event.active
+        for event in machine.events
+    )

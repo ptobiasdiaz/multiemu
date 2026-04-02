@@ -150,6 +150,21 @@ def test_vic20_keyboard_matrix_is_visible_through_via2_rows_and_columns():
     assert machine.bus.read8(0x9121) == 0xFF
 
 
+def test_vic20_joystick_is_visible_through_via1_and_via2_ports():
+    machine = _make_vic20_machine()
+    machine.bus.write8(0x9113, 0x00)  # VIA1 port A inputs
+    machine.bus.write8(0x9122, 0x00)  # VIA2 port B inputs
+
+    machine.handle_input_event(InputEvent(kind="joystick", control_a=0, control_b=0x01, active=True))
+    machine.handle_input_event(InputEvent(kind="joystick", control_a=0, control_b=0x02, active=True))
+    machine.handle_input_event(InputEvent(kind="joystick", control_a=0, control_b=0x04, active=True))
+    machine.handle_input_event(InputEvent(kind="joystick", control_a=0, control_b=0x10, active=True))
+    machine.handle_input_event(InputEvent(kind="joystick", control_a=0, control_b=0x08, active=True))
+
+    assert machine.bus.read8(0x9111) & 0x3C == 0x00  # up/down/left/fire on VIA1 port A
+    assert machine.bus.read8(0x9120) & 0x80 == 0x00  # right on VIA2 port B bit 7
+
+
 def test_vic20_render_frame_uses_screen_ram_and_character_rom():
     char_rom = bytearray(_make_vic20_rom(0x1000))
     char_rom[0x08:0x10] = bytes(

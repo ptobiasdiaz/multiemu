@@ -140,6 +140,16 @@ def test_cpc464_render_exposes_rgb24_framebuffer_for_frontends():
     assert _pixel_at_rgb24(packed, machine.frame_width, origin_x, origin_y) == machine.gate_array.get_pen_rgb(1)
 
 
+def test_cpc464_joystick_is_visible_on_keyboard_line_9():
+    machine = CPC464(bytes([0x00]) * 0x4000)
+
+    machine.handle_input_event(InputEvent(kind="joystick", control_a=0, control_b=0x01, active=True))
+    machine.handle_input_event(InputEvent(kind="joystick", control_a=0, control_b=0x10, active=True))
+
+    assert machine.read_keyboard_line(9) & 0x01 == 0
+    assert machine.read_keyboard_line(9) & 0x10 == 0
+
+
 def test_cpc464_display_row_bytes_wrap_within_the_same_raster_bank():
     """Visible scanlines should wrap by MA, not by linear RAM spill."""
 

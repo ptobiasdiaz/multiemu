@@ -113,6 +113,17 @@ def test_spectrum_keyboard_matrix_read_reflects_input_events():
     assert machine._port_read_fe(0xFEFE) & 0x01 == 0x01
 
 
+def test_spectrum_sinclair_joysticks_drive_two_keyboard_mappings():
+    machine = Spectrum48K(bytes([0x00]) * 0x4000)
+    machine.reset()
+
+    machine.handle_input_event(InputEvent(kind="joystick", control_a=0, control_b=0x10, active=True))
+    machine.handle_input_event(InputEvent(kind="joystick", control_a=1, control_b=0x10, active=True))
+
+    assert machine._port_read_fe(0xEFFE) & 0x01 == 0  # joystick 0 fire -> key 0
+    assert machine._port_read_fe(0xF7FE) & 0x10 == 0  # joystick 1 fire -> key 5
+
+
 def test_spectrum_render_frame_uses_screen_bitmap_and_attributes():
     machine = Spectrum48K(bytes([0x00]) * 0x4000)
     machine.reset()

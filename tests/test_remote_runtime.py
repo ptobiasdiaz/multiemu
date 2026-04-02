@@ -8,6 +8,7 @@ class _DummyBackend:
         self.framebuffer_rgb24 = bytearray(b"\x00\x00\x00")
         self.frame_width = 1
         self.frame_height = 1
+        self.events = []
 
     def run_frame(self):
         return None
@@ -19,6 +20,7 @@ class _DummyBackend:
         return None
 
     def handle_input_event(self, event):
+        self.events.append(event)
         return None
 
 
@@ -59,3 +61,15 @@ def test_remote_frontend_session_accepts_none_fps_limit():
     session = _DummySession(_DummyBackend(), fps_limit=None)
     session.run()
     assert session.service_calls == 0
+
+
+def test_remote_frontend_session_applies_keyboard_and_joystick_inputs():
+    backend = _DummyBackend()
+    session = _DummySession(backend)
+
+    session._apply_merged_input_state({(1, 2)}, {0: {0x10}})
+
+    assert [(event.kind, event.control_a, event.control_b) for event in backend.events] == [
+        ("key_matrix", 1, 2),
+        ("joystick", 0, 0x10),
+    ]

@@ -21,8 +21,46 @@ def test_tcp_client_welcome_accepts_none_fps():
                 "chunk_samples": 512,
             },
             "machine": {"id": "gameboy"},
-            "frontend": {"keymap": None},
+            "input_devices": [{"device_id": "keyboard_0", "device_type": "key_matrix"}],
+            "frontend": {"keymap": None, "gamepad_map": "gameboy"},
         }
     )
 
     assert client.fps_limit == 50
+    assert client.gamepad_map["button_south"] == (1, 0)
+
+
+def test_tcp_client_welcome_records_joystick_devices():
+    client = TcpPygameClient()
+
+    client._configure_from_welcome(
+        {
+            "type": "welcome",
+            "video": {"width": 160, "height": 144, "pixel_format": "rgb24", "fps": 50},
+            "audio": {"format": "s16le", "sample_rate": 44100, "chunk_samples": 512},
+            "machine": {"id": "spectrum48k"},
+            "input_devices": [
+                {"device_id": "keyboard_0", "device_type": "key_matrix"},
+                {"device_id": "joystick_0", "device_type": "joystick"},
+                {"device_id": "joystick_1", "device_type": "joystick"},
+            ],
+            "frontend": {"keymap": "spectrum", "gamepad_map": "spectrum"},
+        }
+    )
+
+    assert client.joystick_device_ids == ["joystick_0", "joystick_1"]
+
+
+def test_tcp_client_prefers_requested_joystick_player_for_assignment():
+    client = TcpPygameClient(joystick_player=2)
+    client.joystick_device_ids = ["joystick_0", "joystick_1"]
+
+    assert client._next_gamepad_assignment() == 1
+
+
+def test_tcp_client_falls_back_to_other_joystick_when_preferred_is_taken():
+    client = TcpPygameClient(joystick_player=2)
+    client.joystick_device_ids = ["joystick_0", "joystick_1"]
+    client._gamepad_assignments[10] = 1
+
+    assert client._next_gamepad_assignment() == 0

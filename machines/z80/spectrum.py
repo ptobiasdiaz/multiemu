@@ -3,7 +3,15 @@ from __future__ import annotations
 from cpu.z80 import RAMBlock, ROMBlock, PythonPortHandler, Z80Bus, Z80Core
 from chipsets.ula import Spectrum48KULA
 from devices import SpectrumCassetteTape
-from frontend.input_events import InputEvent
+from frontend.input_events import (
+    InputEvent,
+    JOYSTICK_DOWN,
+    JOYSTICK_FIRE,
+    JOYSTICK_FIRE_2,
+    JOYSTICK_LEFT,
+    JOYSTICK_RIGHT,
+    JOYSTICK_UP,
+)
 from machines.base import BaseMachine
 from machines.frame_runner import SteppedFrameRunner
 from video import get_display_profile
@@ -17,6 +25,26 @@ class SpectrumBase(BaseMachine):
     RAM_BASE = 0x4000
     TSTATES_PER_FRAME = 69888
     FRAMES_PER_SECOND = 50
+    input_gamepad_map_name = "spectrum"
+    input_joystick_count = 2
+    JOYSTICK_KEY_BINDINGS = (
+        {
+            JOYSTICK_LEFT: (4, 4),   # 6
+            JOYSTICK_DOWN: (4, 3),   # 7
+            JOYSTICK_UP: (4, 2),     # 8
+            JOYSTICK_RIGHT: (4, 1),  # 9
+            JOYSTICK_FIRE: (4, 0),   # 0
+            JOYSTICK_FIRE_2: (6, 0), # Enter
+        },
+        {
+            JOYSTICK_LEFT: (3, 0),   # 1
+            JOYSTICK_DOWN: (3, 1),   # 2
+            JOYSTICK_UP: (3, 2),     # 3
+            JOYSTICK_RIGHT: (3, 3),  # 4
+            JOYSTICK_FIRE: (3, 4),   # 5
+            JOYSTICK_FIRE_2: (7, 0), # Space
+        },
+    )
 
     def __init__(
         self,
@@ -197,13 +225,27 @@ class SpectrumBase(BaseMachine):
         if not isinstance(event, InputEvent):
             raise TypeError(f"evento de input inválido: {type(event)!r}")
 
-        if event.kind != "key_matrix":
-            raise ValueError(f"tipo de input no soportado: {event.kind}")
+        if event.kind == "key_matrix":
+            if event.active:
+                self._press_key(event.control_a, event.control_b)
+            else:
+                self._release_key(event.control_a, event.control_b)
+            return
 
-        if event.active:
-            self._press_key(event.control_a, event.control_b)
-        else:
-            self._release_key(event.control_a, event.control_b)
+        if event.kind == "joystick":
+            joystick_index = int(event.control_a)
+            if not (0 <= joystick_index < len(self.JOYSTICK_KEY_BINDINGS)):
+                raise ValueError(f"joystick fuera de rango: {joystick_index}")
+            binding = self.JOYSTICK_KEY_BINDINGS[joystick_index].get(int(event.control_b))
+            if binding is None:
+                return
+            if event.active:
+                self._press_key(*binding)
+            else:
+                self._release_key(*binding)
+            return
+
+        raise ValueError(f"tipo de input no soportado: {event.kind}")
 
     def render_frame(self):
         self.framebuffer_rgb24 = self.ula.render_frame()

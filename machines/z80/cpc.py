@@ -14,6 +14,15 @@ from array import array
 from chipsets import AY38912, CPCGateArray, CPCVideo, HD6845, Intel8255
 from cpu.z80 import MemoryDevice, PythonPortHandler, RAMBlock, ROMBlock, Z80Bus, Z80Core
 from devices import CPCDiskImage, CPCFDC, CPCCassetteTape
+from frontend.input_events import (
+    InputEvent,
+    JOYSTICK_DOWN,
+    JOYSTICK_FIRE,
+    JOYSTICK_FIRE_2,
+    JOYSTICK_LEFT,
+    JOYSTICK_RIGHT,
+    JOYSTICK_UP,
+)
 from machines.base import BaseMachine
 from machines.frame_runner import ScanlineFrameRunner
 from video import get_display_profile
@@ -81,6 +90,8 @@ class CPC464(BaseMachine):
     DEFAULT_HORIZONTAL_SYNC_POSITION = HD6845.DEFAULT_REGISTERS[2]
     DEFAULT_VERTICAL_SYNC_POSITION = HD6845.DEFAULT_REGISTERS[7]
     input_keymap_name = "cpc"
+    input_gamepad_map_name = "cpc"
+    input_joystick_count = 1
     _BLANK_PIXEL = (0, 0, 0)
 
     def __init__(
@@ -128,6 +139,7 @@ class CPC464(BaseMachine):
         self.ppi = Intel8255(self)
         self.video = CPCVideo(self)
         self.keyboard_lines = [0xFF] * self.KEYBOARD_LINES
+        self.joystick_state = 0
         self.last_keyboard_line_read = 0xFF
         self.interrupt_counter = 0
         self.vsync_active = False
@@ -208,6 +220,7 @@ class CPC464(BaseMachine):
         self.ppi.reset()
         self.fdc.reset()
         self.keyboard_lines = [0xFF] * self.KEYBOARD_LINES
+        self.joystick_state = 0
         self.last_keyboard_line_read = 0xFF
         self.interrupt_counter = 0
         self.vsync_active = False
@@ -441,6 +454,7 @@ class CPC464(BaseMachine):
         """Release all CPC keyboard lines before the frontend applies a frame state."""
 
         self.keyboard_lines = [0xFF] * self.KEYBOARD_LINES
+        self.joystick_state = 0
 
     def _press_key(self, line: int, bit: int):
         self.keyboard_lines[line] &= ~(1 << bit)
@@ -453,25 +467,52 @@ class CPC464(BaseMachine):
     def handle_input_event(self, event):
         """Apply local frontend key events to the CPC keyboard matrix."""
 
-        if event.kind != "key_matrix":
-            raise ValueError(f"tipo de input no soportado: {event.kind}")
+        if event.kind == "key_matrix":
+            line = int(event.control_a)
+            bit = int(event.control_b)
+            if not (0 <= line < self.KEYBOARD_LINES and 0 <= bit < self.KEYBOARD_BITS):
+                raise ValueError(f"posición de tecla fuera de rango: {(line, bit)!r}")
 
-        line = int(event.control_a)
-        bit = int(event.control_b)
-        if not (0 <= line < self.KEYBOARD_LINES and 0 <= bit < self.KEYBOARD_BITS):
-            raise ValueError(f"posición de tecla fuera de rango: {(line, bit)!r}")
+            if event.active:
+                self._press_key(line, bit)
+            else:
+                self._release_key(line, bit)
+            return
 
-        if event.active:
-            self._press_key(line, bit)
-        else:
-            self._release_key(line, bit)
+        if event.kind == "joystick":
+            joystick_index = int(event.control_a)
+            if joystick_index != 0:
+                raise ValueError(f"joystick fuera de rango: {joystick_index}")
+            mask = int(event.control_b) & 0x3F
+            if event.active:
+                self.joystick_state |= mask
+            else:
+                self.joystick_state &= ~mask
+            self.joystick_state &= 0x3F
+            return
+
+        raise ValueError(f"tipo de input no soportado: {event.kind}")
 
     def read_keyboard_line(self, line: int) -> int:
         """Return the current CPC keyboard line as active-low bits."""
 
         self.last_keyboard_line_read = line
         if 0 <= line < self.KEYBOARD_LINES:
-            return self.keyboard_lines[line]
+            value = self.keyboard_lines[line]
+            if line == 9:
+                if self.joystick_state & JOYSTICK_UP:
+                    value &= ~0x01
+                if self.joystick_state & JOYSTICK_DOWN:
+                    value &= ~0x02
+                if self.joystick_state & JOYSTICK_LEFT:
+                    value &= ~0x04
+                if self.joystick_state & JOYSTICK_RIGHT:
+                    value &= ~0x08
+                if self.joystick_state & JOYSTICK_FIRE:
+                    value &= ~0x10
+                if self.joystick_state & JOYSTICK_FIRE_2:
+                    value &= ~0x20
+            return value
         return 0xFF
 
     def _read_psg_port_a(self) -> int:
@@ -609,3 +650,32 @@ class CPC464(BaseMachine):
             parts.append(f"{key}={value}")
         with open(path, "a", encoding="utf-8") as trace:
             trace.write(" ".join(parts) + "\n")
+
+
+class CPC664(CPC464):
+    """Amstrad CPC 664 variant reusing the current CPC scaffold."""
+
+    def __init__(
+        self,
+        rom_data: bytes | None = None,
+        *,
+        basic_rom_data: bytes | None = None,
+        amsdos_rom_data: bytes | None = None,
+        tape_data: bytes | None = None,
+        disk_data: bytes | None = None,
+        fast_tape: bool | None = None,
+        audio_sample_rate: int = 44100,
+        display_profile: str = "default",
+    ):
+        super().__init__(
+            rom_data,
+            basic_rom_data=basic_rom_data,
+            amsdos_rom_data=amsdos_rom_data,
+            tape_data=tape_data,
+            disk_data=disk_data,
+            fast_tape=fast_tape,
+            audio_sample_rate=audio_sample_rate,
+            display_profile=display_profile,
+        )
+        self.machine_id = "cpc664"
+        self.display_name = "Amstrad CPC 664 (experimental)"

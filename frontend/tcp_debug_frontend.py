@@ -63,7 +63,10 @@ class TcpDebugFrontend(TcpFrontend):
                     time.sleep(0.001)
                     continue
 
-                self._apply_merged_input_state(self.collect_pressed_keys())
+                self._apply_merged_input_state(
+                    self.collect_pressed_keys(),
+                    self.collect_pressed_joysticks(),
+                )
                 self.backend.run_frame()
 
                 # Honour a pause request at the frame boundary.

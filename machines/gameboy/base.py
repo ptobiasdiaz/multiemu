@@ -51,6 +51,7 @@ class GameBoyMachineBase(BaseMachine):
         self.framebuffer_rgb24 = self.ppu.framebuffer_rgb24
         self.audio_samples = self.apu.get_frame_samples()
         self.input_keymap_name = "gameboy"
+        self.input_gamepad_map_name = "gameboy"
         self.input_tap_hold_frames = 2
         self.input_quick_tap_max_frames = 1
         self._device_clock = 0

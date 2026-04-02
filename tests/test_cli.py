@@ -41,6 +41,12 @@ def test_machine_registry_exposes_vic20ntsc():
     assert spec.rom_slots[0].slot_id == "basic"
 
 
+def test_machine_registry_exposes_cpc664():
+    spec = get_machine_spec("cpc664")
+    assert spec.display_name == "Amstrad CPC 664 (experimental)"
+    assert spec.rom_slots[0].slot_id == "os"
+
+
 def test_machine_registry_exposes_vic20pal():
     spec = get_machine_spec("vic20pal")
     assert spec.display_name == "Commodore VIC-20 PAL (experimental)"
@@ -131,6 +137,40 @@ def test_parse_cli_rom_specs_accepts_named_slots_for_multi_rom_machine():
     }
 
 
+def test_parse_cli_rom_specs_accepts_named_slots_for_cpc664():
+    roms = parse_cli_rom_specs("cpc664", ["os=OS_664.ROM", "basic=BASIC_1.1.ROM", "disk=demo.dsk"])
+
+    assert roms == {
+        "os": Path("OS_664.ROM"),
+        "basic": Path("BASIC_1.1.ROM"),
+        "disk": Path("demo.dsk"),
+    }
+
+
+def test_instantiate_cpc664_accepts_combined_32k_system_rom(tmp_path):
+    rom_path = tmp_path / "cpc664.rom"
+    rom_path.write_bytes(bytes([0xAA]) * 0x4000 + bytes([0xCC]) * 0x4000)
+
+    machine = instantiate_machine("cpc664", roms={"os": rom_path})
+
+    assert machine.peek(0x0000) == 0xAA
+    assert machine.upper_rom_banks[0].peek(0) == 0xCC
+
+
+def test_instantiate_cpc664_rejects_combined_os_plus_explicit_basic(tmp_path):
+    os_path = tmp_path / "cpc664.rom"
+    basic_path = tmp_path / "basic.rom"
+    os_path.write_bytes(bytes([0xAA]) * 0x8000)
+    basic_path.write_bytes(bytes([0xCC]) * 0x4000)
+
+    try:
+        instantiate_machine("cpc664", roms={"os": os_path, "basic": basic_path})
+    except ValueError as exc:
+        assert "32K" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for combined 32K CPC ROM plus explicit basic")
+
+
 def test_parse_cli_rom_specs_accepts_vic20ntsc_cart_slot():
     roms = parse_cli_rom_specs("vic20ntsc", ["cart=Videomania.prg"])
 
@@ -194,6 +234,15 @@ def test_parser_builds_connect_command_with_defaults():
     assert args.frontend == "pygame"
     assert args.host == "127.0.0.1"
     assert args.port == 8765
+    assert args.joystick_player == 1
+
+
+def test_parser_builds_connect_command_with_joystick_player_override():
+    parser = build_parser()
+    args = parser.parse_args(["connect", "--joystick-player", "2"])
+
+    assert args.command == "connect"
+    assert args.joystick_player == 2
 
 
 def test_parser_builds_debug_command():

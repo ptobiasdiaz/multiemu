@@ -11,9 +11,9 @@ La intención del proyecto es separar con claridad:
 
 El repositorio ya incluye soporte para máquinas ZX Spectrum, Amstrad CPC 464,
 Nintendo Game Boy y una primera variante de Game Boy Color, además de
-scaffolds iniciales para MOS KIM-1 y Commodore VIC-20. La estructura sigue
-pensada para crecer hacia más máquinas y más frontends sin mezclar toda la
-lógica en un único punto de entrada.
+scaffolds iniciales para Amstrad CPC 664, MOS KIM-1 y Commodore VIC-20. La
+estructura sigue pensada para crecer hacia más máquinas y más frontends sin
+mezclar toda la lógica en un único punto de entrada.
 
 ## Estado actual
 
@@ -22,6 +22,7 @@ Máquinas soportadas hoy:
 - `spectrum16k`
 - `spectrum48k`
 - `cpc464` (experimental)
+- `cpc664` (experimental)
 - `gameboy` (experimental)
 - `gameboycolor` / `gbc` (experimental)
 - `kim1` (experimental)
@@ -41,18 +42,18 @@ Frontends y transportes disponibles hoy:
 
 | Sistema | Estado | Vídeo | Audio | Teclado | Joystick | Cinta/Disco | Cartuchos/ROMs | Notas |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `spectrum16k` | usable | sí | beeper básico | sí | no | cinta `TZX/TAP` | ROM principal | soporte estable de arranque y carga básica |
-| `spectrum48k` | usable | sí | beeper básico | sí | no | cinta `TZX/TAP` | ROM principal | base más madura del proyecto |
-| `cpc464` | experimental | sí | AY básico | sí | no | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | timings y fidelidad aún incompletos |
-| `gameboy` | experimental | sí | sí | sí | n/a | n/a | cartuchos `.gb`, mappers principales | buena base, no aún cobertura total del catálogo |
-| `gameboycolor` / `gbc` | experimental | sí, con color | sí, aún algo lento | sí | n/a | n/a | cartuchos `.gb`/`.gbc`, VRAM DMA, palettes CGB | doble velocidad y rendimiento aún por madurar |
+| `spectrum16k` | usable | sí | beeper básico | sí | sí, hasta 2 | cinta `TZX/TAP` | ROM principal | soporte estable de arranque y carga básica |
+| `spectrum48k` | usable | sí | beeper básico | sí | sí, hasta 2 | cinta `TZX/TAP` | ROM principal | base más madura del proyecto |
+| `cpc464` | experimental | sí | AY básico | sí | sí, 1 | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | timings y fidelidad aún incompletos |
+| `cpc664` | experimental | sí | AY básico | sí | sí, 1 | disco `DSK` | ROM OS/BASIC/AMSDOS | reutiliza el scaffold CPC actual con ROMs 664 |
+| `gameboy` | experimental | sí | sí | sí | pad del host | n/a | cartuchos `.gb`, mappers principales | buena base, no aún cobertura total del catálogo |
+| `gameboycolor` / `gbc` | experimental | sí, con color | sí, aún algo lento | sí | pad del host | n/a | cartuchos `.gb`/`.gbc`, VRAM DMA, palettes CGB | doble velocidad y rendimiento aún por madurar |
 | `kim1` | usable/experimental | display monitor | n/a | keypad/TTY | n/a | n/a | ROMs `6530` | monitor funcional |
-| `vic20ntsc` | experimental avanzada | sí | sí, aún frágil | sí | no | no | ROMs, `.prg`, carts crudos `.20/.40/.60/.a0` | la máquina 6502 más avanzada ahora mismo |
-| `vic20pal` | experimental | sí | sí, aún frágil | sí | no | no | ROMs, `.prg`, carts crudos `.20/.40/.60/.a0` | validado menos que NTSC |
+| `vic20ntsc` | experimental avanzada | sí | sí, aún frágil | sí | sí, 1 | no | ROMs, `.prg`, carts crudos `.20/.40/.60/.a0` | la máquina 6502 más avanzada ahora mismo |
+| `vic20pal` | experimental | sí | sí, aún frágil | sí | sí, 1 | no | ROMs, `.prg`, carts crudos `.20/.40/.60/.a0` | validado menos que NTSC |
 
 Notas rápidas:
 
-- `joystick` sigue sin estar implementado donde sería relevante.
 - `tcp` se usa hoy con `serve/connect`, no como `run --frontend tcp`.
 - el modo debug remoto usa un runtime separado para no penalizar el loop normal.
 - `vic20ntsc` y `vic20pal` arrancan ROMs y varios cartuchos reales, pero aún no tienen fidelidad completa de `VIC-I` ni audio cerrado.
@@ -130,6 +131,10 @@ Slots y nombres esperados por defecto:
   - `os` -> `OS_464.ROM`
   - `basic` -> `BASIC_1.0.ROM`, `BASIC_1.1.ROM`, `BASIC_464.ROM`, `BASIC.ROM`, `cpc464.rom`
   - `tape` -> `program.cdt`, `tape.cdt`
+- `cpc664`
+  - `os` -> `OS_664.ROM`, `OS_664_BASIC_1.1.ROM`, `cpc664_os.rom`, `cpc664.rom`
+  - `basic` -> `BASIC_1.1.ROM`, `BASIC_664.ROM`, `BASIC.ROM`, `cpc664_basic.rom`
+  - `disk` -> `disk.dsk`, `program.dsk`
 - `gameboy`
   - `main` -> `gameboy.gb`, `cart.gb`
 - `gameboycolor`
@@ -157,6 +162,7 @@ Ejemplos:
 ```bash
 multiemu run spectrum48k --rom spec48k.rom
 multiemu run cpc464 --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
+multiemu run cpc664 --rom os=cpc664.rom
 multiemu run gameboy --rom game.gb
 multiemu run gameboycolor --rom game.gbc
 multiemu run kim1 --rom lower=6530-002.bin --rom upper=6530-003.bin
@@ -242,6 +248,12 @@ Ejemplo para CPC464 con ROMs explícitas:
 multiemu run cpc464 --frontend pygame --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
 ```
 
+Ejemplo para CPC664 con ROM combinada de `32K`:
+
+```bash
+multiemu run cpc664 --frontend pygame --rom os=cpc664.rom
+```
+
 Ejemplo para Spectrum 48K con cinta:
 
 ```bash
@@ -259,6 +271,28 @@ Ejemplo para Game Boy Color:
 ```bash
 multiemu run gameboycolor --frontend pygame --rom game.gbc
 ```
+
+## Joysticks y gamepads
+
+El frontend `pygame` ya puede mapear mandos del host a las máquinas que
+exponen joystick/pad:
+
+- `Spectrum`: hasta `2` joysticks
+- `CPC464` / `CPC664`: `1` joystick
+- `VIC-20`: `1` joystick
+- `Game Boy` / `Game Boy Color`: el gamepad del host se traduce al `joypad`
+  de la consola
+
+En modo remoto TCP, un cliente puede elegir si su gamepad local controla el
+primer o el segundo joystick emulado:
+
+```bash
+multiemu connect --joystick-player 1
+multiemu connect --joystick-player 2
+```
+
+Eso permite conectar dos clientes a la misma instancia remota cuando la
+arquitectura soporta dos joysticks.
 
 Ejemplo para KIM-1:
 

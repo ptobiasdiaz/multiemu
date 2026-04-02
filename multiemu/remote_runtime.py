@@ -52,7 +52,10 @@ class RemoteFrontendSession(ABC):
 
                 self.accept_new_clients()
                 self.drain_inputs()
-                self._apply_merged_input_state(self.collect_pressed_keys())
+                self._apply_merged_input_state(
+                    self.collect_pressed_keys(),
+                    self.collect_pressed_joysticks(),
+                )
 
                 self.backend.run_frame()
                 frame_bytes = self.encode_framebuffer(getattr(self.backend, "framebuffer_rgb24", None))
@@ -70,7 +73,11 @@ class RemoteFrontendSession(ABC):
             self.running = False
             self.close_transport()
 
-    def _apply_merged_input_state(self, pressed_keys: set[tuple[int, int]]):
+    def _apply_merged_input_state(
+        self,
+        pressed_keys: set[tuple[int, int]],
+        pressed_joysticks: dict[int, set[int]] | None = None,
+    ):
         """Merge keyboard state once per frame for deterministic shared input."""
 
         self.backend.clear_input_state()
@@ -83,6 +90,16 @@ class RemoteFrontendSession(ABC):
                     active=True,
                 )
             )
+        for joystick_index, controls in (pressed_joysticks or {}).items():
+            for mask in controls:
+                self.backend.handle_input_event(
+                    InputEvent(
+                        kind="joystick",
+                        control_a=int(joystick_index),
+                        control_b=int(mask),
+                        active=True,
+                    )
+                )
 
     def pop_audio_bytes(self) -> bytes:
         """Drain queued audio from the backend in the wire format used today."""
@@ -114,6 +131,11 @@ class RemoteFrontendSession(ABC):
     @abstractmethod
     def collect_pressed_keys(self) -> set[tuple[int, int]]:
         """Return the merged pressed-key state visible for the next frame."""
+
+    def collect_pressed_joysticks(self) -> dict[int, set[int]]:
+        """Return merged per-joystick active controls for the next frame."""
+
+        return {}
 
     @abstractmethod
     def broadcast_stream_data(self, frame_bytes: bytes, audio_bytes: bytes) -> None:

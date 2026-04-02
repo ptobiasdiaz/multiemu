@@ -14,7 +14,7 @@ import warnings
 
 from machines.gameboy import CGB, DMG
 from machines.m6502 import KIM1, VIC20NTSC, VIC20PAL
-from machines.z80 import CPC464, Spectrum16K, Spectrum48K
+from machines.z80 import CPC464, CPC664, Spectrum16K, Spectrum48K
 from video import get_display_profile
 
 
@@ -36,6 +36,42 @@ class MachineSpec:
     display_name: str
     factory: Callable[[dict[str, bytes], str], object]
     rom_slots: tuple[RomSlotSpec, ...] = ()
+
+
+def _split_cpc_system_roms(roms: dict[str, bytes]) -> tuple[bytes, bytes | None]:
+    """Accept CPC OS ROMs as either 16K OS or combined 32K OS+BASIC images."""
+
+    os_rom = roms["os"]
+    basic_rom = roms.get("basic")
+    if len(os_rom) == 0x8000:
+        split_basic_rom = os_rom[0x4000:]
+        if basic_rom is not None and basic_rom != split_basic_rom:
+            raise ValueError("no se puede combinar una ROM CPC de 32K en 'os' con un slot 'basic' explícito")
+        return os_rom[:0x4000], split_basic_rom
+    return os_rom, basic_rom
+
+
+def _build_cpc464(roms: dict[str, bytes], display_profile: str) -> CPC464:
+    os_rom, basic_rom = _split_cpc_system_roms(roms)
+    return CPC464(
+        os_rom,
+        basic_rom_data=basic_rom,
+        amsdos_rom_data=roms.get("amsdos"),
+        tape_data=roms.get("tape"),
+        disk_data=roms.get("disk"),
+        display_profile=display_profile,
+    )
+
+
+def _build_cpc664(roms: dict[str, bytes], display_profile: str) -> CPC664:
+    os_rom, basic_rom = _split_cpc_system_roms(roms)
+    return CPC664(
+        os_rom,
+        basic_rom_data=basic_rom,
+        amsdos_rom_data=roms.get("amsdos"),
+        disk_data=roms.get("disk"),
+        display_profile=display_profile,
+    )
 
 
 MACHINE_SPECS: dict[str, MachineSpec] = {
@@ -86,19 +122,12 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
     "cpc464": MachineSpec(
         machine_id="cpc464",
         display_name="Amstrad CPC 464 (experimental)",
-        factory=lambda roms, display_profile: CPC464(
-            roms["os"],
-            basic_rom_data=roms.get("basic"),
-            amsdos_rom_data=roms.get("amsdos"),
-            tape_data=roms.get("tape"),
-            disk_data=roms.get("disk"),
-            display_profile=display_profile,
-        ),
+        factory=_build_cpc464,
         rom_slots=(
             RomSlotSpec(
                 slot_id="os",
                 description="ROM baja del sistema CPC464",
-                filenames=("OS_464.ROM",),
+                filenames=("OS_464.ROM", "OS_464_BASIC_1.0.ROM", "OS_464_BASIC_1.1.ROM", "cpc464.rom"),
             ),
             RomSlotSpec(
                 slot_id="basic",
@@ -127,6 +156,36 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
             RomSlotSpec(
                 slot_id="disk",
                 description="Imagen DSK para CPC",
+                filenames=("disk.dsk", "program.dsk"),
+                required=False,
+            ),
+        ),
+    ),
+    "cpc664": MachineSpec(
+        machine_id="cpc664",
+        display_name="Amstrad CPC 664 (experimental)",
+        factory=_build_cpc664,
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="os",
+                description="ROM baja del sistema CPC664",
+                filenames=("OS_664.ROM", "OS_664_BASIC_1.1.ROM", "cpc664_os.rom", "cpc664.rom"),
+            ),
+            RomSlotSpec(
+                slot_id="basic",
+                description="ROM alta de BASIC del CPC664",
+                filenames=("BASIC_1.1.ROM", "BASIC_664.ROM", "BASIC.ROM", "cpc664_basic.rom"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="amsdos",
+                description="ROM AMSDOS del CPC664",
+                filenames=("AMSDOS.ROM", "amsdos.rom"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="disk",
+                description="Imagen DSK para CPC664",
                 filenames=("disk.dsk", "program.dsk"),
                 required=False,
             ),
@@ -627,6 +686,7 @@ def instantiate_machine(
     """
 
     spec = get_machine_spec(machine_id)
+    explicit_rom_slots = set((roms or {}).keys())
     # Resolve early so the CLI fails with a user-facing error before reading
     # ROMs or constructing a machine with an unsupported monitor profile.
     get_display_profile(display_profile)
@@ -658,10 +718,12 @@ def instantiate_machine(
                 rom_bytes[slot_id] = payload
                 seen_slots.add(slot_id)
 
-    if spec.machine_id == "cpc464" and "os" in rom_bytes and len(rom_bytes["os"]) == 0x8000:
+    if spec.machine_id in {"cpc464", "cpc664"} and "os" in rom_bytes and len(rom_bytes["os"]) == 0x8000:
+        if "basic" in explicit_rom_slots:
+            raise ValueError("no se puede combinar una ROM CPC de 32K en 'os' con un slot 'basic' explícito")
         combined = rom_bytes.pop("os")
         rom_bytes["os"] = combined[:0x4000]
-        rom_bytes.setdefault("basic", combined[0x4000:])
+        rom_bytes["basic"] = combined[0x4000:]
 
     if spec.machine_id == "cpc464" and "basic" not in rom_bytes:
         warnings.warn(

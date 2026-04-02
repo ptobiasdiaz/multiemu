@@ -2,6 +2,39 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.4
+
+Versión centrada en cerrar el primer bloque común de joystick/pad para las
+máquinas actuales y en añadir `cpc664` como nueva variante visible del árbol.
+
+### Incluye
+
+- Soporte común de `joystick/pad` en frontends locales y remotos.
+- Protocolo TCP remoto ampliado para anunciar y transportar estado de:
+  - `joystick_0`
+  - `joystick_1`
+- Cliente remoto `pygame` con selección de jugador para joystick mediante:
+  - `--joystick-player 1`
+  - `--joystick-player 2`
+- Soporte de joystick cerrado en las máquinas actuales donde aplica:
+  - `spectrum16k` / `spectrum48k`: hasta `2` joysticks
+  - `cpc464`: `1` joystick
+  - `vic20ntsc` / `vic20pal`: `1` joystick
+- El `VIC-20` deja de usar un overlay de teclado para joystick y pasa a una
+  ruta más cercana al hardware real a través de `VIA1` y `VIA2`.
+- Nueva máquina `cpc664` como variante del scaffold CPC actual.
+- Carga de ROM combinada `OS+BASIC` de `32K` para `cpc464` y `cpc664`,
+  incluyendo el caso práctico de `cpc664.rom`.
+
+### Testing
+
+- Nuevos tests para:
+  - mapping de gamepad a joystick en `pygame`
+  - cliente TCP con preferencia de jugador de joystick
+  - estado combinado de teclado + joystick en runtime remoto
+  - wiring de joystick en `Spectrum`, `CPC` y `VIC-20`
+- Nuevos tests de CLI/registro para `cpc664` y para ROM combinada de `32K`.
+
 ## 0.2.3
 
 Versión centrada en abrir una primera infraestructura de depuración remota y en

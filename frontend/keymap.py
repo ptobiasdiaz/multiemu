@@ -1,6 +1,14 @@
 from __future__ import annotations
 
 import pygame
+from frontend.input_events import (
+    JOYSTICK_DOWN,
+    JOYSTICK_FIRE,
+    JOYSTICK_FIRE_2,
+    JOYSTICK_LEFT,
+    JOYSTICK_RIGHT,
+    JOYSTICK_UP,
+)
 
 
 SPECTRUM_PYGAME_KEYMAP = {
@@ -235,9 +243,67 @@ PYGAME_KEYMAPS = {
 }
 
 
+SPECTRUM_PYGAME_GAMEPAD_MAP = {
+    "dpad_left": JOYSTICK_LEFT,
+    "dpad_down": JOYSTICK_DOWN,
+    "dpad_up": JOYSTICK_UP,
+    "dpad_right": JOYSTICK_RIGHT,
+    "button_south": JOYSTICK_FIRE,
+    "button_east": JOYSTICK_FIRE_2,
+    "button_start": JOYSTICK_FIRE,
+    "button_select": JOYSTICK_FIRE_2,
+}
+
+CPC_PYGAME_GAMEPAD_MAP = {
+    "dpad_up": JOYSTICK_UP,
+    "dpad_right": JOYSTICK_RIGHT,
+    "dpad_down": JOYSTICK_DOWN,
+    "dpad_left": JOYSTICK_LEFT,
+    "button_south": JOYSTICK_FIRE,
+    "button_east": JOYSTICK_FIRE_2,
+    "button_start": JOYSTICK_FIRE,
+}
+
+GAMEBOY_PYGAME_GAMEPAD_MAP = {
+    "dpad_right": (0, 0),
+    "dpad_left": (0, 1),
+    "dpad_up": (0, 2),
+    "dpad_down": (0, 3),
+    "button_south": (1, 0),  # A
+    "button_east": (1, 1),   # B
+    "button_select": (1, 2),
+    "button_start": (1, 3),
+}
+
+VIC20_PYGAME_GAMEPAD_MAP = {
+    "dpad_right": JOYSTICK_RIGHT,
+    "dpad_left": JOYSTICK_LEFT,
+    "dpad_down": JOYSTICK_DOWN,
+    "dpad_up": JOYSTICK_UP,
+    "button_south": JOYSTICK_FIRE,
+    "button_start": JOYSTICK_FIRE_2,
+}
+
+
+PYGAME_GAMEPAD_MAPS = {
+    "spectrum": SPECTRUM_PYGAME_GAMEPAD_MAP,
+    "cpc": CPC_PYGAME_GAMEPAD_MAP,
+    "gameboy": GAMEBOY_PYGAME_GAMEPAD_MAP,
+    "vic20": VIC20_PYGAME_GAMEPAD_MAP,
+}
+
+
 def get_pygame_keymap(name: str | None):
     """Return the requested pygame keymap or the Spectrum default."""
 
     if name is None:
         return SPECTRUM_PYGAME_KEYMAP
     return PYGAME_KEYMAPS.get(name, SPECTRUM_PYGAME_KEYMAP)
+
+
+def get_pygame_gamepad_map(name: str | None):
+    """Return the requested pygame gamepad map or an empty mapping."""
+
+    if name is None:
+        return {}
+    return PYGAME_GAMEPAD_MAPS.get(name, {})

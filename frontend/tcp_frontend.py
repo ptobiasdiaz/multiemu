@@ -42,6 +42,7 @@ class ClientSession:
     pending_video: bytes | None = None
     pending_audio: bytearray = field(default_factory=bytearray)
     pressed_keys: set[tuple[int, int]] = field(default_factory=set)
+    pressed_joysticks: dict[int, set[int]] = field(default_factory=dict)
     hello_received: bool = False
     wants_video: bool = True
     wants_audio: bool = True
@@ -54,6 +55,7 @@ class TcpFrontend(RemoteFrontendSession):
 
     PROTOCOL_VERSION = 1
     KEYBOARD_DEVICE_ID = "keyboard_0"
+    JOYSTICK_DEVICE_PREFIX = "joystick_"
     MAX_PENDING_AUDIO_MS = 200
 
     def __init__(
@@ -196,6 +198,31 @@ class TcpFrontend(RemoteFrontendSession):
         session.wants_input = bool(capabilities.get("input", True))
         session.hello_received = True
 
+        input_devices = [
+            {
+                "device_id": self.KEYBOARD_DEVICE_ID,
+                "device_type": "key_matrix",
+                "mode": "shared",
+                "state_model": "state",
+                "layout": {
+                    "rows": self.keyboard_rows,
+                    "cols": self.keyboard_cols,
+                },
+            }
+        ]
+        for joystick_index in range(self.input_joystick_count):
+            input_devices.append(
+                {
+                    "device_id": f"{self.JOYSTICK_DEVICE_PREFIX}{joystick_index}",
+                    "device_type": "joystick",
+                    "mode": "shared",
+                    "state_model": "state",
+                    "layout": {
+                        "index": joystick_index,
+                    },
+                }
+            )
+
         self._queue_json(
             session,
             {
@@ -219,20 +246,10 @@ class TcpFrontend(RemoteFrontendSession):
                     "format": "s16le",
                     "chunk_samples": self.audio_chunk_size,
                 },
-                "input_devices": [
-                    {
-                        "device_id": self.KEYBOARD_DEVICE_ID,
-                        "device_type": "key_matrix",
-                        "mode": "shared",
-                        "state_model": "state",
-                        "layout": {
-                            "rows": self.keyboard_rows,
-                            "cols": self.keyboard_cols,
-                        },
-                    }
-                ],
+                "input_devices": input_devices,
                 "frontend": {
                     "keymap": self.input_keymap_name,
+                    "gamepad_map": self.input_gamepad_map_name,
                 },
             },
         )
@@ -241,19 +258,40 @@ class TcpFrontend(RemoteFrontendSession):
         if not session.wants_input:
             return
 
-        if message.get("device_id") != self.KEYBOARD_DEVICE_ID:
-            self._queue_error(session, "unknown_device", str(message.get("device_id")))
+        device_id = str(message.get("device_id"))
+        if device_id == self.KEYBOARD_DEVICE_ID:
+            pressed = set()
+            for item in message.get("pressed", []):
+                row = int(item["control_a"])
+                bit = int(item["control_b"])
+                if not (0 <= row < self.keyboard_rows and 0 <= bit < self.keyboard_cols):
+                    continue
+                pressed.add((row, bit))
+            session.pressed_keys = pressed
             return
 
-        pressed = set()
-        for item in message.get("pressed", []):
-            row = int(item["control_a"])
-            bit = int(item["control_b"])
-            if not (0 <= row < self.keyboard_rows and 0 <= bit < self.keyboard_cols):
-                continue
-            pressed.add((row, bit))
+        if device_id.startswith(self.JOYSTICK_DEVICE_PREFIX):
+            try:
+                joystick_index = int(device_id[len(self.JOYSTICK_DEVICE_PREFIX):])
+            except ValueError:
+                self._queue_error(session, "unknown_device", device_id)
+                return
+            if not (0 <= joystick_index < self.input_joystick_count):
+                self._queue_error(session, "unknown_device", device_id)
+                return
+            pressed = set()
+            for item in message.get("pressed", []):
+                control_a = int(item.get("control_a", joystick_index))
+                control_b = int(item["control_b"])
+                if control_a != joystick_index:
+                    continue
+                if control_b <= 0:
+                    continue
+                pressed.add(control_b & 0xFF)
+            session.pressed_joysticks[joystick_index] = pressed
+            return
 
-        session.pressed_keys = pressed
+        self._queue_error(session, "unknown_device", device_id)
 
     def collect_pressed_keys(self) -> set[tuple[int, int]]:
         """Return the union of currently pressed keys across connected clients."""
@@ -265,6 +303,21 @@ class TcpFrontend(RemoteFrontendSession):
                 pressed_keys.update(session.pressed_keys)
 
         return pressed_keys
+
+    def collect_pressed_joysticks(self) -> dict[int, set[int]]:
+        pressed_joysticks: dict[int, set[int]] = {}
+
+        for session in self.clients.values():
+            if not (session.hello_received and session.wants_input):
+                continue
+            for joystick_index, controls in session.pressed_joysticks.items():
+                pressed_joysticks.setdefault(joystick_index, set()).update(controls)
+
+        return pressed_joysticks
+
+    @property
+    def input_joystick_count(self) -> int:
+        return max(0, int(getattr(self.backend, "input_joystick_count", 0)))
 
     def broadcast_stream_data(self, frame_bytes: bytes, audio_bytes: bytes) -> None:
         """Queue frame/audio payloads for each subscribed TCP client."""
@@ -447,6 +500,10 @@ class TcpFrontend(RemoteFrontendSession):
         """Tell clients which local keymap should be used for this machine."""
 
         return getattr(self.backend, "input_keymap_name", None)
+
+    @property
+    def input_gamepad_map_name(self) -> str | None:
+        return getattr(self.backend, "input_gamepad_map_name", None)
 
     @property
     def keyboard_rows(self) -> int:

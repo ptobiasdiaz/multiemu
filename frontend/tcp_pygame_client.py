@@ -15,7 +15,7 @@ import socket
 from collections import deque
 
 import pygame
-from frontend.keymap import get_pygame_keymap
+from frontend.keymap import get_pygame_gamepad_map, get_pygame_keymap
 
 try:
     import numpy as np
@@ -29,6 +29,7 @@ class TcpPygameClient:
     # Mirror the local frontend so short remote taps survive firmware scans.
     TAP_HOLD_FRAMES = 5
     QUICK_TAP_MAX_FRAMES = 2
+    GAMEPAD_AXIS_THRESHOLD = 0.5
 
     def __init__(
         self,
@@ -37,11 +38,13 @@ class TcpPygameClient:
         port: int = 8765,
         scale: int = 2,
         window_title: str = "MultiEmu TCP Client",
+        joystick_player: int = 1,
     ):
         self.host = host
         self.port = port
         self.scale = scale
         self.window_title = window_title
+        self.joystick_player = max(1, int(joystick_player))
 
         self.running = False
         self.sock = None
@@ -68,10 +71,16 @@ class TcpPygameClient:
         self.audio_byte_buffer = bytearray()
         self.use_surfarray = np is not None and hasattr(pygame, "surfarray")
         self.keymap = get_pygame_keymap(None)
-        self.active_controls: set[tuple[int, int]] = set()
+        self.gamepad_map = {}
+        self.joystick_device_ids: list[str] = []
+        self.active_keyboard_controls: set[tuple[int, int]] = set()
+        self.active_gamepad_targets: set[tuple[str, int, int]] = set()
         self.active_control_frames: dict[tuple[int, int], int] = {}
         self.tap_pulse_frames: dict[tuple[int, int], int] = {}
         self.pending_tap_counts: dict[tuple[int, int], int] = {}
+        self.gamepads: dict[int, object] = {}
+        self._gamepad_assignments: dict[int, int] = {}
+        self._gamepad_sources: dict[tuple[int, str], tuple[str, int, int]] = {}
 
     def run(self):
         with socket.create_connection((self.host, self.port)) as sock:
@@ -105,6 +114,7 @@ class TcpPygameClient:
                 self.screen = pygame.display.set_mode((self.win_width, self.win_height))
                 pygame.display.set_caption(self.window_title)
                 self.surface = pygame.Surface((self.src_width, self.src_height))
+                self._refresh_gamepads()
 
                 pygame.mixer.set_num_channels(8)
                 self.audio_channel = pygame.mixer.Channel(0)
@@ -162,6 +172,12 @@ class TcpPygameClient:
         self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
         frontend = welcome.get("frontend", {})
         self.keymap = get_pygame_keymap(frontend.get("keymap"))
+        self.gamepad_map = get_pygame_gamepad_map(frontend.get("gamepad_map") or frontend.get("keymap"))
+        self.joystick_device_ids = [
+            str(device["device_id"])
+            for device in welcome.get("input_devices", [])
+            if device.get("device_type") == "joystick"
+        ]
         self._configure_audio_profile(welcome)
 
     def _configure_audio_profile(self, welcome: dict) -> None:
@@ -203,7 +219,7 @@ class TcpPygameClient:
                     return
                 control = self.keymap.get(event.key)
                 if control is not None:
-                    self.active_controls.add(control)
+                    self.active_keyboard_controls.add(control)
                     self.active_control_frames.setdefault(control, 0)
             elif event.type == pygame.KEYUP:
                 control = self.keymap.get(event.key)
@@ -214,15 +230,28 @@ class TcpPygameClient:
                             self.pending_tap_counts[control] = self.pending_tap_counts.get(control, 0) + 1
                         else:
                             self.tap_pulse_frames[control] = self.TAP_HOLD_FRAMES
-                    self.active_controls.discard(control)
+                    self.active_keyboard_controls.discard(control)
                     self.active_control_frames.pop(control, None)
+            elif event.type == pygame.JOYDEVICEADDED:
+                self._open_gamepad(event.device_index)
+            elif event.type == pygame.JOYDEVICEREMOVED:
+                self._close_gamepad(event.instance_id)
+            elif event.type == pygame.JOYBUTTONDOWN:
+                self._set_gamepad_binding(event.instance_id, self._gamepad_button_name(event.button), True)
+            elif event.type == pygame.JOYBUTTONUP:
+                self._set_gamepad_binding(event.instance_id, self._gamepad_button_name(event.button), False)
+            elif event.type == pygame.JOYHATMOTION:
+                self._set_gamepad_hat(event.instance_id, event.value)
+            elif event.type == pygame.JOYAXISMOTION:
+                self._set_gamepad_axis(event.instance_id, event.axis, event.value)
 
     def _send_input_state(self):
         if not self.running:
             return
 
         pressed = []
-        controls_to_send = set(self.active_controls)
+        joystick_pressed: dict[int, list[dict]] = {}
+        controls_to_send = set(self.active_keyboard_controls)
         controls_to_send.update(self.tap_pulse_frames)
 
         for row, bit in controls_to_send:
@@ -233,7 +262,16 @@ class TcpPygameClient:
                 }
             )
 
-        for control in list(self.active_controls):
+        for kind, control_a, control_b in self.active_gamepad_targets:
+            if kind == "key_matrix":
+                pressed.append({"control_a": control_a, "control_b": control_b})
+                continue
+            if kind == "joystick":
+                joystick_pressed.setdefault(control_a, []).append(
+                    {"control_a": control_a, "control_b": control_b}
+                )
+
+        for control in list(self.active_keyboard_controls):
             self.active_control_frames[control] = self.active_control_frames.get(control, 0) + 1
 
         expired = []
@@ -259,6 +297,110 @@ class TcpPygameClient:
                 "pressed": pressed,
             }
         )
+        for joystick_index, device_id in enumerate(self.joystick_device_ids):
+            self._send_json(
+                {
+                    "type": "input_state",
+                    "device_id": device_id,
+                    "pressed": joystick_pressed.get(joystick_index, []),
+                }
+            )
+
+    def _refresh_gamepads(self) -> None:
+        if not pygame.joystick.get_init():
+            pygame.joystick.init()
+        for device_index in range(pygame.joystick.get_count()):
+            self._open_gamepad(device_index)
+
+    def _open_gamepad(self, device_index: int) -> None:
+        if not self.gamepad_map:
+            return
+        joystick = pygame.joystick.Joystick(device_index)
+        joystick.init()
+        instance_id = joystick.get_instance_id()
+        self.gamepads[instance_id] = joystick
+        assignment = self._next_gamepad_assignment()
+        if assignment is not None:
+            self._gamepad_assignments[instance_id] = assignment
+
+    def _next_gamepad_assignment(self) -> int | None:
+        joystick_count = len(self.joystick_device_ids)
+        if joystick_count <= 0:
+            return None
+        preferred = min(max(0, self.joystick_player - 1), joystick_count - 1)
+        candidates = [preferred] + [index for index in range(joystick_count) if index != preferred]
+        for candidate in candidates:
+            if candidate not in self._gamepad_assignments.values():
+                return candidate
+        return None
+
+    def _close_gamepad(self, instance_id: int) -> None:
+        joystick = self.gamepads.pop(instance_id, None)
+        if joystick is not None:
+            joystick.quit()
+        self._gamepad_assignments.pop(instance_id, None)
+        stale = [key for key in self._gamepad_sources if key[0] == instance_id]
+        for key in stale:
+            target = self._gamepad_sources.pop(key)
+            self._discard_gamepad_target_if_unused(target)
+
+    def _gamepad_button_name(self, button: int) -> str | None:
+        return {
+            0: "button_south",
+            1: "button_east",
+            6: "button_select",
+            7: "button_start",
+        }.get(int(button))
+
+    def _set_gamepad_binding(self, instance_id: int, binding_name: str | None, active: bool) -> None:
+        if binding_name is None:
+            return
+        control = self.gamepad_map.get(binding_name)
+        if control is None:
+            return
+        target = self._gamepad_target_for_binding(int(instance_id), control)
+        if target is None:
+            return
+        source_key = (int(instance_id), binding_name)
+        if active:
+            self._gamepad_sources[source_key] = target
+            self.active_gamepad_targets.add(target)
+            return
+        old_target = self._gamepad_sources.pop(source_key, None)
+        if old_target is not None:
+            self._discard_gamepad_target_if_unused(old_target)
+
+    def _gamepad_target_for_binding(self, instance_id: int, control) -> tuple[str, int, int] | None:
+        if isinstance(control, tuple) and len(control) == 2:
+            return ("key_matrix", int(control[0]), int(control[1]))
+        if isinstance(control, int):
+            joystick_index = self._gamepad_assignments.get(instance_id)
+            if joystick_index is None:
+                return None
+            return ("joystick", joystick_index, int(control))
+        return None
+
+    def _discard_gamepad_target_if_unused(self, target: tuple[str, int, int]) -> None:
+        if target in self._gamepad_sources.values():
+            return
+        self.active_gamepad_targets.discard(target)
+
+    def _set_gamepad_hat(self, instance_id: int, value) -> None:
+        hat_x, hat_y = int(value[0]), int(value[1])
+        self._set_gamepad_binding(instance_id, "dpad_left", hat_x < 0)
+        self._set_gamepad_binding(instance_id, "dpad_right", hat_x > 0)
+        self._set_gamepad_binding(instance_id, "dpad_up", hat_y > 0)
+        self._set_gamepad_binding(instance_id, "dpad_down", hat_y < 0)
+
+    def _set_gamepad_axis(self, instance_id: int, axis: int, value: float) -> None:
+        axis = int(axis)
+        value = float(value)
+        if axis == 0:
+            self._set_gamepad_binding(instance_id, "dpad_left", value <= -self.GAMEPAD_AXIS_THRESHOLD)
+            self._set_gamepad_binding(instance_id, "dpad_right", value >= self.GAMEPAD_AXIS_THRESHOLD)
+        elif axis == 1:
+            self._set_gamepad_binding(instance_id, "dpad_up", value <= -self.GAMEPAD_AXIS_THRESHOLD)
+            self._set_gamepad_binding(instance_id, "dpad_down", value >= self.GAMEPAD_AXIS_THRESHOLD)
 
     def _queue_audio(self, audio_bytes: bytes):
         if not audio_bytes:

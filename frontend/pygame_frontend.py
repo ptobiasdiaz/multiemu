@@ -5,7 +5,7 @@ from collections import deque
 import pygame
 from frontend.backend import wrap_backend
 from frontend.input_events import InputEvent
-from frontend.keymap import get_pygame_keymap
+from frontend.keymap import get_pygame_gamepad_map, get_pygame_keymap
 
 try:
     import numpy as np
@@ -22,6 +22,7 @@ class PygameFrontend:
     TAP_HOLD_FRAMES = 5
     QUICK_TAP_MAX_FRAMES = 2
     AUTO_TURBO_FRAME_BATCH = 8
+    GAMEPAD_AXIS_THRESHOLD = 0.5
 
     def __init__(
         self,
@@ -70,6 +71,8 @@ class PygameFrontend:
         self._configure_audio_profile()
 
         self.keymap = get_pygame_keymap(getattr(self.backend, "input_keymap_name", None))
+        self.gamepad_map = get_pygame_gamepad_map(getattr(self.backend, "input_gamepad_map_name", None))
+        self.joystick_count = max(0, int(getattr(self.backend, "input_joystick_count", 0)))
         self.tap_hold_frames = getattr(
             self.backend,
             "input_tap_hold_frames",
@@ -80,13 +83,17 @@ class PygameFrontend:
             "input_quick_tap_max_frames",
             self.QUICK_TAP_MAX_FRAMES,
         )
-        self.active_controls: set[tuple[int, int]] = set()
+        self.active_keyboard_controls: set[tuple[int, int]] = set()
+        self.active_gamepad_targets: set[tuple[str, int, int]] = set()
         # Track how long a control has been held while physically down.
         self.active_control_frames: dict[tuple[int, int], int] = {}
         # Keep one short synthetic pulse per quick tap so repeated taps of the
         # same host key are not collapsed into a single emulated press.
         self.tap_pulse_frames: dict[tuple[int, int], int] = {}
         self.pending_tap_counts: dict[tuple[int, int], int] = {}
+        self.gamepads: dict[int, object] = {}
+        self._gamepad_assignments: dict[int, int] = {}
+        self._gamepad_sources: dict[tuple[int, str], tuple[str, int, int]] = {}
 
     def _get_frame_batch_size(self) -> int:
         machine_id = str(getattr(self.backend, "machine_id", ""))
@@ -138,6 +145,7 @@ class PygameFrontend:
             self._apply_display_mode()
             pygame.display.set_caption(self.window_title)
             self.surface = pygame.Surface((self.src_width, self.src_height))
+            self._refresh_gamepads()
 
             # Reserva un canal dedicado al audio del emulador
             pygame.mixer.set_num_channels(8)
@@ -180,7 +188,7 @@ class PygameFrontend:
                     continue
                 control = self.keymap.get(event.key)
                 if control is not None:
-                    self.active_controls.add(control)
+                    self.active_keyboard_controls.add(control)
                     self.active_control_frames.setdefault(control, 0)
             elif event.type == pygame.KEYUP:
                 control = self.keymap.get(event.key)
@@ -191,11 +199,23 @@ class PygameFrontend:
                             self.pending_tap_counts[control] = self.pending_tap_counts.get(control, 0) + 1
                         else:
                             self.tap_pulse_frames[control] = self.tap_hold_frames
-                    self.active_controls.discard(control)
+                    self.active_keyboard_controls.discard(control)
                     self.active_control_frames.pop(control, None)
+            elif event.type == pygame.JOYDEVICEADDED:
+                self._open_gamepad(event.device_index)
+            elif event.type == pygame.JOYDEVICEREMOVED:
+                self._close_gamepad(event.instance_id)
+            elif event.type == pygame.JOYBUTTONDOWN:
+                self._set_gamepad_binding(event.instance_id, self._gamepad_button_name(event.button), True)
+            elif event.type == pygame.JOYBUTTONUP:
+                self._set_gamepad_binding(event.instance_id, self._gamepad_button_name(event.button), False)
+            elif event.type == pygame.JOYHATMOTION:
+                self._set_gamepad_hat(event.instance_id, event.value)
+            elif event.type == pygame.JOYAXISMOTION:
+                self._set_gamepad_axis(event.instance_id, event.axis, event.value)
 
         self.backend.clear_input_state()
-        controls_to_apply = set(self.active_controls)
+        controls_to_apply = set(self.active_keyboard_controls)
         controls_to_apply.update(self.tap_pulse_frames)
 
         for row, bit in controls_to_apply:
@@ -208,7 +228,17 @@ class PygameFrontend:
                 )
             )
 
-        for control in list(self.active_controls):
+        for kind, control_a, control_b in self.active_gamepad_targets:
+            self.backend.handle_input_event(
+                InputEvent(
+                    kind=kind,
+                    control_a=control_a,
+                    control_b=control_b,
+                    active=True,
+                )
+            )
+
+        for control in list(self.active_keyboard_controls):
             self.active_control_frames[control] = self.active_control_frames.get(control, 0) + 1
 
         expired = []
@@ -226,6 +256,99 @@ class PygameFrontend:
             else:
                 self.tap_pulse_frames.pop(control, None)
                 self.pending_tap_counts.pop(control, None)
+
+    def _refresh_gamepads(self) -> None:
+        if not pygame.joystick.get_init():
+            pygame.joystick.init()
+        for device_index in range(pygame.joystick.get_count()):
+            self._open_gamepad(device_index)
+
+    def _open_gamepad(self, device_index: int) -> None:
+        if not self.gamepad_map:
+            return
+        joystick = pygame.joystick.Joystick(device_index)
+        joystick.init()
+        instance_id = joystick.get_instance_id()
+        self.gamepads[instance_id] = joystick
+        assignment = None
+        for candidate in range(self.joystick_count):
+            if candidate not in self._gamepad_assignments.values():
+                assignment = candidate
+                break
+        if assignment is not None:
+            self._gamepad_assignments[instance_id] = assignment
+
+    def _close_gamepad(self, instance_id: int) -> None:
+        joystick = self.gamepads.pop(instance_id, None)
+        if joystick is not None:
+            joystick.quit()
+        self._gamepad_assignments.pop(instance_id, None)
+        stale = [key for key in self._gamepad_sources if key[0] == instance_id]
+        for key in stale:
+            target = self._gamepad_sources.pop(key)
+            self._discard_gamepad_target_if_unused(target)
+
+    def _gamepad_button_name(self, button: int) -> str | None:
+        return {
+            0: "button_south",
+            1: "button_east",
+            6: "button_select",
+            7: "button_start",
+        }.get(int(button))
+
+    def _set_gamepad_binding(self, instance_id: int, binding_name: str | None, active: bool) -> None:
+        if binding_name is None:
+            return
+        control = self.gamepad_map.get(binding_name)
+        if control is None:
+            return
+        target = self._gamepad_target_for_binding(int(instance_id), control)
+        if target is None:
+            return
+        source_key = (int(instance_id), binding_name)
+        if active:
+            self._gamepad_sources[source_key] = target
+            self.active_gamepad_targets.add(target)
+            return
+        old_target = self._gamepad_sources.pop(source_key, None)
+        if old_target is not None:
+            self._discard_gamepad_target_if_unused(old_target)
+
+    def _gamepad_target_for_binding(
+        self,
+        instance_id: int,
+        control,
+    ) -> tuple[str, int, int] | None:
+        if isinstance(control, tuple) and len(control) == 2:
+            return ("key_matrix", int(control[0]), int(control[1]))
+        if isinstance(control, int):
+            joystick_index = self._gamepad_assignments.get(instance_id)
+            if joystick_index is None:
+                return None
+            return ("joystick", joystick_index, int(control))
+        return None
+
+    def _discard_gamepad_target_if_unused(self, target: tuple[str, int, int]) -> None:
+        if target in self._gamepad_sources.values():
+            return
+        self.active_gamepad_targets.discard(target)
+
+    def _set_gamepad_hat(self, instance_id: int, value) -> None:
+        hat_x, hat_y = int(value[0]), int(value[1])
+        self._set_gamepad_binding(instance_id, "dpad_left", hat_x < 0)
+        self._set_gamepad_binding(instance_id, "dpad_right", hat_x > 0)
+        self._set_gamepad_binding(instance_id, "dpad_up", hat_y > 0)
+        self._set_gamepad_binding(instance_id, "dpad_down", hat_y < 0)
+
+    def _set_gamepad_axis(self, instance_id: int, axis: int, value: float) -> None:
+        axis = int(axis)
+        value = float(value)
+        if axis == 0:
+            self._set_gamepad_binding(instance_id, "dpad_left", value <= -self.GAMEPAD_AXIS_THRESHOLD)
+            self._set_gamepad_binding(instance_id, "dpad_right", value >= self.GAMEPAD_AXIS_THRESHOLD)
+        elif axis == 1:
+            self._set_gamepad_binding(instance_id, "dpad_up", value <= -self.GAMEPAD_AXIS_THRESHOLD)
+            self._set_gamepad_binding(instance_id, "dpad_down", value >= self.GAMEPAD_AXIS_THRESHOLD)
 
     def _is_fullscreen_toggle_event(self, event) -> bool:
         mods = getattr(event, "mod", 0)
