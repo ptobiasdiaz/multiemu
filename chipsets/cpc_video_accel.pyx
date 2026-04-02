@@ -4,6 +4,7 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 
+from multiemu.state_codec import read_state_fields, write_state_fields
 from chipsets.cpc_render import (
     build_horizontal_display_map,
     build_vertical_display_map,
@@ -374,6 +375,16 @@ cdef class CPCVideo:
             self.gate_array.get_pen_rgb((((value >> 5) & 1) << 1) | ((value >> 1) & 1)),
             self.gate_array.get_pen_rgb((((value >> 4) & 1) << 1) | (value & 1)),
         ]
+
+    def read_state(self) -> dict:
+        return read_state_fields(self, meta={"type": "CPCVideo"}) | {
+            "framebuffer_rgb24": list(self.framebuffer_rgb24),
+        }
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(self, state)
+        if "framebuffer_rgb24" in state:
+            self.framebuffer_rgb24 = bytes(int(v) & 0xFF for v in state["framebuffer_rgb24"])
 
 
 AmstradCPCVideo = CPCVideo

@@ -223,6 +223,16 @@ class SpectrumBase(BaseMachine):
         snap["ram_size"] = self.RAM_SIZE
         return snap
 
+    def debug_devices(self) -> list[dict]:
+        devices = super().debug_devices() + [
+            self._debug_device("rom", self.rom, "memory", label="ROM"),
+            self._debug_device("ram", self.ram, "memory", label="RAM"),
+            self._debug_device("ula", self.ula, "chip", label="ULA"),
+        ]
+        if self.cassette is not None:
+            devices.append(self._debug_device("cassette", self.cassette, "device", label="Cassette"))
+        return devices
+
 
 class Spectrum16K(SpectrumBase):
     """ZX Spectrum 16K with RAM only in 0x4000-0x7FFF."""

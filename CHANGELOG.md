@@ -2,6 +2,46 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.3
+
+Versión centrada en abrir una primera infraestructura de depuración remota y en
+hacer que el hardware emulado sea trazable de forma consistente.
+
+### Incluye
+
+- Nuevo runtime/frontend de debug TCP separado del frontend remoto normal.
+- Extensión de protocolo debug sobre TCP con soporte para:
+  - `pause`
+  - `resume`
+  - `step`
+  - `list_devices`
+  - `get_state`
+  - `set_state`
+  - `read_memory`
+  - `write_memory`
+- Nuevo `DebugSession` común para stepping e inspección de máquina.
+- Contrato estable de hardware trazable:
+  - `read_state()`
+  - `write_state()`
+  - `debug_devices()` con `device_id` estables
+- Cobertura de estado ampliada a CPUs, buses, memorias y chips/dispositivos
+  principales activos del árbol, incluyendo:
+  - `Game Boy` y `Game Boy Color`
+  - `VIC-20`
+  - `Spectrum`
+  - `CPC`
+  - `KIM-1`
+- Documentación nueva para:
+  - contrato de hardware trazable
+  - protocolo remoto de debug
+
+### Testing
+
+- Nuevos tests para `DebugSession`.
+- Nuevos tests para el frontend TCP de debug.
+- Cobertura adicional para inventario de dispositivos depurables y roundtrip de
+  estado en hardware activo.
+
 ## 0.2.2
 
 Versión centrada en abrir `gameboycolor` como variante visible y en cerrar el

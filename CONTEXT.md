@@ -67,6 +67,35 @@ Decision vigente:
 - no acoplar transporte y frontend en un identificador unico artificial
 - mantener la separacion `transport` / `frontend` en la CLI y en los registros
 
+## Depuracion y hardware trazable
+
+Decision vigente:
+
+- el modo debug no debe introducir ramas o checks extras en el loop normal de
+  emulacion
+- la ruta normal y la ruta debug deben mantenerse como runtimes distintos
+- el hardware nuevo debe diseñarse como "trazable" desde el principio
+
+Reglas:
+
+- toda CPU, bus o chip principal nuevo debe implementar `read_state()` y
+  `write_state()`
+- las maquinas deben exponer `debug_devices()` con `device_id` estables
+- el descubrimiento de dispositivos no debe depender solo de introspeccion
+  accidental de atributos
+- el protocolo debug puede extender el handshake y los mensajes del transporte,
+  pero no debe contaminar la ruta fast-path del runtime normal
+
+Referencia:
+
+- ver [TRACEABLE_HARDWARE.md](/home/tobias/dev/multiemu/TRACEABLE_HARDWARE.md)
+
+Motivo:
+
+- permitir inspeccion y edicion remota coherente del estado emulado
+- evitar deuda arquitectonica en nuevas maquinas
+- mantener el rendimiento del modo normal intacto
+
 ## Politica de documentacion interna
 
 La documentacion interna debe preservar decisiones y restricciones, no narrar

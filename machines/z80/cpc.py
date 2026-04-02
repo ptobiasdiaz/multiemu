@@ -418,6 +418,25 @@ class CPC464(BaseMachine):
         snap["current_raster_address"] = self.current_raster_address
         return snap
 
+    def debug_devices(self) -> list[dict]:
+        devices = super().debug_devices() + [
+            self._debug_device("memory_map", self.memory_map, "device", label="Memory map"),
+            self._debug_device("lower_rom", self.lower_rom, "memory", label="Lower ROM"),
+            self._debug_device("upper_rom", self.upper_rom, "memory", label="Upper ROM"),
+            self._debug_device("ram", self.ram, "memory", label="RAM"),
+            self._debug_device("gate_array", self.gate_array, "chip", label="Gate Array"),
+            self._debug_device("crtc", self.crtc, "chip", label="CRTC"),
+            self._debug_device("ppi", self.ppi, "chip", label="PPI"),
+            self._debug_device("video", self.video, "device", label="Video"),
+            self._debug_device("psg", self.psg, "chip", label="PSG"),
+            self._debug_device("fdc", self.fdc, "device", label="FDC"),
+        ]
+        if self.cassette is not None:
+            devices.append(self._debug_device("cassette", self.cassette, "device", label="Cassette"))
+        if self.disk is not None:
+            devices.append(self._debug_device("disk", self.disk, "device", label="Disk image"))
+        return devices
+
     def clear_input_state(self):
         """Release all CPC keyboard lines before the frontend applies a frame state."""
 

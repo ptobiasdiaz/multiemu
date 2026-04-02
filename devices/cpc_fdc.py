@@ -126,3 +126,35 @@ class CPCFDC:
 
     def _queue_result(self, st0: int, st1: int, st2: int, c: int, h: int, r: int, n: int) -> None:
         self._output.extend((st0 & 0xFF, st1 & 0xFF, st2 & 0xFF, c & 0xFF, h & 0xFF, r & 0xFF, n & 0xFF))
+
+    def read_state(self) -> dict:
+        state = {
+            "__meta__": {"type": "CPCFDC"},
+            "motor_on": self.motor_on,
+            "current_cylinder": list(self.current_cylinder),
+            "pending_interrupt": self.pending_interrupt,
+            "_command": list(self._command),
+            "_expected_command_length": self._expected_command_length,
+            "_output": list(self._output),
+        }
+        if self.disk_image is not None and hasattr(self.disk_image, "read_state"):
+            state["disk_image"] = self.disk_image.read_state()
+        return state
+
+    def write_state(self, state: dict) -> None:
+        if "motor_on" in state:
+            self.motor_on = bool(state["motor_on"])
+        if "current_cylinder" in state:
+            self.current_cylinder = [int(v) & 0xFF for v in state["current_cylinder"][:4]]
+        if "pending_interrupt" in state:
+            self.pending_interrupt = bool(state["pending_interrupt"])
+        if "_command" in state:
+            self._command = [int(v) & 0xFF for v in state["_command"]]
+        if "_expected_command_length" in state:
+            self._expected_command_length = int(state["_expected_command_length"])
+        if "_output" in state:
+            self._output = deque(int(v) & 0xFF for v in state["_output"])
+        if "disk_image" in state:
+            if self.disk_image is None:
+                self.disk_image = CPCDiskImage({})
+            self.disk_image.write_state(state["disk_image"])

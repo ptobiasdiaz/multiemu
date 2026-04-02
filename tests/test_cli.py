@@ -196,6 +196,16 @@ def test_parser_builds_connect_command_with_defaults():
     assert args.port == 8765
 
 
+def test_parser_builds_debug_command():
+    parser = build_parser()
+    args = parser.parse_args(["debug", "vic20ntsc", "--host", "0.0.0.0", "--port", "9001"])
+
+    assert args.command == "debug"
+    assert args.machine == "vic20ntsc"
+    assert args.host == "0.0.0.0"
+    assert args.port == 9001
+
+
 def test_parser_builds_client_alias_command():
     parser = build_parser()
     args = parser.parse_args(

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from cpu.m6502.bus import M6502Bus
+from multiemu.state_codec import read_state_fields, write_state_fields
 
 
 FLAG_C = 0x01
@@ -913,3 +914,30 @@ cdef class M6502Core:
             "irq_pending": self.bus.irq_pending,
             "nmi_pending": self.bus.nmi_pending,
         }
+
+    def read_state(self) -> dict:
+        state = read_state_fields(
+            self,
+            scalar_fields=("A", "X", "Y", "SP", "P", "PC", "halted", "stop_on_brk"),
+            meta={"type": "M6502Core"},
+        )
+        state["irq_pending"] = self.bus.irq_pending
+        state["nmi_pending"] = self.bus.nmi_pending
+        state["irq_mask_delay_active"] = self.irq_mask_delay_active
+        state["irq_mask_delay_value"] = self.irq_mask_delay_value
+        return state
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=("A", "X", "Y", "SP", "P", "PC", "halted", "stop_on_brk"),
+        )
+        if "irq_pending" in state:
+            self.bus.irq_pending = bool(state["irq_pending"])
+        if "nmi_pending" in state:
+            self.bus.nmi_pending = bool(state["nmi_pending"])
+        if "irq_mask_delay_active" in state:
+            self.irq_mask_delay_active = bool(state["irq_mask_delay_active"])
+        if "irq_mask_delay_value" in state:
+            self.irq_mask_delay_value = int(state["irq_mask_delay_value"])

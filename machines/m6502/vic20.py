@@ -283,6 +283,32 @@ class VIC20(M6502MachineBase):
         snap["has_blk5"] = self.blk5_rom is not None
         return snap
 
+    def debug_devices(self) -> list[dict]:
+        devices = super().debug_devices() + [
+            self._debug_device("low_ram", self.low_ram, "memory", label="Low RAM"),
+            self._debug_device("main_ram", self.main_ram, "memory", label="Main RAM"),
+            self._debug_device("color_ram", self.color_ram, "memory", label="Color RAM"),
+            self._debug_device("char_rom", self.char_rom, "memory", label="Character ROM"),
+            self._debug_device("basic_rom", self.basic_rom, "memory", label="BASIC ROM"),
+            self._debug_device("kernal_rom", self.kernal_rom, "memory", label="KERNAL ROM"),
+            self._debug_device("vic", self.vic, "chip", label="VIC-I"),
+            self._debug_device("via1", self.via1, "chip", label="VIA #1"),
+            self._debug_device("via2", self.via2, "chip", label="VIA #2"),
+        ]
+        if self.io2_ram is not None:
+            devices.append(self._debug_device("io2_ram", self.io2_ram, "memory", label="IO2 RAM"))
+        if self.io3_ram is not None:
+            devices.append(self._debug_device("io3_ram", self.io3_ram, "memory", label="IO3 RAM"))
+        if self.blk1_rom is not None:
+            devices.append(self._debug_device("blk1_rom", self.blk1_rom, "memory", label="BLK1 ROM"))
+        if self.blk2_rom is not None:
+            devices.append(self._debug_device("blk2_rom", self.blk2_rom, "memory", label="BLK2 ROM"))
+        if self.blk3_rom is not None:
+            devices.append(self._debug_device("blk3_rom", self.blk3_rom, "memory", label="BLK3 ROM"))
+        if self.blk5_rom is not None:
+            devices.append(self._debug_device("blk5_rom", self.blk5_rom, "memory", label="BLK5 ROM"))
+        return devices
+
     def _clear_nmi(self) -> None:
         self.bus.nmi_pending = False
 

@@ -275,3 +275,13 @@ class KIM1(M6502MachineBase):
         snap["frame_tstates"] = self.frame_tstates
         snap["display_digits"] = tuple(self.riot.display_digits)
         return snap
+
+    def debug_devices(self) -> list[dict]:
+        return super().debug_devices() + [
+            self._debug_device("ram", self.ram, "memory", label="RAM"),
+            self._debug_device("monitor_ram", self.monitor_ram, "memory", label="Monitor RAM"),
+            self._debug_device("riot", self.riot, "chip", label="M6530 RIOT"),
+            self._debug_device("display", self.display, "device", label="Display"),
+            self._debug_device("lower_rom", self.lower_rom, "memory", label="Lower ROM"),
+            self._debug_device("upper_rom", self.upper_rom, "memory", label="Upper ROM"),
+        ]

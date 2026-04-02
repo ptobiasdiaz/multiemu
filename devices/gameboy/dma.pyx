@@ -5,6 +5,8 @@
 
 """OAM DMA helper for the Game Boy."""
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 cdef class GameBoyDMAController:
     """Tracks and executes OAM DMA transfers."""
@@ -156,3 +158,37 @@ cdef class GameBoyDMAController:
         if self.hdma_blocks_remaining <= 0:
             self.hdma_active = False
             self.hdma_last_line = -1
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "active",
+                "source_base",
+                "index",
+                "cycle_accum",
+                "hdma_source",
+                "hdma_dest",
+                "hdma_blocks_remaining",
+                "hdma_active",
+                "hdma_last_line",
+            ),
+            meta={"type": "GameBoyDMAController"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "active",
+                "source_base",
+                "index",
+                "cycle_accum",
+                "hdma_source",
+                "hdma_dest",
+                "hdma_blocks_remaining",
+                "hdma_active",
+                "hdma_last_line",
+            ),
+        )

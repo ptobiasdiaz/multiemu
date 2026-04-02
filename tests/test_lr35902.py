@@ -37,6 +37,52 @@ def test_lr35902_can_store_and_load_through_memory():
     assert snap["halted"] is True
 
 
+def test_lr35902_read_state_write_state_roundtrip():
+    bus = LR35902Bus(GameBoyCartridge(_make_test_rom(b"\x00")))
+    cpu = LR35902Core(bus)
+    cpu.A = 0x12
+    cpu.F = 0xA0
+    cpu.B = 0x34
+    cpu.C = 0x56
+    cpu.D = 0x78
+    cpu.E = 0x9A
+    cpu.H = 0xBC
+    cpu.L = 0xDE
+    cpu.SP = 0xFFF0
+    cpu.PC = 0x1234
+    cpu.halted = True
+    cpu.ime = True
+    cpu.cycles = 321
+
+    state = cpu.read_state()
+
+    other = LR35902Core(LR35902Bus(GameBoyCartridge(_make_test_rom(b"\x00"))))
+    other.write_state(state)
+
+    assert other.read_state() == state
+
+
+def test_lr35902_bus_read_state_write_state_roundtrip():
+    bus = LR35902Bus(GameBoyCartridge(_make_test_rom(b"\x00")))
+    bus.vram[0x10] = 0xAA
+    bus.wram[0x20] = 0xBB
+    bus.oam[0x03] = 0xCC
+    bus.interrupt_enable = 0x1F
+    bus.vram_bank_select = 1
+    bus.wram_bank_select = 3
+    bus.key1_state = 0x81
+    bus.cgb_mode = True
+    bus.vram_accessible = False
+    bus.oam_accessible = False
+
+    state = bus.read_state()
+
+    other = LR35902Bus(GameBoyCartridge(_make_test_rom(b"\x00")))
+    other.write_state(state)
+
+    assert other.read_state() == state
+
+
 def test_lr35902_can_branch_with_jr_nz():
     program = bytes(
         [

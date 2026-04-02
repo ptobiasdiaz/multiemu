@@ -4,6 +4,8 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 cdef class CPCGateArray:
     cdef public object machine
     cdef public int selected_pen
@@ -119,3 +121,34 @@ cdef class CPCGateArray:
     cpdef acknowledge_interrupt(self):
         self.interrupt_line_counter &= 0x1F
 
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "selected_pen",
+                "border_hardware_color",
+                "mode",
+                "interrupt_line_counter",
+                "pending_interrupt",
+                "_last_vsync_active",
+                "_vsync_delay_lines",
+            ),
+            meta={"type": "CPCGateArray"},
+        ) | {"pen_colors": list(self.pen_colors)}
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "selected_pen",
+                "border_hardware_color",
+                "mode",
+                "interrupt_line_counter",
+                "pending_interrupt",
+                "_last_vsync_active",
+                "_vsync_delay_lines",
+            ),
+        )
+        if "pen_colors" in state:
+            self.pen_colors[:] = [int(v) & 0x1F for v in state["pen_colors"][:16]]

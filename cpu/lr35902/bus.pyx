@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 cdef class LR35902Bus:
     """Very small Game Boy address-space implementation."""
@@ -236,3 +238,35 @@ cdef class LR35902Bus:
     def write16(self, addr: int, value: int) -> None:
         self.write8(addr, value & 0xFF)
         self.write8((addr + 1) & 0xFFFF, (value >> 8) & 0xFF)
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "interrupt_enable",
+                "vram_bank_select",
+                "wram_bank_select",
+                "key1_state",
+                "cgb_mode",
+                "vram_accessible",
+                "oam_accessible",
+            ),
+            byte_fields=("vram", "eram", "wram", "oam", "hram"),
+            meta={"type": "LR35902Bus"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "interrupt_enable",
+                "vram_bank_select",
+                "wram_bank_select",
+                "key1_state",
+                "cgb_mode",
+                "vram_accessible",
+                "oam_accessible",
+            ),
+            byte_fields=("vram", "eram", "wram", "oam", "hram"),
+        )

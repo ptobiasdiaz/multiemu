@@ -1,5 +1,7 @@
 """Timer support for the Game Boy."""
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 cdef class GameBoyTimer:
     """Models the DMG divider and programmable timer."""
@@ -78,3 +80,17 @@ cdef class GameBoyTimer:
 
     def write_tac(self, value):
         self.tac = value & 0x07
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=("_div_counter", "_tima_counter", "div", "tima", "tma", "tac"),
+            meta={"type": "GameBoyTimer"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=("_div_counter", "_tima_counter", "div", "tima", "tma", "tac"),
+        )

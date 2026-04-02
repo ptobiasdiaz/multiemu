@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 @dataclass(slots=True)
 class TapePulse:
@@ -67,6 +69,30 @@ class SpectrumCassetteTape:
                 self._level = 0
                 return
             self._level = self.pulses[self._pulse_index].level
+
+    def read_state(self) -> dict:
+        state = read_state_fields(
+            self,
+            scalar_fields=("playing", "_pulse_index", "_pulse_elapsed", "_level"),
+            meta={"type": "SpectrumCassetteTape"},
+        )
+        state["pulses"] = [
+            {"duration_tstates": pulse.duration_tstates, "level": pulse.level}
+            for pulse in self.pulses
+        ]
+        return state
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=("playing", "_pulse_index", "_pulse_elapsed", "_level"),
+        )
+        if "pulses" in state:
+            self.pulses = [
+                TapePulse(int(pulse["duration_tstates"]), int(pulse["level"]))
+                for pulse in state["pulses"]
+            ]
 
     @classmethod
     def from_bytes(cls, data: bytes) -> "SpectrumCassetteTape":

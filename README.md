@@ -34,6 +34,7 @@ Frontends y transportes disponibles hoy:
 - `run --frontend pygame`
 - `serve --transport tcp`
 - `connect --transport tcp --frontend pygame`
+- `debug --transport tcp --frontend tcp_debug`
 - perfiles de display: `default`, `full-border`
 
 ### Resumen de soporte por sistema
@@ -53,7 +54,30 @@ Notas rápidas:
 
 - `joystick` sigue sin estar implementado donde sería relevante.
 - `tcp` se usa hoy con `serve/connect`, no como `run --frontend tcp`.
+- el modo debug remoto usa un runtime separado para no penalizar el loop normal.
 - `vic20ntsc` y `vic20pal` arrancan ROMs y varios cartuchos reales, pero aún no tienen fidelidad completa de `VIC-I` ni audio cerrado.
+
+## Debug remoto
+
+El proyecto ya incluye un modo debug TCP separado del runtime normal. Ese modo:
+
+- anuncia capacidades de debug en el `welcome`
+- permite `pause`, `resume` y `step`
+- permite descubrir dispositivos con `debug.list_devices`
+- permite leer y escribir estado con `debug.get_state` y `debug.set_state`
+- permite leer y escribir memoria con `debug.read_memory` y `debug.write_memory`
+
+La semántica de hardware trazable está descrita en
+[TRACEABLE_HARDWARE.md](/home/tobias/dev/multiemu/TRACEABLE_HARDWARE.md).
+
+La extensión de protocolo TCP está descrita en
+[DEBUG_PROTOCOL.md](/home/tobias/dev/multiemu/DEBUG_PROTOCOL.md).
+
+Nota de arquitectura:
+
+- el modo debug usa un loop distinto del loop rápido normal
+- no se introduce un `if debug` dentro del hot path del runtime normal
+- la pausa se hace efectiva en el borde de frame
 
 ## Requisitos
 

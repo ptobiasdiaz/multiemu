@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 cdef class HuC1:
     """Implements HuC1 ROM/RAM banking and IR register selection."""
@@ -104,3 +106,35 @@ cdef class HuC1:
             offset = bank * self.RAM_BANK_SIZE + (addr - 0xA000)
             if offset < len(self.ram):
                 self.ram[offset] = value
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "rom_bank_count",
+                "ram_size",
+                "rom_bank",
+                "ram_bank",
+                "ir_mode",
+                "ir_transmitter_on",
+                "ir_light_detected",
+            ),
+            byte_fields=("ram",),
+            meta={"type": "HuC1"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "rom_bank_count",
+                "ram_size",
+                "rom_bank",
+                "ram_bank",
+                "ir_mode",
+                "ir_transmitter_on",
+                "ir_light_detected",
+            ),
+            byte_fields=("ram",),
+        )

@@ -110,3 +110,30 @@ cdef class GameBoyCartridge:
     cpdef void write(self, int addr, int value):
         if self.mapper is not None:
             self.mapper.write(addr, value)
+
+    def read_state(self) -> dict:
+        state = {
+            "__meta__": {"type": "GameBoyCartridge"},
+            "title": self.title,
+            "cartridge_type": self.cartridge_type,
+            "cartridge_type_name": self.cartridge_type_name,
+            "rom_size_code": self.rom_size_code,
+            "ram_size_code": self.ram_size_code,
+        }
+        if self.mapper is not None and hasattr(self.mapper, "read_state"):
+            state["mapper"] = self.mapper.read_state()
+        return state
+
+    def write_state(self, state: dict) -> None:
+        if "title" in state:
+            self.title = state["title"]
+        if "cartridge_type" in state:
+            self.cartridge_type = int(state["cartridge_type"])
+        if "cartridge_type_name" in state:
+            self.cartridge_type_name = state["cartridge_type_name"]
+        if "rom_size_code" in state:
+            self.rom_size_code = int(state["rom_size_code"])
+        if "ram_size_code" in state:
+            self.ram_size_code = int(state["ram_size_code"])
+        if "mapper" in state and self.mapper is not None and hasattr(self.mapper, "write_state"):
+            self.mapper.write_state(state["mapper"])

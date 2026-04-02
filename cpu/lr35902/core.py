@@ -6,6 +6,8 @@ execution core lives in its own module instead of subclassing the Z80.
 
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 class LR35902Core:
     """Small non-executing placeholder for the future Game Boy CPU core.
@@ -880,3 +882,45 @@ class LR35902Core:
             "ime": self.ime,
             "cycles": self.cycles,
         }
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "A",
+                "F",
+                "B",
+                "C",
+                "D",
+                "E",
+                "H",
+                "L",
+                "SP",
+                "PC",
+                "halted",
+                "ime",
+                "cycles",
+            ),
+            meta={"type": "LR35902Core"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "A",
+                "F",
+                "B",
+                "C",
+                "D",
+                "E",
+                "H",
+                "L",
+                "SP",
+                "PC",
+                "halted",
+                "ime",
+                "cycles",
+            ),
+        )

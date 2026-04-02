@@ -257,6 +257,18 @@ def test_vic20_keeps_latched_fetch_contexts_available_after_run_frame():
     assert all(ctx[8] != 0 for ctx in contexts)
 
 
+def test_vic20_vic_read_state_write_state_roundtrip():
+    machine = _make_vic20_machine()
+    machine.run_frame()
+
+    state = machine.vic.read_state()
+
+    other = type(machine.vic)()
+    other.write_state(state)
+
+    assert other.read_state() == state
+
+
 def test_vic20_vic_raster_advances_with_frame_progress():
     machine = _make_vic20_machine()
 

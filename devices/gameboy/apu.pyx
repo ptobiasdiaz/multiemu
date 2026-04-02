@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from array import array
+from multiemu.state_codec import read_state_fields, write_state_fields
 
 
 cdef class GameBoyAPU:
@@ -678,3 +679,69 @@ cdef class GameBoyAPU:
         else:
             if self._ch4_volume > 0:
                 self._ch4_volume -= 1
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "sample_rate",
+                "_cycles_per_sample",
+                "_sample_clock",
+                "nr10", "nr11", "nr12", "nr13", "nr14",
+                "nr21", "nr22", "nr23", "nr24",
+                "nr30", "nr31", "nr32", "nr33", "nr34",
+                "nr41", "nr42", "nr43", "nr44",
+                "nr50", "nr51", "nr52",
+                "_master_enabled",
+                "_sequencer_clock",
+                "_sequencer_step",
+                "_ch1_enabled", "_ch1_length_enabled", "_ch1_envelope_increase", "_ch1_sweep_negate", "_ch1_sweep_enabled",
+                "_ch1_length_counter", "_ch1_duty", "_ch1_initial_volume", "_ch1_volume", "_ch1_envelope_period", "_ch1_envelope_timer",
+                "_ch1_frequency", "_ch1_sweep_period", "_ch1_sweep_timer", "_ch1_sweep_shift", "_ch1_sweep_shadow_frequency",
+                "_ch1_phase", "_ch1_phase_step",
+                "_ch2_enabled", "_ch2_length_enabled", "_ch2_envelope_increase",
+                "_ch2_length_counter", "_ch2_duty", "_ch2_initial_volume", "_ch2_volume", "_ch2_envelope_period", "_ch2_envelope_timer",
+                "_ch2_frequency", "_ch2_phase", "_ch2_phase_step",
+                "_ch3_enabled", "_ch3_dac_enabled", "_ch3_length_enabled",
+                "_ch3_length_counter", "_ch3_output_level", "_ch3_frequency", "_ch3_phase", "_ch3_phase_step",
+                "_ch4_enabled", "_ch4_length_enabled", "_ch4_envelope_increase", "_ch4_width_mode",
+                "_ch4_length_counter", "_ch4_initial_volume", "_ch4_volume", "_ch4_envelope_period", "_ch4_envelope_timer",
+                "_ch4_clock_shift", "_ch4_divisor_code", "_ch4_lfsr", "_ch4_phase", "_ch4_phase_step",
+            ),
+            byte_fields=("_ch3_wave_ram",),
+            array_fields=("_frame_samples",),
+            meta={"type": "GameBoyAPU"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "sample_rate",
+                "_cycles_per_sample",
+                "_sample_clock",
+                "nr10", "nr11", "nr12", "nr13", "nr14",
+                "nr21", "nr22", "nr23", "nr24",
+                "nr30", "nr31", "nr32", "nr33", "nr34",
+                "nr41", "nr42", "nr43", "nr44",
+                "nr50", "nr51", "nr52",
+                "_master_enabled",
+                "_sequencer_clock",
+                "_sequencer_step",
+                "_ch1_enabled", "_ch1_length_enabled", "_ch1_envelope_increase", "_ch1_sweep_negate", "_ch1_sweep_enabled",
+                "_ch1_length_counter", "_ch1_duty", "_ch1_initial_volume", "_ch1_volume", "_ch1_envelope_period", "_ch1_envelope_timer",
+                "_ch1_frequency", "_ch1_sweep_period", "_ch1_sweep_timer", "_ch1_sweep_shift", "_ch1_sweep_shadow_frequency",
+                "_ch1_phase", "_ch1_phase_step",
+                "_ch2_enabled", "_ch2_length_enabled", "_ch2_envelope_increase",
+                "_ch2_length_counter", "_ch2_duty", "_ch2_initial_volume", "_ch2_volume", "_ch2_envelope_period", "_ch2_envelope_timer",
+                "_ch2_frequency", "_ch2_phase", "_ch2_phase_step",
+                "_ch3_enabled", "_ch3_dac_enabled", "_ch3_length_enabled",
+                "_ch3_length_counter", "_ch3_output_level", "_ch3_frequency", "_ch3_phase", "_ch3_phase_step",
+                "_ch4_enabled", "_ch4_length_enabled", "_ch4_envelope_increase", "_ch4_width_mode",
+                "_ch4_length_counter", "_ch4_initial_volume", "_ch4_volume", "_ch4_envelope_period", "_ch4_envelope_timer",
+                "_ch4_clock_shift", "_ch4_divisor_code", "_ch4_lfsr", "_ch4_phase", "_ch4_phase_step",
+            ),
+            byte_fields=("_ch3_wave_ram",),
+            array_fields=("_frame_samples",),
+        )

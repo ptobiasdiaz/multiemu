@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 class GameBoyJoypad:
     """Models the P1/JOYP register and button matrix."""
@@ -62,3 +64,17 @@ class GameBoyJoypad:
         if (self.select_bits & 0x20) == 0:
             low &= self.button_state
         return 0xC0 | self.select_bits | low
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=("select_bits", "direction_state", "button_state"),
+            meta={"type": "GameBoyJoypad"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=("select_bits", "direction_state", "button_state"),
+        )

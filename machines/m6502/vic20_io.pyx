@@ -4,6 +4,8 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 cdef class OpenBus:
     cdef public int size
@@ -16,6 +18,12 @@ cdef class OpenBus:
 
     cpdef void write(self, int addr, int value):
         return
+
+    def read_state(self) -> dict:
+        return read_state_fields(self, scalar_fields=("size",), meta={"type": "OpenBus"})
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(self, state, scalar_fields=("size",))
 
 
 cdef class ColorRAM:
@@ -41,6 +49,17 @@ cdef class ColorRAM:
     cpdef void clear(self):
         self.data[:] = bytes(self.size)
 
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=("size",),
+            byte_fields=("data",),
+            meta={"type": "ColorRAM"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(self, state, scalar_fields=("size",), byte_fields=("data",))
+
 
 cdef class IoRam:
     cdef public int size
@@ -61,3 +80,14 @@ cdef class IoRam:
 
     cpdef void clear(self):
         self.data[:] = bytes(self.size)
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=("size",),
+            byte_fields=("data",),
+            meta={"type": "IoRam"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(self, state, scalar_fields=("size",), byte_fields=("data",))

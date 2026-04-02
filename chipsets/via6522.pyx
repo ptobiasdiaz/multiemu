@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 class VIA6522:
     """Canonical 6522 VIA implementation for VIC-20 and future 6502 systems."""
@@ -98,6 +100,89 @@ class VIA6522:
     def connect_irq(self, raise_callback, clear_callback=None) -> None:
         self.irq_callback = raise_callback
         self.irq_clear_callback = clear_callback
+        self._update_irq_line()
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "orb",
+                "ora",
+                "ddrb",
+                "ddra",
+                "port_b_input",
+                "port_a_input",
+                "sr",
+                "acr",
+                "pcr",
+                "ifr",
+                "ier",
+                "t1_counter",
+                "t1_latch",
+                "t1_running",
+                "t1_has_fired",
+                "t1_reload_delay",
+                "pb7_state",
+                "t2_counter",
+                "t2_latch",
+                "t2_running",
+                "t2_has_fired",
+                "t2_post_underflow",
+                "_t2_sr_shift_delay",
+                "ila",
+                "ilb",
+                "ca1_state",
+                "ca2_state",
+                "cb1_state",
+                "cb2_state",
+                "_sr_active",
+                "_sr_shift_counter",
+                "_sr_phase",
+                "_sr_latch",
+            ),
+            meta={"type": "VIA6522"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "orb",
+                "ora",
+                "ddrb",
+                "ddra",
+                "port_b_input",
+                "port_a_input",
+                "sr",
+                "acr",
+                "pcr",
+                "ifr",
+                "ier",
+                "t1_counter",
+                "t1_latch",
+                "t1_running",
+                "t1_has_fired",
+                "t1_reload_delay",
+                "pb7_state",
+                "t2_counter",
+                "t2_latch",
+                "t2_running",
+                "t2_has_fired",
+                "t2_post_underflow",
+                "_t2_sr_shift_delay",
+                "ila",
+                "ilb",
+                "ca1_state",
+                "ca2_state",
+                "cb1_state",
+                "cb2_state",
+                "_sr_active",
+                "_sr_shift_counter",
+                "_sr_phase",
+                "_sr_latch",
+            ),
+        )
         self._update_irq_line()
 
     def set_port_a_input(self, value: int) -> None:

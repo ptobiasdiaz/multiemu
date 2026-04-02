@@ -4,6 +4,8 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 cdef class HD6845:
     cdef public int selected_register
     cdef public list registers
@@ -82,5 +84,16 @@ cdef class HD6845:
     def display_start_address(self):
         return ((self.registers[12] << 8) | self.registers[13]) & 0x3FFF
 
-CPCCRTC = HD6845
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=("selected_register",),
+            meta={"type": "HD6845"},
+        ) | {"registers": list(self.registers)}
 
+    def write_state(self, state: dict) -> None:
+        write_state_fields(self, state, scalar_fields=("selected_register",))
+        if "registers" in state:
+            self.registers[:] = [int(v) & 0xFF for v in state["registers"][: self.REGISTER_COUNT]]
+
+CPCCRTC = HD6845

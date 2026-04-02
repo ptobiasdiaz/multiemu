@@ -7,6 +7,8 @@
 from array import array
 from dataclasses import dataclass, field
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 @dataclass(slots=True)
 class AY38912:
@@ -274,3 +276,51 @@ class AY38912:
     @property
     def _envelope_attack(self) -> bool:
         return bool(self.registers[13] & 0x04)
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "clock_hz",
+                "sample_rate",
+                "selected_register",
+                "last_read_value",
+                "sample_phase",
+                "noise_counter",
+                "noise_output",
+                "noise_lfsr",
+                "envelope_counter",
+                "envelope_step",
+                "envelope_holding",
+            ),
+            meta={"type": "AY38912"},
+        ) | {
+            "registers": list(self.registers),
+            "tone_counters": list(self.tone_counters),
+            "tone_outputs": list(self.tone_outputs),
+        }
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "clock_hz",
+                "sample_rate",
+                "selected_register",
+                "last_read_value",
+                "sample_phase",
+                "noise_counter",
+                "noise_output",
+                "noise_lfsr",
+                "envelope_counter",
+                "envelope_step",
+                "envelope_holding",
+            ),
+        )
+        if "registers" in state:
+            self.registers[:] = [int(v) & 0xFF for v in state["registers"][:16]]
+        if "tone_counters" in state:
+            self.tone_counters[:] = [int(v) for v in state["tone_counters"][:3]]
+        if "tone_outputs" in state:
+            self.tone_outputs[:] = [int(v) for v in state["tone_outputs"][:3]]

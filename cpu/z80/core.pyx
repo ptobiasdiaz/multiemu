@@ -2299,3 +2299,91 @@ cdef class Z80Core:
             "IM": self.im,
             "halted": bool(self.halted),
         }
+
+    cpdef dict read_state(self):
+        return {
+            "__meta__": {"type": "Z80Core"},
+            "A": self.A,
+            "F": self.F,
+            "B": self.B,
+            "C": self.C,
+            "D": self.D,
+            "E": self.E,
+            "H": self.H,
+            "L": self.L,
+            "A2": self.A2,
+            "F2": self.F2,
+            "B2": self.B2,
+            "C2": self.C2,
+            "D2": self.D2,
+            "E2": self.E2,
+            "H2": self.H2,
+            "L2": self.L2,
+            "IX": self.IX,
+            "IY": self.IY,
+            "I": self.I,
+            "R": self.R,
+            "PC": self.PC,
+            "SP": self.SP,
+            "halted": bool(self.halted),
+            "iff1": bool(self.iff1),
+            "iff2": bool(self.iff2),
+            "im": self.im,
+            "ei_pending": bool(self.ei_pending),
+        }
+
+    cpdef void write_state(self, dict state):
+        if "A" in state:
+            self.A = state["A"] & 0xFF
+        if "F" in state:
+            self.F = state["F"] & 0xFF
+        if "B" in state:
+            self.B = state["B"] & 0xFF
+        if "C" in state:
+            self.C = state["C"] & 0xFF
+        if "D" in state:
+            self.D = state["D"] & 0xFF
+        if "E" in state:
+            self.E = state["E"] & 0xFF
+        if "H" in state:
+            self.H = state["H"] & 0xFF
+        if "L" in state:
+            self.L = state["L"] & 0xFF
+        if "A2" in state:
+            self.A2 = state["A2"] & 0xFF
+        if "F2" in state:
+            self.F2 = state["F2"] & 0xFF
+        if "B2" in state:
+            self.B2 = state["B2"] & 0xFF
+        if "C2" in state:
+            self.C2 = state["C2"] & 0xFF
+        if "D2" in state:
+            self.D2 = state["D2"] & 0xFF
+        if "E2" in state:
+            self.E2 = state["E2"] & 0xFF
+        if "H2" in state:
+            self.H2 = state["H2"] & 0xFF
+        if "L2" in state:
+            self.L2 = state["L2"] & 0xFF
+        if "IX" in state:
+            self.IX = state["IX"] & 0xFFFF
+        if "IY" in state:
+            self.IY = state["IY"] & 0xFFFF
+        if "I" in state:
+            self.I = state["I"] & 0xFF
+        if "R" in state:
+            self.R = state["R"] & 0xFF
+        if "PC" in state:
+            self.PC = state["PC"] & 0xFFFF
+        if "SP" in state:
+            self.SP = state["SP"] & 0xFFFF
+        if "halted" in state:
+            self.halted = bool(state["halted"])
+        if "iff1" in state:
+            self.iff1 = bool(state["iff1"])
+        if "iff2" in state:
+            self.iff2 = bool(state["iff2"])
+        if "im" in state:
+            self.im = state["im"] & 0x03
+        if "ei_pending" in state:
+            self.ei_pending = bool(state["ei_pending"])

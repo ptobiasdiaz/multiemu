@@ -69,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--port", type=int, default=8765, help="bind port")
     serve_parser.set_defaults(handler=_handle_serve)
 
+    debug_parser = subparsers.add_parser("debug", help="serve a machine with debug controls over TCP")
+    _add_machine_argument(debug_parser)
+    _add_common_machine_options(debug_parser)
+    debug_parser.add_argument("--host", default="127.0.0.1", help="bind host")
+    debug_parser.add_argument("--port", type=int, default=8765, help="bind port")
+    debug_parser.set_defaults(handler=_handle_debug)
+
     connect_parser = subparsers.add_parser("connect", help="connect to a remote session")
     connect_parser.add_argument(
         "--transport",
@@ -210,6 +217,32 @@ def _handle_serve(args) -> int:
         # Keep Ctrl-C as a clean operational shutdown for long-running servers
         # instead of surfacing a traceback to the user.
         print("multiemu: servidor detenido por el usuario (Ctrl-C)", file=sys.stderr)
+        return 130
+    return 0
+
+
+def _handle_debug(args) -> int:
+    """Serve a machine over TCP with debug pause/step controls."""
+
+    from frontend.tcp_debug_frontend import TcpDebugFrontend
+
+    machine = instantiate_machine(
+        args.machine,
+        roms=parse_cli_rom_specs(args.machine, args.rom),
+        display_profile=args.display_profile,
+    )
+    app = TcpDebugFrontend(
+        machine,
+        host=args.host,
+        port=args.port,
+        fps_limit=args.fps,
+        audio_sample_rate=args.audio_sample_rate,
+        audio_chunk_size=args.audio_chunk_size,
+    )
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        print("multiemu: debug detenido por el usuario (Ctrl-C)", file=sys.stderr)
         return 130
     return 0
 

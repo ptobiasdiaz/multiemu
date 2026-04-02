@@ -48,6 +48,45 @@ def test_m6502_reset_vector_is_loaded_from_fffc():
     assert cpu.snapshot()["PC"] == 0xF800
 
 
+def test_m6502_read_state_write_state_roundtrip():
+    bus, cpu = _make_test_cpu(b"\xEA")
+    cpu.A = 0x12
+    cpu.X = 0x34
+    cpu.Y = 0x56
+    cpu.SP = 0x9A
+    cpu.P = FLAG_C | FLAG_Z
+    cpu.PC = 0xF812
+    cpu.halted = True
+    cpu.bus.irq_pending = True
+    cpu.bus.nmi_pending = False
+
+    state = cpu.read_state()
+
+    other_bus, other = _make_test_cpu(b"\xEA")
+    other.write_state(state)
+
+    assert other.read_state() == state
+
+
+def test_m6502_bus_and_memory_read_state_write_state_roundtrip():
+    bus = M6502Bus()
+    ram = RAMBlock(0x20)
+    ram.load(0, bytes(range(0x20)))
+    bus.irq_pending = True
+    bus.nmi_pending = False
+
+    bus_state = bus.read_state()
+    ram_state = ram.read_state()
+
+    other_bus = M6502Bus()
+    other_ram = RAMBlock(0x20)
+    other_bus.write_state(bus_state)
+    other_ram.write_state(ram_state)
+
+    assert other_bus.read_state() == bus_state
+    assert other_ram.read_state() == ram_state
+
+
 def test_m6502_can_store_accumulator_to_absolute_memory():
     bus, cpu = _make_test_cpu(
         bytes(

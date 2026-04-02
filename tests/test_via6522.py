@@ -16,6 +16,25 @@ def test_via6522_port_reads_respect_ddr_masks():
     assert via.read(0x01) == 0x53
 
 
+def test_via6522_read_state_write_state_roundtrip():
+    via = VIA6522()
+    via.write(0x02, 0xF0)
+    via.write(0x03, 0x0F)
+    via.write(0x0B, via.ACR_T1_FREE_RUN | via.ACR_PB_LATCH)
+    via.write(0x0C, via.PCR_CA2_HIGH_OUTPUT | via.PCR_CB2_LOW_OUTPUT)
+    via.write(0x0E, 0xE0)
+    via.write(0x04, 0x34)
+    via.write(0x05, 0x12)
+    via.run_cycles(5)
+
+    state = via.read_state()
+
+    other = VIA6522()
+    other.write_state(state)
+
+    assert other.read_state() == state
+
+
 def test_via6522_timer1_sets_ifr_and_irq_when_enabled():
     events: list[str] = []
     via = VIA6522()

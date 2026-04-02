@@ -46,6 +46,20 @@ def test_gameboy_serial_registers_roundtrip_through_io_handlers():
     assert machine.bus.read8(0xFF02) == 0xFF
 
 
+def test_gameboy_joypad_read_state_write_state_roundtrip():
+    joypad = DMG(_make_test_rom()).joypad
+    joypad.write_p1(0x20)
+    joypad.press(0, 1)
+    joypad.press(1, 2)
+
+    state = joypad.read_state()
+
+    other = DMG(_make_test_rom()).joypad
+    other.write_state(state)
+
+    assert other.read_state() == state
+
+
 def test_gameboy_apu_channel_1_can_generate_audio_samples():
     machine = DMG(_make_test_rom())
 

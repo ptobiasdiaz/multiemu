@@ -117,3 +117,45 @@ class CPCDiskImage:
             if sector.r == (sector_id & 0xFF):
                 return sector
         return None
+
+    def read_state(self) -> dict:
+        tracks = {}
+        for (track_no, side_no), track in self.tracks.items():
+            tracks[f"{track_no}:{side_no}"] = {
+                "track": track.track,
+                "side": track.side,
+                "sectors": [
+                    {
+                        "c": sector.c,
+                        "h": sector.h,
+                        "r": sector.r,
+                        "n": sector.n,
+                        "st1": sector.st1,
+                        "st2": sector.st2,
+                        "data": list(sector.data),
+                    }
+                    for sector in track.sectors
+                ],
+            }
+        return {"__meta__": {"type": "CPCDiskImage"}, "tracks": tracks}
+
+    def write_state(self, state: dict) -> None:
+        if "tracks" not in state:
+            return
+        tracks: dict[tuple[int, int], CPCDiskTrack] = {}
+        for key, track in state["tracks"].items():
+            track_no, side_no = (int(part) for part in key.split(":", 1))
+            sectors = tuple(
+                CPCDiskSector(
+                    c=int(sector["c"]),
+                    h=int(sector["h"]),
+                    r=int(sector["r"]),
+                    n=int(sector["n"]),
+                    st1=int(sector["st1"]),
+                    st2=int(sector["st2"]),
+                    data=bytes(int(v) & 0xFF for v in sector["data"]),
+                )
+                for sector in track["sectors"]
+            )
+            tracks[(track_no, side_no)] = CPCDiskTrack(track=int(track["track"]), side=int(track["side"]), sectors=sectors)
+        self.tracks = tracks

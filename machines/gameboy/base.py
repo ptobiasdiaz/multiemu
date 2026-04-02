@@ -199,3 +199,15 @@ class GameBoyMachineBase(BaseMachine):
         snap["interrupt_enable"] = self.bus.interrupt_enable
         snap["interrupt_flags"] = self.interrupts.interrupt_flags
         return snap
+
+    def debug_devices(self) -> list[dict]:
+        return super().debug_devices() + [
+            self._debug_device("cartridge", self.cartridge, "memory", label="Cartridge"),
+            self._debug_device("interrupts", self.interrupts, "device", label="Interrupt controller"),
+            self._debug_device("joypad", self.joypad, "device", label="Joypad"),
+            self._debug_device("serial", self.serial, "device", label="Serial"),
+            self._debug_device("timer", self.timer, "device", label="Timer"),
+            self._debug_device("ppu", self.ppu, "chip", label="PPU"),
+            self._debug_device("apu", self.apu, "chip", label="APU"),
+            self._debug_device("dma", self.dma, "device", label="DMA"),
+        ]

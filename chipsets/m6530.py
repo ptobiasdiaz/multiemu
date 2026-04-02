@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 class M6530:
     """Minimal 6530 RIOT model for the KIM-1 monitor."""
@@ -285,3 +287,72 @@ class M6530:
         segments = self.port_a & self.ddr_a
         if self.active_digit is not None and segments != 0:
             self.display_digits[self.active_digit] = segments & 0x7F
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "port_a",
+                "port_b",
+                "ddr_a",
+                "ddr_b",
+                "port_a_input",
+                "port_b_input",
+                "keyboard_mode",
+                "timer",
+                "timer_divider",
+                "timer_elapsed",
+                "timer_timeout",
+                "active_digit",
+                "active_key_row",
+                "clock",
+                "tty_bit_cycles",
+                "tty_calibration_scale",
+                "_tty_rx_idle_high",
+                "_tty_rx_line_high",
+                "_tty_rx_next_cycle",
+                "_tty_tx_last_level",
+            ),
+            meta={"type": "M6530"},
+        ) | {
+            "display_digits": list(self.display_digits),
+            "key_rows": list(self.key_rows),
+            "_tty_rx_schedule": [[int(cycle), bool(level)] for cycle, level in self._tty_rx_schedule],
+            "_tty_tx_edges": [[int(cycle), int(level)] for cycle, level in self._tty_tx_edges],
+        }
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "port_a",
+                "port_b",
+                "ddr_a",
+                "ddr_b",
+                "port_a_input",
+                "port_b_input",
+                "keyboard_mode",
+                "timer",
+                "timer_divider",
+                "timer_elapsed",
+                "timer_timeout",
+                "active_digit",
+                "active_key_row",
+                "clock",
+                "tty_bit_cycles",
+                "tty_calibration_scale",
+                "_tty_rx_idle_high",
+                "_tty_rx_line_high",
+                "_tty_rx_next_cycle",
+                "_tty_tx_last_level",
+            ),
+        )
+        if "display_digits" in state:
+            self.display_digits = [int(v) & 0x7F for v in state["display_digits"][:6]]
+        if "key_rows" in state:
+            self.key_rows = [int(v) & 0xFF for v in state["key_rows"][:3]]
+        if "_tty_rx_schedule" in state:
+            self._tty_rx_schedule = [(int(cycle), bool(level)) for cycle, level in state["_tty_rx_schedule"]]
+        if "_tty_tx_edges" in state:
+            self._tty_tx_edges = [(int(cycle), int(level) & 0x01) for cycle, level in state["_tty_tx_edges"]]

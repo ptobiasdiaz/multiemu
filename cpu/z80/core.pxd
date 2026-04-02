@@ -97,6 +97,8 @@ cdef class Z80Core:
     cpdef int step(self)
     cpdef int run_cycles(self, int cycles)
     cpdef dict snapshot(self)
+    cpdef dict read_state(self)
+    cpdef void write_state(self, dict state)
     cpdef bint is_halted(self)
     cpdef bint interrupts_enabled(self)
     cpdef interrupt(self)

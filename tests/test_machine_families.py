@@ -33,6 +33,24 @@ def test_gameboy_color_family_uses_gameboy_base():
     assert machine.bus.read8(0xFF70) == 0xF9
 
 
+def test_base_machine_read_state_write_state_roundtrip():
+    machine = DMG(_make_gameboy_rom())
+    machine.tstates = 123
+    machine.frame_counter = 7
+    machine.frame_tstates = 45
+    machine.cpu.A = 0x42
+
+    state = machine.read_state()
+
+    other = DMG(_make_gameboy_rom())
+    other.write_state(state)
+
+    assert other.tstates == 123
+    assert other.frame_counter == 7
+    assert other.frame_tstates == 45
+    assert other.cpu.A == 0x42
+
+
 def test_m6502_family_anchor_is_exposed_from_top_level_machines_package():
     assert M6502MachineBase.__name__ == "M6502MachineBase"
 

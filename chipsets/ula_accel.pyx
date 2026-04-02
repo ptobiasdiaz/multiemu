@@ -8,6 +8,7 @@ from array import array
 from video import get_display_profile
 
 from cpu.z80.memory cimport RAMBlock
+from multiemu.state_codec import read_state_fields, write_state_fields
 
 
 cdef class ULABeeper:
@@ -165,6 +166,50 @@ cdef class ULABeeper:
 
         self.total_samples_emitted = frame_end_sample
         return out
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "sample_rate",
+                "amplitude",
+                "tstates_per_frame",
+                "tstates_per_second",
+                "samples_per_frame",
+                "current_level",
+                "start_level",
+                "frame_start_tstate",
+                "total_tstates",
+                "total_samples_emitted",
+                "filter_state_1",
+                "filter_state_2",
+            ),
+            array_fields=("frame_samples",),
+            meta={"type": "ULABeeper"},
+        ) | {"events": [[int(t), int(level)] for t, level in self.events]}
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "sample_rate",
+                "amplitude",
+                "tstates_per_frame",
+                "tstates_per_second",
+                "samples_per_frame",
+                "current_level",
+                "start_level",
+                "frame_start_tstate",
+                "total_tstates",
+                "total_samples_emitted",
+                "filter_state_1",
+                "filter_state_2",
+            ),
+            array_fields=("frame_samples",),
+        )
+        if "events" in state:
+            self.events = [(int(item[0]), int(item[1])) for item in state["events"]]
 
 
 cdef class Spectrum48KULA:
@@ -328,3 +373,42 @@ cdef class Spectrum48KULA:
 
     cdef bytearray _make_blank_frame_rgb24(self, tuple rgb):
         return bytearray(bytes(rgb) * (self.frame_width * self.frame_height))
+
+    def read_state(self) -> dict:
+        state = read_state_fields(
+            self,
+            scalar_fields=(
+                "last_tstates",
+                "flash_phase",
+                "flash_counter",
+                "border_left",
+                "border_right",
+                "border_top",
+                "border_bottom",
+                "frame_width",
+                "frame_height",
+            ),
+            meta={"type": "Spectrum48KULA"},
+        )
+        state["beeper"] = self.beeper.read_state()
+        return state
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "last_tstates",
+                "flash_phase",
+                "flash_counter",
+                "border_left",
+                "border_right",
+                "border_top",
+                "border_bottom",
+                "frame_width",
+                "frame_height",
+            ),
+        )
+        if "beeper" in state:
+            self.beeper.write_state(state["beeper"])
+        self.framebuffer_rgb24 = self.render_frame()

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 class GameBoySerialPort:
     """Models SB/SC with conservative DMG post-boot defaults."""
@@ -24,3 +26,13 @@ class GameBoySerialPort:
 
     def write_sc(self, value: int) -> None:
         self.sc = value & 0x81
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=("sb", "sc"),
+            meta={"type": "GameBoySerialPort"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(self, state, scalar_fields=("sb", "sc"))

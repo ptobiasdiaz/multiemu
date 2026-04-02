@@ -4,6 +4,7 @@
 from libc.stdlib cimport malloc, free
 from .types cimport uint8_t, uint16_t, uint32_t
 from .memory cimport MemoryBlock
+from multiemu.state_codec import read_state_fields, write_state_fields
 
 
 cdef class MemoryBlock:
@@ -52,6 +53,28 @@ cdef class MemoryBlock:
         if addr < 0 or addr >= self.size:
             raise ValueError("peek fuera de rango")
         return self.data[addr]
+
+    def read_state(self) -> dict:
+        cdef int i
+        state = {
+            "__meta__": {"type": type(self).__name__},
+            "size": int(self.size),
+            "writable": bool(self.writable),
+        }
+        state["data"] = [self.data[i] for i in range(self.size)]
+        return state
+
+    def write_state(self, state: dict) -> None:
+        cdef int i
+        cdef list data
+        if "writable" in state:
+            self.writable = bool(state["writable"])
+        if "data" in state:
+            data = state["data"]
+            if len(data) != self.size:
+                raise ValueError("longitud de data incompatible con bloque de memoria")
+            for i in range(self.size):
+                self.data[i] = data[i] & 0xFF
 
 
 cdef class RAMBlock(MemoryBlock):

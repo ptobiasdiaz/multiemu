@@ -41,6 +41,58 @@ def test_z80_can_read_back_from_memory_mapped_device():
     assert snap["halted"] is True
 
 
+def test_z80_read_state_write_state_roundtrip():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    state = {
+        "A": 0x12,
+        "F": 0x34,
+        "B": 0x56,
+        "C": 0x78,
+        "D": 0x9A,
+        "E": 0xBC,
+        "H": 0xDE,
+        "L": 0xF0,
+        "A2": 0x11,
+        "F2": 0x22,
+        "B2": 0x33,
+        "C2": 0x44,
+        "D2": 0x55,
+        "E2": 0x66,
+        "H2": 0x77,
+        "L2": 0x88,
+        "IX": 0x1357,
+        "IY": 0x2468,
+        "I": 0x99,
+        "R": 0xAA,
+        "PC": 0x4000,
+        "SP": 0xC000,
+        "halted": True,
+        "iff1": True,
+        "iff2": False,
+        "im": 2,
+        "ei_pending": True,
+    }
+    cpu.write_state(state)
+    state = cpu.read_state()
+
+    other = Z80Core(Z80Bus())
+    other.write_state(state)
+
+    assert other.read_state() == state
+
+
+def test_z80_memory_read_state_write_state_roundtrip():
+    block = RAMBlock(0x20)
+    block.load(0, bytes(range(0x20)))
+    state = block.read_state()
+
+    other = RAMBlock(0x20)
+    other.write_state(state)
+
+    assert other.read_state() == state
+
+
 def test_z80_run_cycles_keeps_counting_clock_while_halted():
     bus = Z80Bus()
     cpu = Z80Core(bus)

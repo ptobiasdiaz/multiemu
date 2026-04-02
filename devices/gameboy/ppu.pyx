@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from cpu.lr35902.bus cimport LR35902Bus
+from multiemu.state_codec import read_state_fields, write_state_fields
 
 
 cdef class GameBoyPPU:
@@ -569,3 +570,105 @@ cdef class GameBoyPPU:
     cdef bytes _make_blank_frame(self, tuple rgb):
         cdef bytes pixel = bytes(rgb)
         return pixel * (self.FRAME_WIDTH * self.FRAME_HEIGHT)
+
+    def read_state(self) -> dict:
+        state = read_state_fields(
+            self,
+            scalar_fields=(
+                "frame_width",
+                "frame_height",
+                "lcdc",
+                "stat",
+                "scy",
+                "scx",
+                "ly",
+                "lyc",
+                "bgp",
+                "obp0",
+                "obp1",
+                "wy",
+                "wx",
+                "cgb_mode",
+                "bgpi",
+                "obpi",
+                "_last_tstates",
+                "_last_mode",
+                "_last_ly",
+            ),
+            byte_fields=(
+                "bg_palette_data",
+                "obj_palette_data",
+                "bg_palette_rgb",
+                "obj_palette_rgb",
+                "_render_buffer",
+                "_bg_color_ids_buffer",
+                "_bg_priorities_buffer",
+            ),
+            meta={"type": "GameBoyPPU"},
+        )
+        state["_line_scx"] = list(self._line_scx)
+        state["_line_scy"] = list(self._line_scy)
+        state["_line_wx"] = list(self._line_wx)
+        state["_line_wy"] = list(self._line_wy)
+        state["_line_lcdc"] = list(self._line_lcdc)
+        state["_line_bgp"] = list(self._line_bgp)
+        state["_line_obp0"] = list(self._line_obp0)
+        state["_line_obp1"] = list(self._line_obp1)
+        state["_line_latched"] = [bool(v) for v in self._line_latched]
+        return state
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "frame_width",
+                "frame_height",
+                "lcdc",
+                "stat",
+                "scy",
+                "scx",
+                "ly",
+                "lyc",
+                "bgp",
+                "obp0",
+                "obp1",
+                "wy",
+                "wx",
+                "cgb_mode",
+                "bgpi",
+                "obpi",
+                "_last_tstates",
+                "_last_mode",
+                "_last_ly",
+            ),
+            byte_fields=(
+                "bg_palette_data",
+                "obj_palette_data",
+                "bg_palette_rgb",
+                "obj_palette_rgb",
+                "_render_buffer",
+                "_bg_color_ids_buffer",
+                "_bg_priorities_buffer",
+            ),
+        )
+        if "_line_scx" in state:
+            self._line_scx = [int(v) & 0xFF for v in state["_line_scx"]]
+        if "_line_scy" in state:
+            self._line_scy = [int(v) & 0xFF for v in state["_line_scy"]]
+        if "_line_wx" in state:
+            self._line_wx = [int(v) & 0xFF for v in state["_line_wx"]]
+        if "_line_wy" in state:
+            self._line_wy = [int(v) & 0xFF for v in state["_line_wy"]]
+        if "_line_lcdc" in state:
+            self._line_lcdc = [int(v) & 0xFF for v in state["_line_lcdc"]]
+        if "_line_bgp" in state:
+            self._line_bgp = [int(v) & 0xFF for v in state["_line_bgp"]]
+        if "_line_obp0" in state:
+            self._line_obp0 = [int(v) & 0xFF for v in state["_line_obp0"]]
+        if "_line_obp1" in state:
+            self._line_obp1 = [int(v) & 0xFF for v in state["_line_obp1"]]
+        if "_line_latched" in state:
+            self._line_latched = [bool(v) for v in state["_line_latched"]]
+        self.framebuffer_rgb24 = bytes(self._render_buffer)
+        self._apply_bus_access(self._last_mode)

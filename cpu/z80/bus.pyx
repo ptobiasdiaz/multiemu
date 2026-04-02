@@ -5,6 +5,7 @@ from .types cimport uint8_t, uint16_t
 from .bus cimport Z80Bus, MemoryDevice
 from .memory cimport MemoryBlock
 from .io cimport PortHandler
+from multiemu.state_codec import read_state_fields
 
 cdef int PAGE_SHIFT = 12
 cdef int PAGE_SIZE = 0x1000
@@ -159,3 +160,19 @@ cdef class Z80Bus:
     cdef void io_write(self, uint16_t port, uint8_t value):
         cdef PortHandler handler = <PortHandler>self.port_handlers[port & 0xFF]
         handler.write(port, value)
+
+    def read_state(self) -> dict:
+        state = read_state_fields(self, meta={"type": "Z80Bus"})
+        state["pages"] = [
+            {
+                "page": page,
+                "block_type": None if self.page_blocks[page] is None else type(self.page_blocks[page]).__name__,
+                "device_type": None if self.page_devices[page] is None else type(self.page_devices[page]).__name__,
+                "writable": bool(self.page_writable[page]),
+            }
+            for page in range(PAGE_COUNT)
+        ]
+        return state
+
+    def write_state(self, state: dict) -> None:
+        return

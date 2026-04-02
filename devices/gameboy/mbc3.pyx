@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 cdef class MBC3:
     """Implements the common MBC3 banking behavior used by many DMG games."""
@@ -106,3 +108,37 @@ cdef class MBC3:
             offset = bank * self.RAM_BANK_SIZE + (addr - 0xA000)
             if offset < len(self.ram):
                 self.ram[offset] = value
+
+    def read_state(self) -> dict:
+        state = read_state_fields(
+            self,
+            scalar_fields=(
+                "rom_bank_count",
+                "ram_size",
+                "ram_enabled",
+                "rom_bank",
+                "ram_bank_or_rtc",
+                "rtc_latch_state",
+            ),
+            byte_fields=("ram",),
+            meta={"type": "MBC3"},
+        )
+        state["rtc_registers"] = dict(self.rtc_registers)
+        return state
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "rom_bank_count",
+                "ram_size",
+                "ram_enabled",
+                "rom_bank",
+                "ram_bank_or_rtc",
+                "rtc_latch_state",
+            ),
+            byte_fields=("ram",),
+        )
+        if "rtc_registers" in state:
+            self.rtc_registers = {int(k): int(v) & 0xFF for k, v in state["rtc_registers"].items()}

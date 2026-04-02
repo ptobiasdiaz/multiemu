@@ -4,6 +4,7 @@
 # cython: cdivision=True
 
 from libc.stdlib cimport malloc, free
+from multiemu.state_codec import read_state_fields, write_state_fields
 
 
 cdef class MemoryBlock:
@@ -48,6 +49,27 @@ cdef class MemoryBlock:
 
     cpdef int peek(self, int addr):
         return self.read(addr)
+
+    def read_state(self) -> dict:
+        cdef int i
+        state = read_state_fields(
+            self,
+            scalar_fields=("size", "writable"),
+            meta={"type": type(self).__name__},
+        )
+        state["data"] = [self.data[i] for i in range(self.size)]
+        return state
+
+    def write_state(self, state: dict) -> None:
+        cdef int i
+        cdef list data
+        write_state_fields(self, state, scalar_fields=("writable",))
+        if "data" in state:
+            data = state["data"]
+            if len(data) != self.size:
+                raise ValueError("longitud de data incompatible con bloque de memoria")
+            for i in range(self.size):
+                self.data[i] = data[i] & 0xFF
 
 
 cdef class RAMBlock(MemoryBlock):

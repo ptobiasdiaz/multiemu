@@ -5,6 +5,8 @@
 
 """Interrupt controller placeholder for the Game Boy."""
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 cdef class GameBoyInterruptController:
     """Tracks IF/IE and interrupt requests for the DMG."""
@@ -27,3 +29,13 @@ cdef class GameBoyInterruptController:
     cpdef void acknowledge(self, int bit):
         self.interrupt_flags &= ~(1 << bit)
         self.interrupt_flags &= 0x1F
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=("interrupt_enable", "interrupt_flags"),
+            meta={"type": "GameBoyInterruptController"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(self, state, scalar_fields=("interrupt_enable", "interrupt_flags"))

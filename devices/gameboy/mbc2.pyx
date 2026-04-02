@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 cdef class MBC2:
     """Implements the common MBC2 banking behavior."""
@@ -67,3 +69,19 @@ cdef class MBC2:
                 return
             offset = (addr - 0xA000) & 0x01FF
             self.ram[offset] = value & 0x0F
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=("rom_bank_count", "rom_bank", "ram_enabled"),
+            byte_fields=("ram",),
+            meta={"type": "MBC2"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=("rom_bank_count", "rom_bank", "ram_enabled"),
+            byte_fields=("ram",),
+        )

@@ -4,6 +4,8 @@
 # cython: initializedcheck=False
 # cython: cdivision=True
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 cdef class Intel8255:
     cdef public object machine
     cdef public int control
@@ -108,5 +110,43 @@ cdef class Intel8255:
             self.port_c_latch &= ~(1 << bit_index)
         self.machine._apply_psg_bus_control()
         self.machine._apply_tape_port_c()
+
+    def read_state(self) -> dict:
+        return read_state_fields(
+            self,
+            scalar_fields=(
+                "control",
+                "port_a_latch",
+                "port_b_latch",
+                "port_c_latch",
+                "last_port_a_read",
+                "last_port_a_write",
+                "last_control_write",
+                "port_a_input",
+                "port_b_input",
+                "port_c_upper_input",
+                "port_c_lower_input",
+            ),
+            meta={"type": "Intel8255"},
+        )
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "control",
+                "port_a_latch",
+                "port_b_latch",
+                "port_c_latch",
+                "last_port_a_read",
+                "last_port_a_write",
+                "last_control_write",
+                "port_a_input",
+                "port_b_input",
+                "port_c_upper_input",
+                "port_c_lower_input",
+            ),
+        )
 
 CPCPPI = Intel8255

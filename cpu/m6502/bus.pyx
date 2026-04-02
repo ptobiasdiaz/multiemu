@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 cdef int PAGE_SHIFT = 8
 cdef int PAGE_SIZE = 0x100
 cdef int PAGE_MASK = 0xFF
@@ -114,3 +116,22 @@ cdef class M6502Bus:
         cdef bint pending = self.nmi_pending
         self.nmi_pending = False
         return pending
+
+    def read_state(self) -> dict:
+        state = read_state_fields(
+            self,
+            scalar_fields=("irq_pending", "nmi_pending"),
+            meta={"type": "M6502Bus"},
+        )
+        state["mapped_ranges"] = [
+            {
+                "start": int(start),
+                "end": int(end),
+                "device_type": type(device).__name__,
+            }
+            for start, end, device in self._mapped
+        ]
+        return state
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(self, state, scalar_fields=("irq_pending", "nmi_pending"))

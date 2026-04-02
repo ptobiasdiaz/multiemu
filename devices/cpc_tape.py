@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 TZX_CLOCK_HZ = 3_500_000
 DEFAULT_CPC_CLOCK_HZ = 4_000_000
@@ -205,3 +207,27 @@ class CPCCassetteTape:
                 value = one_length if (byte & (0x80 >> bit)) else zero_length
                 add_pulse(value)
                 add_pulse(value)
+
+    def read_state(self) -> dict:
+        state = read_state_fields(
+            self,
+            scalar_fields=("motor_on", "playing", "_pulse_index", "_pulse_elapsed", "_level"),
+            meta={"type": "CPCCassetteTape"},
+        )
+        state["pulses"] = [
+            {"duration_tstates": pulse.duration_tstates, "level": pulse.level}
+            for pulse in self.pulses
+        ]
+        return state
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=("motor_on", "playing", "_pulse_index", "_pulse_elapsed", "_level"),
+        )
+        if "pulses" in state:
+            self.pulses = [
+                TapePulse(int(pulse["duration_tstates"]), int(pulse["level"]))
+                for pulse in state["pulses"]
+            ]

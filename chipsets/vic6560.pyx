@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from array import array
 
+from multiemu.state_codec import read_state_fields, write_state_fields
+
 
 class VIC6560:
     """Canonical VIC-I implementation for VIC-20 NTSC."""
@@ -197,6 +199,167 @@ class VIC6560:
     def configure_fetch_sources(self, *, char_rom, bus) -> None:
         self._fetch_char_rom = char_rom
         self._fetch_bus = bus
+
+    def _serialize_nested_rows(self, rows) -> list:
+        serialized = []
+        for row in rows:
+            if row is None:
+                serialized.append(None)
+                continue
+            serialized.append([None if item is None else list(item) for item in row])
+        return serialized
+
+    def _restore_nested_rows(self, rows) -> list:
+        restored = []
+        for row in rows:
+            if row is None:
+                restored.append(None)
+                continue
+            restored.append([None if item is None else tuple(item) for item in row])
+        return restored
+
+    def read_state(self) -> dict:
+        state = read_state_fields(
+            self,
+            scalar_fields=(
+                "sample_rate",
+                "cycles_per_second",
+                "_raster_line",
+                "_raster_cycle",
+                "_cycles_into_frame",
+                "_frame_raster_lines",
+                "_frame_width",
+                "_cycles_per_frame",
+                "_display_xstart",
+                "_display_xstop",
+                "_fetch_xstart",
+                "_fetch_xstop",
+                "_display_ystart",
+                "_display_ystop",
+                "_visible_raster_start",
+                "_visible_raster_lines",
+                "_area_state",
+                "_fetch_state",
+                "_buf_offset",
+                "_pending_text_cols",
+                "_text_cols",
+                "_text_lines",
+                "_row_increase_line",
+                "_ycounter",
+                "_row_counter",
+                "_memptr",
+                "_memptr_inc",
+                "_pending_memptr_update",
+                "_blank_this_line",
+                "_line_was_blank",
+                "_vbuf",
+                "_latched_reg0",
+                "_latched_reg1",
+                "_latched_screen_columns",
+                "_latched_screen_rows",
+                "_latched_char_height",
+                "_sound_counters",
+                "_sound_shift",
+                "_sound_output",
+                "_noise_lfsr",
+                "_noise_lfsr0_old",
+                "_sound_accum",
+                "_sound_accum_cycles",
+                "_sound_sample_clock",
+                "_fetch_open_bus_data",
+                "_fetch_open_bus_high",
+                "_lowpassbuf",
+                "_highpassbuf",
+                "_lowpassbeta",
+                "_highpassbeta",
+            ),
+            byte_fields=["registers"],
+            array_fields=["_frame_samples"],
+            meta={"type": "VIC6560"},
+        )
+        state["aux_events"] = [list(event) for event in self._aux_events]
+        state["bg_events"] = [list(event) for event in self._bg_events]
+        state["reverse_events"] = [list(event) for event in self._reverse_events]
+        state["foreground_events"] = [
+            [int(key), [list(event) for event in value]]
+            for key, value in sorted(self._foreground_events.items())
+        ]
+        state["frame_fetch_cells"] = self._serialize_nested_rows(self._frame_fetch_cells)
+        state["frame_fetch_contexts"] = self._serialize_nested_rows(self._frame_fetch_contexts)
+        state["completed_frame_fetch_cells"] = self._serialize_nested_rows(self._completed_frame_fetch_cells)
+        state["completed_frame_fetch_contexts"] = self._serialize_nested_rows(self._completed_frame_fetch_contexts)
+        return state
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(
+            self,
+            state,
+            scalar_fields=(
+                "sample_rate",
+                "cycles_per_second",
+                "_raster_line",
+                "_raster_cycle",
+                "_cycles_into_frame",
+                "_frame_raster_lines",
+                "_frame_width",
+                "_cycles_per_frame",
+                "_display_xstart",
+                "_display_xstop",
+                "_fetch_xstart",
+                "_fetch_xstop",
+                "_display_ystart",
+                "_display_ystop",
+                "_visible_raster_start",
+                "_visible_raster_lines",
+                "_area_state",
+                "_fetch_state",
+                "_buf_offset",
+                "_pending_text_cols",
+                "_text_cols",
+                "_text_lines",
+                "_row_increase_line",
+                "_ycounter",
+                "_row_counter",
+                "_memptr",
+                "_memptr_inc",
+                "_pending_memptr_update",
+                "_blank_this_line",
+                "_line_was_blank",
+                "_vbuf",
+                "_latched_reg0",
+                "_latched_reg1",
+                "_latched_screen_columns",
+                "_latched_screen_rows",
+                "_latched_char_height",
+                "_sound_counters",
+                "_sound_shift",
+                "_sound_output",
+                "_noise_lfsr",
+                "_noise_lfsr0_old",
+                "_sound_accum",
+                "_sound_accum_cycles",
+                "_sound_sample_clock",
+                "_fetch_open_bus_data",
+                "_fetch_open_bus_high",
+                "_lowpassbuf",
+                "_highpassbuf",
+                "_lowpassbeta",
+                "_highpassbeta",
+            ),
+            byte_fields=["registers"],
+            array_fields=["_frame_samples"],
+        )
+        self._aux_events = [tuple(event) for event in state.get("aux_events", [])]
+        self._bg_events = [tuple(event) for event in state.get("bg_events", [])]
+        self._reverse_events = [tuple(event) for event in state.get("reverse_events", [])]
+        self._foreground_events = {
+            int(key): [tuple(event) for event in events]
+            for key, events in state.get("foreground_events", [])
+        }
+        self._frame_fetch_cells = self._restore_nested_rows(state.get("frame_fetch_cells", []))
+        self._frame_fetch_contexts = self._restore_nested_rows(state.get("frame_fetch_contexts", []))
+        self._completed_frame_fetch_cells = self._restore_nested_rows(state.get("completed_frame_fetch_cells", []))
+        self._completed_frame_fetch_contexts = self._restore_nested_rows(state.get("completed_frame_fetch_contexts", []))
 
     def read(self, addr: int) -> int:
         reg = addr & 0x0F
