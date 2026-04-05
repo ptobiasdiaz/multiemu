@@ -15,7 +15,12 @@ import socket
 from collections import deque
 
 import pygame
-from frontend.keymap import get_pygame_gamepad_map, get_pygame_keymap
+from frontend.keymap import (
+    get_pygame_combo_keymap,
+    get_pygame_gamepad_map,
+    get_pygame_keymap,
+    resolve_pygame_key_controls,
+)
 
 try:
     import numpy as np
@@ -71,9 +76,11 @@ class TcpPygameClient:
         self.audio_byte_buffer = bytearray()
         self.use_surfarray = np is not None and hasattr(pygame, "surfarray")
         self.keymap = get_pygame_keymap(None)
+        self.combo_keymap = get_pygame_combo_keymap(None)
         self.gamepad_map = {}
         self.joystick_device_ids: list[str] = []
         self.active_keyboard_controls: set[tuple[int, int]] = set()
+        self._keyboard_key_bindings: dict[int, tuple[tuple[int, int], ...]] = {}
         self.active_gamepad_targets: set[tuple[str, int, int]] = set()
         self.active_control_frames: dict[tuple[int, int], int] = {}
         self.tap_pulse_frames: dict[tuple[int, int], int] = {}
@@ -172,6 +179,7 @@ class TcpPygameClient:
         self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
         frontend = welcome.get("frontend", {})
         self.keymap = get_pygame_keymap(frontend.get("keymap"))
+        self.combo_keymap = get_pygame_combo_keymap(frontend.get("keymap"))
         self.gamepad_map = get_pygame_gamepad_map(frontend.get("gamepad_map") or frontend.get("keymap"))
         self.joystick_device_ids = [
             str(device["device_id"])
@@ -217,13 +225,17 @@ class TcpPygameClient:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
                     return
-                control = self.keymap.get(event.key)
-                if control is not None:
-                    self.active_keyboard_controls.add(control)
-                    self.active_control_frames.setdefault(control, 0)
+                controls = resolve_pygame_key_controls(self.keymap, self.combo_keymap, event)
+                if controls:
+                    self._keyboard_key_bindings[event.key] = controls
+                    for control in controls:
+                        self.active_keyboard_controls.add(control)
+                        self.active_control_frames.setdefault(control, 0)
             elif event.type == pygame.KEYUP:
-                control = self.keymap.get(event.key)
-                if control is not None:
+                controls = self._keyboard_key_bindings.pop(event.key, None)
+                if controls is None:
+                    controls = resolve_pygame_key_controls(self.keymap, self.combo_keymap, event)
+                for control in controls:
                     held_frames = self.active_control_frames.get(control, 0)
                     if held_frames <= self.QUICK_TAP_MAX_FRAMES:
                         if control in self.tap_pulse_frames:

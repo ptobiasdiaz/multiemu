@@ -25,7 +25,44 @@ from frontend.input_events import (
 )
 from machines.base import BaseMachine
 from machines.frame_runner import ScanlineFrameRunner
+from multiemu.state_codec import write_state_fields
 from video import get_display_profile
+
+
+class CPCBankedRAM:
+    """Simple 128K RAM container used by CPC6128 without changing the Z80 core."""
+
+    def __init__(self, size: int):
+        if size <= 0:
+            raise ValueError("size fuera de rango")
+        self.size = int(size)
+        self._data = bytearray(self.size)
+
+    def peek(self, addr: int) -> int:
+        return self._data[addr % self.size]
+
+    def load(self, addr: int, data: bytes) -> None:
+        if not data:
+            return
+        end = addr + len(data)
+        if not (0 <= addr <= self.size) or end > self.size:
+            raise ValueError("el rango debe caer dentro de la RAM")
+        self._data[addr:end] = data
+
+    def read_state(self) -> dict:
+        return {
+            "__meta__": {"type": "CPCBankedRAM"},
+            "size": self.size,
+            "data": list(self._data),
+        }
+
+    def write_state(self, state: dict) -> None:
+        write_state_fields(self, state, scalar_fields=("size",))
+        if "data" in state:
+            payload = bytes(int(v) & 0xFF for v in state["data"])
+            if len(payload) != self.size:
+                raise ValueError("longitud de RAM incompatible")
+            self._data[:] = payload
 
 
 class CPCMemoryMap(MemoryDevice):
@@ -43,12 +80,12 @@ class CPCMemoryMap(MemoryDevice):
             if active_upper_rom is not None:
                 return active_upper_rom.peek(addr - 0xC000)
 
-        return self.machine.ram.peek(addr)
+        return self.machine.ram.peek(self.machine._cpu_ram_offset(addr))
 
     def write(self, addr, value):
         # On the CPC the RAM is always physically present, even where ROM is
         # currently visible. Writes therefore always land in RAM underneath.
-        self.machine.ram.load(addr, bytes([value & 0xFF]))
+        self.machine.ram.load(self.machine._cpu_ram_offset(addr), bytes([value & 0xFF]))
 
 
 class CPC464(BaseMachine):
@@ -100,6 +137,7 @@ class CPC464(BaseMachine):
         *,
         basic_rom_data: bytes | None = None,
         amsdos_rom_data: bytes | None = None,
+        expansion_rom_data: bytes | None = None,
         tape_data: bytes | None = None,
         disk_data: bytes | None = None,
         fast_tape: bool | None = None,
@@ -116,7 +154,7 @@ class CPC464(BaseMachine):
 
         self.lower_rom = ROMBlock(self.ROM_SIZE)
         self.upper_rom = ROMBlock(self.ROM_SIZE)
-        self.ram = RAMBlock(self.RAM_SIZE)
+        self.ram = self._allocate_ram()
         self.upper_rom_banks: dict[int, ROMBlock] = {}
         self.selected_upper_rom_bank = 0
 
@@ -126,6 +164,8 @@ class CPC464(BaseMachine):
             self.load_upper_rom_bank(0, basic_rom_data)
         if amsdos_rom_data is not None:
             self.load_upper_rom_bank(7, amsdos_rom_data)
+        if expansion_rom_data is not None:
+            self.load_upper_rom_bank(1, expansion_rom_data)
 
         self.lower_rom_enabled = True
         self.upper_rom_enabled = bool(self.upper_rom_banks)
@@ -361,6 +401,8 @@ class CPC464(BaseMachine):
     def load_upper_rom_bank(self, bank: int, data: bytes):
         """Load a banked upper ROM image, e.g. BASIC or AMSDOS."""
 
+        if len(data) == self.ROM_SIZE + 0x80:
+            data = data[0x80:]
         rom = ROMBlock(self.ROM_SIZE)
         rom.load_bytes(data)
         bank &= 0xFF
@@ -394,9 +436,15 @@ class CPC464(BaseMachine):
     def load_ram(self, addr: int, data: bytes):
         """Load raw data into CPC RAM regardless of current ROM visibility."""
 
-        if not (0 <= addr <= 0xFFFF) or addr + len(data) > self.RAM_SIZE:
-            raise ValueError("el rango debe caer dentro de la RAM 0x0000-0xFFFF")
+        if not (0 <= addr < self.RAM_SIZE) or addr + len(data) > self.RAM_SIZE:
+            raise ValueError(f"el rango debe caer dentro de la RAM 0x0000-0x{self.RAM_SIZE - 1:05X}")
         self.ram.load(addr, data)
+
+    def _cpu_ram_offset(self, addr: int) -> int:
+        return addr & 0xFFFF
+
+    def _allocate_ram(self):
+        return RAMBlock(self.RAM_SIZE)
 
     def snapshot(self) -> dict:
         """Return CPU state plus the current ROM visibility flags."""
@@ -661,6 +709,7 @@ class CPC664(CPC464):
         *,
         basic_rom_data: bytes | None = None,
         amsdos_rom_data: bytes | None = None,
+        expansion_rom_data: bytes | None = None,
         tape_data: bytes | None = None,
         disk_data: bytes | None = None,
         fast_tape: bool | None = None,
@@ -671,6 +720,7 @@ class CPC664(CPC464):
             rom_data,
             basic_rom_data=basic_rom_data,
             amsdos_rom_data=amsdos_rom_data,
+            expansion_rom_data=expansion_rom_data,
             tape_data=tape_data,
             disk_data=disk_data,
             fast_tape=fast_tape,
@@ -679,3 +729,77 @@ class CPC664(CPC464):
         )
         self.machine_id = "cpc664"
         self.display_name = "Amstrad CPC 664 (experimental)"
+
+
+class CPC6128(CPC464):
+    """Amstrad CPC 6128 variant with first-pass 128K RAM banking."""
+
+    RAM_SIZE = 0x20000
+    _RAM_CONFIGURATIONS = (
+        (0, 1, 2, 3),
+        (0, 1, 2, 7),
+        (4, 5, 6, 7),
+        (0, 3, 2, 7),
+        (0, 4, 2, 3),
+        (0, 5, 2, 3),
+        (0, 6, 2, 3),
+        (0, 7, 2, 3),
+    )
+
+    def __init__(
+        self,
+        rom_data: bytes | None = None,
+        *,
+        basic_rom_data: bytes | None = None,
+        amsdos_rom_data: bytes | None = None,
+        expansion_rom_data: bytes | None = None,
+        tape_data: bytes | None = None,
+        disk_data: bytes | None = None,
+        fast_tape: bool | None = None,
+        audio_sample_rate: int = 44100,
+        display_profile: str = "default",
+    ):
+        self.ram_bank_configuration = 0
+        self._cpu_ram_banks = [0, 1, 2, 3]
+        super().__init__(
+            rom_data,
+            basic_rom_data=basic_rom_data,
+            amsdos_rom_data=amsdos_rom_data,
+            expansion_rom_data=expansion_rom_data,
+            tape_data=tape_data,
+            disk_data=disk_data,
+            fast_tape=fast_tape,
+            audio_sample_rate=audio_sample_rate,
+            display_profile=display_profile,
+        )
+        self.machine_id = "cpc6128"
+        self.display_name = "Amstrad CPC 6128 (experimental)"
+
+    def reset(self):
+        super().reset()
+        self._select_ram_configuration(0)
+
+    def _cpu_ram_offset(self, addr: int) -> int:
+        page = (addr >> 14) & 0x03
+        bank = self._cpu_ram_banks[page] & 0x07
+        return (bank << 14) | (addr & 0x3FFF)
+
+    def _allocate_ram(self):
+        return CPCBankedRAM(self.RAM_SIZE)
+
+    def _select_ram_configuration(self, config: int) -> None:
+        config &= 0x07
+        self.ram_bank_configuration = config
+        self._cpu_ram_banks[:] = list(self._RAM_CONFIGURATIONS[config])
+
+    def snapshot(self) -> dict:
+        snap = super().snapshot()
+        snap["ram_bank_configuration"] = self.ram_bank_configuration
+        snap["cpu_ram_banks"] = list(self._cpu_ram_banks)
+        return snap
+
+    def _port_write(self, port: int, value: int) -> None:
+        if (port & 0xC000) == 0x4000 and ((value >> 6) & 0b11) == 0b11:
+            self._select_ram_configuration(value & 0x07)
+            return
+        super()._port_write(port, value)

@@ -14,7 +14,7 @@ import warnings
 
 from machines.gameboy import CGB, DMG
 from machines.m6502 import KIM1, VIC20NTSC, VIC20PAL
-from machines.z80 import CPC464, CPC664, Spectrum16K, Spectrum48K
+from machines.z80 import CPC464, CPC6128, CPC664, Spectrum16K, Spectrum48K
 from video import get_display_profile
 
 
@@ -57,6 +57,7 @@ def _build_cpc464(roms: dict[str, bytes], display_profile: str) -> CPC464:
         os_rom,
         basic_rom_data=basic_rom,
         amsdos_rom_data=roms.get("amsdos"),
+        expansion_rom_data=roms.get("expansion"),
         tape_data=roms.get("tape"),
         disk_data=roms.get("disk"),
         display_profile=display_profile,
@@ -69,6 +70,19 @@ def _build_cpc664(roms: dict[str, bytes], display_profile: str) -> CPC664:
         os_rom,
         basic_rom_data=basic_rom,
         amsdos_rom_data=roms.get("amsdos"),
+        expansion_rom_data=roms.get("expansion"),
+        disk_data=roms.get("disk"),
+        display_profile=display_profile,
+    )
+
+
+def _build_cpc6128(roms: dict[str, bytes], display_profile: str) -> CPC6128:
+    os_rom, basic_rom = _split_cpc_system_roms(roms)
+    return CPC6128(
+        os_rom,
+        basic_rom_data=basic_rom,
+        amsdos_rom_data=roms.get("amsdos"),
+        expansion_rom_data=roms.get("expansion"),
         disk_data=roms.get("disk"),
         display_profile=display_profile,
     )
@@ -148,6 +162,12 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 required=False,
             ),
             RomSlotSpec(
+                slot_id="expansion",
+                description="ROM alta de expansión/cartucho CPC",
+                filenames=(),
+                required=False,
+            ),
+            RomSlotSpec(
                 slot_id="tape",
                 description="Imagen de cassette CDT/TZX para CPC464",
                 filenames=("program.cdt", "tape.cdt"),
@@ -184,8 +204,50 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 required=False,
             ),
             RomSlotSpec(
+                slot_id="expansion",
+                description="ROM alta de expansión/cartucho CPC",
+                filenames=(),
+                required=False,
+            ),
+            RomSlotSpec(
                 slot_id="disk",
                 description="Imagen DSK para CPC664",
+                filenames=("disk.dsk", "program.dsk"),
+                required=False,
+            ),
+        ),
+    ),
+    "cpc6128": MachineSpec(
+        machine_id="cpc6128",
+        display_name="Amstrad CPC 6128 (experimental)",
+        factory=_build_cpc6128,
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="os",
+                description="ROM baja del sistema CPC6128",
+                filenames=("OS_6128.ROM", "OS_6128_BASIC_1.1.ROM", "cpc6128_os.rom", "cpc6128.rom"),
+            ),
+            RomSlotSpec(
+                slot_id="basic",
+                description="ROM alta de BASIC del CPC6128",
+                filenames=("BASIC_1.1.ROM", "BASIC_6128.ROM", "BASIC.ROM", "cpc6128_basic.rom"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="amsdos",
+                description="ROM AMSDOS del CPC6128",
+                filenames=("AMSDOS.ROM", "amsdos.rom", "cpc6128_amsdos.rom"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="expansion",
+                description="ROM alta de expansión/cartucho CPC",
+                filenames=(),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="disk",
+                description="Imagen DSK para CPC6128",
                 filenames=("disk.dsk", "program.dsk"),
                 required=False,
             ),
@@ -718,7 +780,7 @@ def instantiate_machine(
                 rom_bytes[slot_id] = payload
                 seen_slots.add(slot_id)
 
-    if spec.machine_id in {"cpc464", "cpc664"} and "os" in rom_bytes and len(rom_bytes["os"]) == 0x8000:
+    if spec.machine_id in {"cpc464", "cpc664", "cpc6128"} and "os" in rom_bytes and len(rom_bytes["os"]) == 0x8000:
         if "basic" in explicit_rom_slots:
             raise ValueError("no se puede combinar una ROM CPC de 32K en 'os' con un slot 'basic' explícito")
         combined = rom_bytes.pop("os")

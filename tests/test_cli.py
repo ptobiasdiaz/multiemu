@@ -47,6 +47,12 @@ def test_machine_registry_exposes_cpc664():
     assert spec.rom_slots[0].slot_id == "os"
 
 
+def test_machine_registry_exposes_cpc6128():
+    spec = get_machine_spec("cpc6128")
+    assert spec.display_name == "Amstrad CPC 6128 (experimental)"
+    assert spec.rom_slots[0].slot_id == "os"
+
+
 def test_machine_registry_exposes_vic20pal():
     spec = get_machine_spec("vic20pal")
     assert spec.display_name == "Commodore VIC-20 PAL (experimental)"
@@ -128,22 +134,35 @@ def test_parse_cli_rom_specs_requires_slot_names_for_multi_rom_machine():
 
 
 def test_parse_cli_rom_specs_accepts_named_slots_for_multi_rom_machine():
-    roms = parse_cli_rom_specs("cpc464", ["os=OS_464.ROM", "basic=BASIC_1.0.ROM", "tape=demo.cdt"])
+    roms = parse_cli_rom_specs("cpc464", ["os=OS_464.ROM", "basic=BASIC_1.0.ROM", "expansion=cart.rom", "tape=demo.cdt"])
 
     assert roms == {
         "os": Path("OS_464.ROM"),
         "basic": Path("BASIC_1.0.ROM"),
+        "expansion": Path("cart.rom"),
         "tape": Path("demo.cdt"),
     }
 
 
 def test_parse_cli_rom_specs_accepts_named_slots_for_cpc664():
-    roms = parse_cli_rom_specs("cpc664", ["os=OS_664.ROM", "basic=BASIC_1.1.ROM", "disk=demo.dsk"])
+    roms = parse_cli_rom_specs("cpc664", ["os=OS_664.ROM", "basic=BASIC_1.1.ROM", "expansion=cart.rom", "disk=demo.dsk"])
 
     assert roms == {
         "os": Path("OS_664.ROM"),
         "basic": Path("BASIC_1.1.ROM"),
+        "expansion": Path("cart.rom"),
         "disk": Path("demo.dsk"),
+    }
+
+
+def test_parse_cli_rom_specs_accepts_named_slots_for_cpc6128():
+    roms = parse_cli_rom_specs("cpc6128", ["os=OS_6128.ROM", "basic=BASIC_1.1.ROM", "amsdos=AMSDOS.ROM", "expansion=cart.rom"])
+
+    assert roms == {
+        "os": Path("OS_6128.ROM"),
+        "basic": Path("BASIC_1.1.ROM"),
+        "amsdos": Path("AMSDOS.ROM"),
+        "expansion": Path("cart.rom"),
     }
 
 

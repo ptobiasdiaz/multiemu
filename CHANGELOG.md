@@ -2,6 +2,36 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.5
+
+Versión centrada en ampliar la familia CPC con `cpc6128` y en seguir cerrando
+la ergonomía práctica del scaffold CPC actual.
+
+### Incluye
+
+- Nueva máquina `cpc6128` como variante visible del árbol.
+- Primer bloque funcional de RAM bancaria de `128K` para `cpc6128`.
+- Soporte de ROM combinada `OS+BASIC` de `32K` también para `cpc6128`.
+- Renderer CPC ajustado para tolerar RAM bancaria del `6128`.
+- Soporte de slot `expansion` en `cpc464`, `cpc664` y `cpc6128`.
+- Aceptación automática de ROMs CPC de `16K + 128 bytes` con cabecera
+  AMSDOS en slots `basic`, `amsdos` y `expansion`.
+- Parser `DSK` ampliado para aceptar otra variante válida de cabecera CPCEMU.
+- `FDC` CPC más cercano al comportamiento esperado por AMSDOS durante
+  lecturas de directorio y lecturas multisector.
+- Ajuste del keymap CPC para poder introducir `|` desde layouts de host donde
+  `AltGr+1` es la combinación natural.
+
+### Testing
+
+- Nuevos tests de registro/CLI para `cpc6128`.
+- Nuevos tests para RAM bancaria y scaffold inicial del `6128`.
+- Cobertura adicional para:
+  - slot `expansion`
+  - ROMs CPC con cabecera AMSDOS
+  - parser `DSK`
+  - `FDC` CPC
+
 ## 0.2.4
 
 Versión centrada en cerrar el primer bloque común de joystick/pad para las

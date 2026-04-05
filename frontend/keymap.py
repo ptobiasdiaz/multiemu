@@ -243,6 +243,18 @@ PYGAME_KEYMAPS = {
 }
 
 
+ALTGR_MOD_MASK = pygame.KMOD_MODE | pygame.KMOD_RALT
+
+CPC_PYGAME_COMBO_KEYMAP = {
+    (pygame.K_1, ALTGR_MOD_MASK): ((2, 5), (3, 2)),
+}
+
+
+PYGAME_COMBO_KEYMAPS = {
+    "cpc": CPC_PYGAME_COMBO_KEYMAP,
+}
+
+
 SPECTRUM_PYGAME_GAMEPAD_MAP = {
     "dpad_left": JOYSTICK_LEFT,
     "dpad_down": JOYSTICK_DOWN,
@@ -299,6 +311,27 @@ def get_pygame_keymap(name: str | None):
     if name is None:
         return SPECTRUM_PYGAME_KEYMAP
     return PYGAME_KEYMAPS.get(name, SPECTRUM_PYGAME_KEYMAP)
+
+
+def get_pygame_combo_keymap(name: str | None):
+    """Return host key+modifier combinations for the active machine."""
+
+    if name is None:
+        return {}
+    return PYGAME_COMBO_KEYMAPS.get(name, {})
+
+
+def resolve_pygame_key_controls(keymap, combo_keymap, event):
+    """Resolve one host keyboard event to one or more emulated key controls."""
+
+    mod = int(getattr(event, "mod", 0))
+    combo = combo_keymap.get((event.key, ALTGR_MOD_MASK))
+    if combo is not None and (mod & ALTGR_MOD_MASK):
+        return tuple(combo)
+    control = keymap.get(event.key)
+    if control is None:
+        return ()
+    return (control,)
 
 
 def get_pygame_gamepad_map(name: str | None):

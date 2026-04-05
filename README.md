@@ -11,7 +11,7 @@ La intención del proyecto es separar con claridad:
 
 El repositorio ya incluye soporte para máquinas ZX Spectrum, Amstrad CPC 464,
 Nintendo Game Boy y una primera variante de Game Boy Color, además de
-scaffolds iniciales para Amstrad CPC 664, MOS KIM-1 y Commodore VIC-20. La
+scaffolds iniciales para Amstrad CPC 664/6128, MOS KIM-1 y Commodore VIC-20. La
 estructura sigue pensada para crecer hacia más máquinas y más frontends sin
 mezclar toda la lógica en un único punto de entrada.
 
@@ -23,6 +23,7 @@ Máquinas soportadas hoy:
 - `spectrum48k`
 - `cpc464` (experimental)
 - `cpc664` (experimental)
+- `cpc6128` (experimental)
 - `gameboy` (experimental)
 - `gameboycolor` / `gbc` (experimental)
 - `kim1` (experimental)
@@ -46,6 +47,7 @@ Frontends y transportes disponibles hoy:
 | `spectrum48k` | usable | sí | beeper básico | sí | sí, hasta 2 | cinta `TZX/TAP` | ROM principal | base más madura del proyecto |
 | `cpc464` | experimental | sí | AY básico | sí | sí, 1 | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | timings y fidelidad aún incompletos |
 | `cpc664` | experimental | sí | AY básico | sí | sí, 1 | disco `DSK` | ROM OS/BASIC/AMSDOS | reutiliza el scaffold CPC actual con ROMs 664 |
+| `cpc6128` | experimental | sí | AY básico | sí | sí, 1 | disco `DSK` | ROM OS/BASIC/AMSDOS/expansion | RAM bancaria `128K` y scaffold 6128 inicial |
 | `gameboy` | experimental | sí | sí | sí | pad del host | n/a | cartuchos `.gb`, mappers principales | buena base, no aún cobertura total del catálogo |
 | `gameboycolor` / `gbc` | experimental | sí, con color | sí, aún algo lento | sí | pad del host | n/a | cartuchos `.gb`/`.gbc`, VRAM DMA, palettes CGB | doble velocidad y rendimiento aún por madurar |
 | `kim1` | usable/experimental | display monitor | n/a | keypad/TTY | n/a | n/a | ROMs `6530` | monitor funcional |
@@ -135,6 +137,12 @@ Slots y nombres esperados por defecto:
   - `os` -> `OS_664.ROM`, `OS_664_BASIC_1.1.ROM`, `cpc664_os.rom`, `cpc664.rom`
   - `basic` -> `BASIC_1.1.ROM`, `BASIC_664.ROM`, `BASIC.ROM`, `cpc664_basic.rom`
   - `disk` -> `disk.dsk`, `program.dsk`
+- `cpc6128`
+  - `os` -> `OS_6128.ROM`, `OS_6128_BASIC_1.1.ROM`, `cpc6128_os.rom`, `cpc6128.rom`
+  - `basic` -> `BASIC_1.1.ROM`, `BASIC_6128.ROM`, `BASIC.ROM`, `cpc6128_basic.rom`
+  - `amsdos` -> `AMSDOS.ROM`, `amsdos.rom`
+  - `disk` -> `disk.dsk`, `program.dsk`
+  - `expansion` -> `expansion.rom`, `cart.rom`
 - `gameboy`
   - `main` -> `gameboy.gb`, `cart.gb`
 - `gameboycolor`
@@ -163,6 +171,7 @@ Ejemplos:
 multiemu run spectrum48k --rom spec48k.rom
 multiemu run cpc464 --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
 multiemu run cpc664 --rom os=cpc664.rom
+multiemu run cpc6128 --rom os=cpc6128.rom
 multiemu run gameboy --rom game.gb
 multiemu run gameboycolor --rom game.gbc
 multiemu run kim1 --rom lower=6530-002.bin --rom upper=6530-003.bin
@@ -252,6 +261,18 @@ Ejemplo para CPC664 con ROM combinada de `32K`:
 
 ```bash
 multiemu run cpc664 --frontend pygame --rom os=cpc664.rom
+```
+
+Ejemplo para CPC6128 con ROM combinada y AMSDOS:
+
+```bash
+multiemu run cpc6128 --frontend pygame --rom os=cpc6128.rom --rom amsdos=amsdos.rom
+```
+
+Ejemplo para CPC con ROM de expansión:
+
+```bash
+multiemu run cpc464 --frontend pygame --rom os=OS_464.ROM --rom expansion=cart.rom
 ```
 
 Ejemplo para Spectrum 48K con cinta:

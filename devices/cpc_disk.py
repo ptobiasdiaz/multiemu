@@ -34,7 +34,7 @@ class CPCDiskImage:
 
         header = data[:0x100]
         is_extended = header.startswith(b"EXTENDED CPC DSK")
-        is_standard = header.startswith(b"MV - CPCEMU Disk-File")
+        is_standard = header.startswith(b"MV - CPCEMU Disk-File") or header.startswith(b"MV - CPCEMU /")
         if not is_standard and not is_extended:
             raise ValueError("cabecera DSK no soportada")
 

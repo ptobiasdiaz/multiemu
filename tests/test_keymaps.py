@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pygame
 
-from frontend.keymap import CPC_PYGAME_KEYMAP, KIM1_PYGAME_KEYMAP, VIC20_PYGAME_KEYMAP
+from frontend.keymap import (
+    CPC_PYGAME_KEYMAP,
+    KIM1_PYGAME_KEYMAP,
+    VIC20_PYGAME_KEYMAP,
+    get_pygame_combo_keymap,
+    resolve_pygame_key_controls,
+)
 
 
 def test_cpc_return_is_not_mapped_to_z_position():
@@ -22,6 +28,20 @@ def test_cpc_enter_and_brackets_match_the_matrix_positions():
     assert CPC_PYGAME_KEYMAP[pygame.K_KP_ENTER] == (0, 6)
     assert CPC_PYGAME_KEYMAP[pygame.K_LEFTBRACKET] == (2, 1)
     assert CPC_PYGAME_KEYMAP[pygame.K_RIGHTBRACKET] == (2, 3)
+
+
+def test_cpc_altgr_1_resolves_to_pipe_key():
+    class _Event:
+        key = pygame.K_1
+        mod = pygame.KMOD_MODE
+
+    controls = resolve_pygame_key_controls(
+        CPC_PYGAME_KEYMAP,
+        get_pygame_combo_keymap("cpc"),
+        _Event(),
+    )
+
+    assert controls == ((2, 5), (3, 2))
 
 
 def test_kim1_keymap_keeps_hex_digits_and_commands_distinct():

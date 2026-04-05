@@ -150,6 +150,25 @@ def test_cpc464_joystick_is_visible_on_keyboard_line_9():
     assert machine.read_keyboard_line(9) & 0x10 == 0
 
 
+def test_cpc464_can_mount_single_expansion_rom_in_upper_bank_1():
+    machine = CPC464(bytes([0x00]) * 0x4000, expansion_rom_data=bytes([0x5A]) * 0x4000)
+
+    machine._port_write(0xDF00, 1)
+
+    assert machine.upper_rom_banks[1].peek(0) == 0x5A
+    assert machine.peek(0xC000) == 0x5A
+
+
+def test_cpc464_accepts_expansion_rom_with_128_byte_amsdos_header():
+    header = bytes([0x00]) * 0x80
+    machine = CPC464(bytes([0x00]) * 0x4000, expansion_rom_data=header + bytes([0x6B]) * 0x4000)
+
+    machine._port_write(0xDF00, 1)
+
+    assert machine.upper_rom_banks[1].peek(0) == 0x6B
+    assert machine.peek(0xC000) == 0x6B
+
+
 def test_cpc464_display_row_bytes_wrap_within_the_same_raster_bank():
     """Visible scanlines should wrap by MA, not by linear RAM spill."""
 

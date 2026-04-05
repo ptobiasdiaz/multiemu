@@ -33,6 +33,13 @@ def _make_standard_dsk() -> bytes:
     return bytes(disk_header + track_header + sector_data)
 
 
+def _make_standard_dsk_with_cpcemu_timestamp_header() -> bytes:
+    data = bytearray(_make_standard_dsk())
+    alt_header = b"MV - CPCEMU / 08 Jul 14 21:17\x00"
+    data[:len(alt_header)] = alt_header
+    return bytes(data)
+
+
 def test_cpc_disk_image_parses_standard_dsk_sector():
     image = CPCDiskImage.from_dsk_bytes(_make_standard_dsk())
 
@@ -51,6 +58,12 @@ def test_cpc_disk_image_uses_standard_track_size_in_bytes_without_extra_scaling(
     data = _make_standard_dsk()
 
     image = CPCDiskImage.from_dsk_bytes(data)
+
+    assert image.get_track(0, 0) is not None
+
+
+def test_cpc_disk_image_accepts_cpcemu_timestamp_standard_header_variant():
+    image = CPCDiskImage.from_dsk_bytes(_make_standard_dsk_with_cpcemu_timestamp_header())
 
     assert image.get_track(0, 0) is not None
 

@@ -79,6 +79,23 @@ cdef class CPCVideo:
             self._get_vsync_height(),
         )
 
+        if not hasattr(self.ram, "data"):
+            return self._render_crtc_frame_rgb24_generic(
+                self.machine.frame_display_start_address,
+                self.crtc.horizontal_displayed,
+                self._get_visible_char_count(),
+                self._get_visible_raster_height(),
+                horizontal_map,
+                vertical_map,
+                total_left,
+                total_top,
+                self.frame_width,
+                self.frame_height,
+                border,
+                self.machine.frame_gate_mode,
+                pen_rgb_map,
+            )
+
         return render_frame_rgb24_from_ram(
             self.ram,
             self.machine.frame_display_start_address,
@@ -95,6 +112,118 @@ cdef class CPCVideo:
             self.machine.frame_gate_mode,
             pen_rgb_map,
         )
+
+    cdef bytes _render_crtc_frame_rgb24_generic(
+        self,
+        int display_start_address,
+        int horizontal_displayed,
+        int visible_char_count,
+        int visible_raster_height,
+        list horizontal_map,
+        list vertical_map,
+        int raster_origin_x,
+        int total_top,
+        int frame_width,
+        int frame_height,
+        tuple border_rgb,
+        int mode,
+        list pen_rgb_map,
+    ):
+        cdef bytearray out = bytearray(max(0, frame_width * frame_height * 3))
+        cdef int border_r = border_rgb[0]
+        cdef int border_g = border_rgb[1]
+        cdef int border_b = border_rgb[2]
+        cdef int i
+        cdef int pixels_per_byte
+        cdef int dst_y
+        cdef int raster_scanline
+        cdef int display_scanline
+        cdef int char_row
+        cdef int raster
+        cdef int start_ma
+        cdef int row_offset
+        cdef int dst_x
+        cdef int raster_x
+        cdef int display_pixel
+        cdef int byte_index
+        cdef int char_index
+        cdef int ma
+        cdef int char_base
+        cdef int value
+        cdef int pixel_index
+        cdef int pen
+        cdef tuple rgb
+        cdef int out_index
+
+        if frame_width <= 0 or frame_height <= 0:
+            return bytes(out)
+
+        for i in range(0, len(out), 3):
+            out[i] = border_r
+            out[i + 1] = border_g
+            out[i + 2] = border_b
+
+        if visible_char_count <= 0 or visible_raster_height <= 0:
+            return bytes(out)
+
+        if mode == 0:
+            pixels_per_byte = 4
+        elif mode == 2:
+            pixels_per_byte = 8
+        else:
+            pixels_per_byte = 4
+
+        for dst_y in range(frame_height):
+            raster_scanline = dst_y - total_top
+            display_scanline = vertical_map[raster_scanline] if 0 <= raster_scanline < len(vertical_map) else -1
+            if display_scanline < 0:
+                continue
+
+            char_row = display_scanline // visible_raster_height
+            raster = display_scanline % visible_raster_height
+            start_ma = (display_start_address + (char_row * horizontal_displayed)) & 0x3FFF
+            row_offset = dst_y * frame_width * 3
+
+            for dst_x in range(frame_width):
+                raster_x = dst_x - raster_origin_x
+                display_pixel = horizontal_map[raster_x] if 0 <= raster_x < len(horizontal_map) else -1
+                if display_pixel < 0:
+                    continue
+
+                byte_index = display_pixel // pixels_per_byte
+                char_index = byte_index >> 1
+                if char_index < 0 or char_index >= visible_char_count:
+                    continue
+
+                ma = (start_ma + char_index) & 0x3FFF
+                char_base = (((ma & 0x3000) << 2) | ((raster & 0x07) << 11) | ((ma & 0x03FF) << 1)) & 0xFFFF
+                value = self.ram.peek((char_base + (byte_index & 1)) & 0xFFFF)
+                pixel_index = display_pixel % pixels_per_byte
+
+                if mode == 0:
+                    if (pixel_index >> 1) == 0:
+                        pen = ((value >> 7) & 1) | (((value >> 3) & 1) << 1) | (((value >> 5) & 1) << 2) | (((value >> 1) & 1) << 3)
+                    else:
+                        pen = ((value >> 6) & 1) | (((value >> 2) & 1) << 1) | (((value >> 4) & 1) << 2) | ((value & 1) << 3)
+                elif mode == 2:
+                    pen = (value >> (7 - pixel_index)) & 1
+                else:
+                    if pixel_index == 0:
+                        pen = (((value >> 7) & 1) << 1) | ((value >> 3) & 1)
+                    elif pixel_index == 1:
+                        pen = (((value >> 6) & 1) << 1) | ((value >> 2) & 1)
+                    elif pixel_index == 2:
+                        pen = (((value >> 5) & 1) << 1) | ((value >> 1) & 1)
+                    else:
+                        pen = (((value >> 4) & 1) << 1) | (value & 1)
+
+                rgb = pen_rgb_map[pen & 0x0F]
+                out_index = row_offset + (dst_x * 3)
+                out[out_index] = rgb[0]
+                out[out_index + 1] = rgb[1]
+                out[out_index + 2] = rgb[2]
+
+        return bytes(out)
 
     cpdef int _get_visible_width(self):
         cdef int chars = self._get_visible_char_count()

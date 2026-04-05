@@ -5,7 +5,12 @@ from collections import deque
 import pygame
 from frontend.backend import wrap_backend
 from frontend.input_events import InputEvent
-from frontend.keymap import get_pygame_gamepad_map, get_pygame_keymap
+from frontend.keymap import (
+    get_pygame_combo_keymap,
+    get_pygame_gamepad_map,
+    get_pygame_keymap,
+    resolve_pygame_key_controls,
+)
 
 try:
     import numpy as np
@@ -71,6 +76,7 @@ class PygameFrontend:
         self._configure_audio_profile()
 
         self.keymap = get_pygame_keymap(getattr(self.backend, "input_keymap_name", None))
+        self.combo_keymap = get_pygame_combo_keymap(getattr(self.backend, "input_keymap_name", None))
         self.gamepad_map = get_pygame_gamepad_map(getattr(self.backend, "input_gamepad_map_name", None))
         self.joystick_count = max(0, int(getattr(self.backend, "input_joystick_count", 0)))
         self.tap_hold_frames = getattr(
@@ -84,6 +90,7 @@ class PygameFrontend:
             self.QUICK_TAP_MAX_FRAMES,
         )
         self.active_keyboard_controls: set[tuple[int, int]] = set()
+        self._keyboard_key_bindings: dict[int, tuple[tuple[int, int], ...]] = {}
         self.active_gamepad_targets: set[tuple[str, int, int]] = set()
         # Track how long a control has been held while physically down.
         self.active_control_frames: dict[tuple[int, int], int] = {}
@@ -186,13 +193,17 @@ class PygameFrontend:
                 if event.key == pygame.K_F1:
                     self.backend.toggle_tape_play_pause()
                     continue
-                control = self.keymap.get(event.key)
-                if control is not None:
-                    self.active_keyboard_controls.add(control)
-                    self.active_control_frames.setdefault(control, 0)
+                controls = resolve_pygame_key_controls(self.keymap, self.combo_keymap, event)
+                if controls:
+                    self._keyboard_key_bindings[event.key] = controls
+                    for control in controls:
+                        self.active_keyboard_controls.add(control)
+                        self.active_control_frames.setdefault(control, 0)
             elif event.type == pygame.KEYUP:
-                control = self.keymap.get(event.key)
-                if control is not None:
+                controls = self._keyboard_key_bindings.pop(event.key, None)
+                if controls is None:
+                    controls = resolve_pygame_key_controls(self.keymap, self.combo_keymap, event)
+                for control in controls:
                     held_frames = self.active_control_frames.get(control, 0)
                     if held_frames <= self.quick_tap_max_frames:
                         if control in self.tap_pulse_frames:
