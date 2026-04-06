@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 from frontend.backend import LocalMachineBackend
 from frontend.pygame_frontend import PygameFrontend
 import pygame
@@ -208,3 +209,26 @@ def test_pygame_frontend_applies_gamepad_joystick_mapping(monkeypatch):
         event.kind == "joystick" and event.control_a == 0 and event.control_b == 0x10 and event.active
         for event in machine.events
     )
+
+
+def test_pygame_frontend_accepts_custom_keymap_file(tmp_path):
+    keymap_path = tmp_path / "custom_gameboy.json"
+    keymap_path.write_text(
+        json.dumps(
+            {
+                "id": "custom_gameboy",
+                "base": "gameboy",
+                "keys": {"K_z": [9, 9]},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    machine = _FakeMachine("gameboy")
+    machine.input_keymap_name = "gameboy"
+    machine.input_gamepad_map_name = "gameboy"
+
+    frontend = PygameFrontend(machine, keymap_file=str(keymap_path))
+
+    assert frontend.keymap[pygame.K_z] == (9, 9)
+    assert frontend.gamepad_map["button_south"] == (1, 0)

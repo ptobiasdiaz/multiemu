@@ -278,6 +278,9 @@ cdef class Spectrum48KULA:
         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
         self.beeper = ULABeeper(self, tstates_per_frame=machine.TSTATES_PER_FRAME)
 
+    cpdef set_display_ram(self, RAMBlock ram):
+        self.ram = ram
+
     cpdef reset(self):
         self.last_tstates = 0
         self.flash_phase = False

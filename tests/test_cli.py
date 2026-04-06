@@ -17,8 +17,15 @@ from multiemu.machine_registry import (
 def test_machine_registry_exposes_known_machine():
     spec = get_machine_spec("spectrum48k")
     assert spec.display_name == "ZX Spectrum 48K"
+
+
+def test_machine_registry_exposes_spectrum128k():
+    spec = get_machine_spec("spectrum128k")
+
+    assert spec.machine_id == "spectrum128k"
+    assert spec.display_name == "ZX Spectrum 128K"
     assert spec.rom_slots[0].slot_id == "main"
-    assert spec.rom_slots[0].filenames == ("spec48k.rom",)
+    assert "spec128k.rom" in spec.rom_slots[0].filenames
     assert "program.tap" in spec.rom_slots[1].filenames
 
 
@@ -122,6 +129,23 @@ def test_parse_cli_rom_specs_accepts_short_form_for_gameboy():
     roms = parse_cli_rom_specs("gameboy", ["gameboy.gb"])
 
     assert roms == {"main": Path("gameboy.gb")}
+
+
+def test_cli_run_accepts_custom_keymap_file():
+    parser = build_parser()
+
+    args = parser.parse_args(["run", "spectrum48k", "--rom", "spec48k.rom", "--keymap", "custom.json"])
+
+    assert args.machine == "spectrum48k"
+    assert args.keymap == "custom.json"
+
+
+def test_cli_connect_accepts_custom_keymap_file():
+    parser = build_parser()
+
+    args = parser.parse_args(["connect", "--keymap", "custom.json"])
+
+    assert args.keymap == "custom.json"
 
 
 def test_parse_cli_rom_specs_requires_slot_names_for_multi_rom_machine():

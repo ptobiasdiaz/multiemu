@@ -39,6 +39,10 @@ Frontends y transportes disponibles hoy:
 - `debug --transport tcp --frontend tcp_debug`
 - perfiles de display: `default`, `full-border`
 
+El frontend también puede cargar un keymap externo con:
+
+- `--keymap /ruta/al/keymap.json`
+
 ### Resumen de soporte por sistema
 
 | Sistema | Estado | Vídeo | Audio | Teclado | Joystick | Cinta/Disco | Cartuchos/ROMs | Notas |
@@ -177,6 +181,30 @@ multiemu run gameboycolor --rom game.gbc
 multiemu run kim1 --rom lower=6530-002.bin --rom upper=6530-003.bin
 multiemu run vic20ntsc --rom basic=basic.bin --rom kernal=kernal.bin --rom char=char.bin
 ```
+
+## Keymaps
+
+Los frontends locales y remotos pueden usar keymaps externos en JSON.
+
+La búsqueda de keymaps por id se hace hoy en este orden:
+
+1. `$CWD/keymaps/`
+2. `/usr/local/share/multiemu/keymaps`
+3. `/usr/share/multiemu/keymaps`
+4. `/etc/multiemu/keymaps`
+5. `$HOME/.local/share/multiemu/keymaps`
+
+Puedes forzar un fichero concreto con:
+
+```bash
+multiemu run spectrum128k --keymap ./mi_keymap.json --rom main=zx128k.rom
+multiemu serve spectrum128k --keymap ./mi_keymap.json --rom main=zx128k.rom
+multiemu connect --keymap ./mi_keymap.json
+```
+
+Los keymaps por defecto del proyecto viven en [keymaps/](/home/tobias/dev/multiemu/keymaps).
+La guía para crear nuevos keymaps y mappings de joystick está en
+[keymaps/README.md](/home/tobias/dev/multiemu/keymaps/README.md).
 
 Nota sobre `cpc464`:
 

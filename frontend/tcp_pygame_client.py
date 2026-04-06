@@ -16,9 +16,7 @@ from collections import deque
 
 import pygame
 from frontend.keymap import (
-    get_pygame_combo_keymap,
-    get_pygame_gamepad_map,
-    get_pygame_keymap,
+    load_pygame_input_maps,
     resolve_pygame_key_controls,
 )
 
@@ -44,12 +42,14 @@ class TcpPygameClient:
         scale: int = 2,
         window_title: str = "MultiEmu TCP Client",
         joystick_player: int = 1,
+        keymap_file: str | None = None,
     ):
         self.host = host
         self.port = port
         self.scale = scale
         self.window_title = window_title
         self.joystick_player = max(1, int(joystick_player))
+        self.keymap_file = keymap_file
 
         self.running = False
         self.sock = None
@@ -75,9 +75,12 @@ class TcpPygameClient:
         self.audio_max_queue_chunks = 12
         self.audio_byte_buffer = bytearray()
         self.use_surfarray = np is not None and hasattr(pygame, "surfarray")
-        self.keymap = get_pygame_keymap(None)
-        self.combo_keymap = get_pygame_combo_keymap(None)
-        self.gamepad_map = {}
+        self.keymap_name = None
+        self.input_maps = load_pygame_input_maps(None)
+        self.keymap = self.input_maps.keymap
+        self.combo_keymap = self.input_maps.combo_keymap
+        self.unicode_combo_keymap = self.input_maps.unicode_combo_keymap
+        self.gamepad_map = self.input_maps.gamepad_map
         self.joystick_device_ids: list[str] = []
         self.active_keyboard_controls: set[tuple[int, int]] = set()
         self._keyboard_key_bindings: dict[int, tuple[tuple[int, int], ...]] = {}
@@ -178,9 +181,17 @@ class TcpPygameClient:
         self.audio_chunk_size = int(audio.get("chunk_samples", self.audio_chunk_size))
         self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
         frontend = welcome.get("frontend", {})
-        self.keymap = get_pygame_keymap(frontend.get("keymap"))
-        self.combo_keymap = get_pygame_combo_keymap(frontend.get("keymap"))
-        self.gamepad_map = get_pygame_gamepad_map(frontend.get("gamepad_map") or frontend.get("keymap"))
+        self.keymap_name = frontend.get("keymap")
+        self.input_maps = load_pygame_input_maps(
+            self.keymap_name,
+            gamepad_name=frontend.get("gamepad_map") or self.keymap_name,
+            keymap_file=self.keymap_file,
+            keymap_spec=frontend.get("keymap_spec"),
+        )
+        self.keymap = self.input_maps.keymap
+        self.combo_keymap = self.input_maps.combo_keymap
+        self.unicode_combo_keymap = self.input_maps.unicode_combo_keymap
+        self.gamepad_map = self.input_maps.gamepad_map
         self.joystick_device_ids = [
             str(device["device_id"])
             for device in welcome.get("input_devices", [])
@@ -225,8 +236,12 @@ class TcpPygameClient:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
                     return
-                controls = resolve_pygame_key_controls(self.keymap, self.combo_keymap, event)
+                controls = resolve_pygame_key_controls(
+                    self.keymap, self.combo_keymap, self.unicode_combo_keymap, event
+                )
                 if controls:
+                    if getattr(event, "unicode", ""):
+                        self._suppress_host_shift_bindings()
                     self._keyboard_key_bindings[event.key] = controls
                     for control in controls:
                         self.active_keyboard_controls.add(control)
@@ -234,7 +249,9 @@ class TcpPygameClient:
             elif event.type == pygame.KEYUP:
                 controls = self._keyboard_key_bindings.pop(event.key, None)
                 if controls is None:
-                    controls = resolve_pygame_key_controls(self.keymap, self.combo_keymap, event)
+                    controls = resolve_pygame_key_controls(
+                        self.keymap, self.combo_keymap, self.unicode_combo_keymap, event
+                    )
                 for control in controls:
                     held_frames = self.active_control_frames.get(control, 0)
                     if held_frames <= self.QUICK_TAP_MAX_FRAMES:
@@ -301,6 +318,15 @@ class TcpPygameClient:
             else:
                 self.tap_pulse_frames.pop(control, None)
                 self.pending_tap_counts.pop(control, None)
+
+    def _suppress_host_shift_bindings(self) -> None:
+        for shift_key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
+            controls = self._keyboard_key_bindings.pop(shift_key, None)
+            if not controls:
+                continue
+            for control in controls:
+                self.active_keyboard_controls.discard(control)
+                self.active_control_frames.pop(control, None)
 
         self._send_json(
             {

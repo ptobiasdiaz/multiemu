@@ -2,6 +2,58 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.6
+
+Versión centrada en abrir `spectrum128k` como nueva variante visible y en
+hacer el sistema de keymaps más flexible y configurable desde ficheros JSON.
+
+### Incluye
+
+- Nueva máquina `spectrum128k` como variante visible del árbol Spectrum.
+- Primer bloque funcional de `128K` para Spectrum con:
+  - ROM dual de `32K` o ROM única de `16K`
+  - paginación por `0x7FFD`
+  - RAM de `128K` en `8` bancos de `16K`
+  - conmutación de banco de pantalla para la ULA
+  - soporte básico de `AY-3-8912`
+- Corrección de writes a espacio ROM en `Spectrum 128K`: ahora se ignoran en
+  vez de romper la emulación.
+- Revisión práctica del teclado `128K` para menú/editor, incluyendo:
+  - cursores
+  - `Backspace`
+  - `,`, `.`
+  - símbolos como `+`, `-`, `/`, `=`
+- Nuevo sistema de keymaps externos en `keymaps/`, con soporte para:
+  - `keys`
+  - `combos`
+  - `unicode_combos`
+  - `gamepad`
+- Nuevo parámetro `--keymap` en CLI para:
+  - `run`
+  - `serve`
+  - `debug`
+  - `connect`
+  - `client`
+- Keymaps Spectrum separados por máquina:
+  - `spectrum48k`
+  - `spectrum128k`
+- Runtime remoto preparado para enviar un `keymap_spec` serializado cuando el
+  servidor se lanza con un keymap personalizado.
+- Búsqueda de keymaps alineada con rutas de sistema:
+  - `$CWD/keymaps`
+  - `/usr/local/share/multiemu/keymaps`
+  - `/usr/share/multiemu/keymaps`
+  - `/etc/multiemu/keymaps`
+  - `$HOME/.local/share/multiemu/keymaps`
+
+### Testing
+
+- Nuevos tests para:
+  - `Spectrum 128K` en registro/CLI y paginación básica
+  - keymaps externos por fichero
+  - `keymap_spec` en el cliente TCP
+  - símbolos y atajos del editor `128K`
+
 ## 0.2.5
 
 Versión centrada en ampliar la familia CPC con `cpc6128` y en seguir cerrando

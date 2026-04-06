@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from cpu.z80 import RAMBlock, ROMBlock, PythonPortHandler, Z80Bus, Z80Core
+from array import array
+
+from cpu.z80 import MemoryDevice, RAMBlock, ROMBlock, PythonPortHandler, Z80Bus, Z80Core
+from chipsets import AY38912
 from chipsets.ula import Spectrum48KULA
 from devices import SpectrumCassetteTape
 from frontend.input_events import (
@@ -25,6 +28,7 @@ class SpectrumBase(BaseMachine):
     RAM_BASE = 0x4000
     TSTATES_PER_FRAME = 69888
     FRAMES_PER_SECOND = 50
+    input_keymap_name = "spectrum"
     input_gamepad_map_name = "spectrum"
     input_joystick_count = 2
     JOYSTICK_KEY_BINDINGS = (
@@ -285,4 +289,217 @@ class Spectrum16K(SpectrumBase):
 class Spectrum48K(SpectrumBase):
     """ZX Spectrum 48K with the full 0x4000-0xFFFF RAM space mapped."""
 
+    input_keymap_name = "spectrum48k"
     RAM_SIZE = 0xC000
+
+
+class Spectrum128KMemoryMap(MemoryDevice):
+    """Expose paged Spectrum 128K memory through the generic Z80 bus."""
+
+    def __init__(self, machine: "Spectrum128K"):
+        self.machine = machine
+
+    def read(self, addr):
+        return self.machine.peek(addr)
+
+    def write(self, addr, value):
+        if self.machine._is_ram_address(addr):
+            self.machine.poke(addr, value)
+
+
+class Spectrum128K(SpectrumBase):
+    """ZX Spectrum 128K scaffold with 0x7FFD paging and AY sound."""
+
+    input_keymap_name = "spectrum128k"
+    RAM_BANK_SIZE = 0x4000
+    RAM_BANK_COUNT = 8
+    AY_CLOCK_HZ = 1_773_400
+
+    def __init__(
+        self,
+        rom_data: bytes | None = None,
+        *,
+        tape_data: bytes | None = None,
+        display_profile: str = "default",
+    ):
+        bus = Z80Bus()
+        cpu = Z80Core(bus)
+        BaseMachine.__init__(self, bus=bus, cpu=cpu)
+        self.machine_id = "spectrum128k"
+        self.display_profile_name = display_profile
+        self.display_profile = get_display_profile(display_profile)
+
+        self.rom_banks = [ROMBlock(self.ROM_SIZE), ROMBlock(self.ROM_SIZE)]
+        self.ram_banks = [RAMBlock(self.RAM_BANK_SIZE) for _ in range(self.RAM_BANK_COUNT)]
+        self.ram = self.ram_banks[5]
+        if rom_data is not None:
+            self.load_rom(rom_data)
+
+        self.active_rom_bank = 0
+        self.paged_ram_bank = 0
+        self.screen_bank = 5
+        self.paging_locked = False
+        self.border_color = 0
+        self.last_out_fe = 0
+        self.last_out_7ffd = 0
+
+        self.memory_map = Spectrum128KMemoryMap(self)
+        self.bus.map_device(0x0000, 0x10000, self.memory_map)
+
+        self.ula = Spectrum48KULA(self)
+        self.cassette = SpectrumCassetteTape.from_bytes(tape_data) if tape_data is not None else None
+        self._tape_tstates = 0
+        self.frame_width = self.ula.frame_width
+        self.frame_height = self.ula.frame_height
+        self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
+        self.audio_samples = self.ula.get_frame_samples()
+        self.audio_ring = self.audio_ring.__class__(self.ula.beeper.sample_rate // 2)
+
+        self.psg = AY38912(clock_hz=self.AY_CLOCK_HZ, sample_rate=44100)
+        self.psg.select_register(0)
+
+        self.keyboard_rows = [0x1F] * 8
+        for port_low in range(256):
+            self.bus.set_port_handler(port_low, PythonPortHandler(self._port_read, self._port_write))
+        self._frame_runner = SteppedFrameRunner(self.TSTATES_PER_FRAME)
+
+    def _mix_audio_frame(self):
+        beeper = self.ula.get_frame_samples()
+        ay = self.psg.render_samples(len(beeper))
+        mixed = array("h", [0] * len(beeper))
+        for i in range(len(beeper)):
+            sample = int(beeper[i]) + int(ay[i])
+            if sample > 32767:
+                sample = 32767
+            elif sample < -32768:
+                sample = -32768
+            mixed[i] = sample
+        return mixed
+
+    def _port_read(self, port: int) -> int:
+        if (port & 0x0001) == 0:
+            return self._port_read_fe(port)
+        if (port & 0xC002) == 0xC000:
+            return self.psg.read_selected()
+        return 0xFF
+
+    def _port_write(self, port: int, value: int) -> None:
+        value &= 0xFF
+        if (port & 0x0001) == 0:
+            self._port_write_fe(port, value)
+        if (port & 0x8002) == 0:
+            self._write_7ffd(value)
+        if (port & 0xC002) == 0xC000:
+            self.psg.select_register(value & 0x0F)
+        elif (port & 0xC002) == 0x8000:
+            self.psg.write_selected(value)
+
+    def _write_7ffd(self, value: int) -> None:
+        if self.paging_locked:
+            return
+        self.last_out_7ffd = value & 0xFF
+        self.paged_ram_bank = value & 0x07
+        self.screen_bank = 7 if (value & 0x08) else 5
+        self.active_rom_bank = 1 if (value & 0x10) else 0
+        if value & 0x20:
+            self.paging_locked = True
+        self.ula.set_display_ram(self.ram_banks[self.screen_bank])
+
+    def reset(self):
+        BaseMachine.reset(self)
+        self.active_rom_bank = 0
+        self.paged_ram_bank = 0
+        self.screen_bank = 5
+        self.paging_locked = False
+        self.border_color = 0
+        self.last_out_fe = 0
+        self.last_out_7ffd = 0
+        self.keyboard_rows = [0x1F] * 8
+        self.ula.reset()
+        self.ula.set_display_ram(self.ram_banks[self.screen_bank])
+        self.psg.reset()
+        if self.cassette is not None:
+            self.cassette.reset()
+        self._tape_tstates = 0
+        self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
+        self.audio_samples = self._mix_audio_frame()
+
+    def _begin_frame(self) -> None:
+        self.frame_tstates = 0
+        self._tape_tstates = 0
+        self.ula.beeper.begin_frame()
+
+    def _finish_frame(self) -> None:
+        self.ula.end_frame()
+        self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
+        self.audio_samples = self._mix_audio_frame()
+        self.audio_ring.write(self.audio_samples)
+        self.frame_counter += 1
+
+    def _run_devices_until(self, tstates: int):
+        self.ula.run_until(tstates)
+        if self.cassette is not None:
+            self.cassette.run_cycles(max(0, tstates - self._tape_tstates))
+            self._tape_tstates = tstates
+
+    def load_rom(self, data: bytes):
+        if len(data) == self.ROM_SIZE * 2:
+            self.rom_banks[0].load_bytes(data[:self.ROM_SIZE])
+            self.rom_banks[1].load_bytes(data[self.ROM_SIZE:])
+            return
+        self.rom_banks[0].load_bytes(data)
+
+    def _is_ram_address(self, addr: int) -> bool:
+        return 0x4000 <= addr <= 0xFFFF
+
+    def _ram_bank_for_addr(self, addr: int) -> RAMBlock:
+        if 0x4000 <= addr < 0x8000:
+            return self.ram_banks[5]
+        if 0x8000 <= addr < 0xC000:
+            return self.ram_banks[2]
+        return self.ram_banks[self.paged_ram_bank]
+
+    def poke(self, addr: int, value: int):
+        if not self._is_ram_address(addr):
+            raise ValueError("solo se puede escribir en RAM 0x4000-0xFFFF")
+        self._ram_bank_for_addr(addr).load(addr & 0x3FFF, bytes([value & 0xFF]))
+
+    def peek(self, addr: int) -> int:
+        if 0x0000 <= addr < self.ROM_SIZE:
+            return self.rom_banks[self.active_rom_bank].peek(addr)
+        if self._is_ram_address(addr):
+            return self._ram_bank_for_addr(addr).peek(addr & 0x3FFF)
+        if 0 <= addr <= 0xFFFF:
+            return 0xFF
+        raise ValueError("dirección fuera de rango")
+
+    def load_ram_bank(self, bank: int, offset: int, data: bytes):
+        self.ram_banks[bank & 0x07].load(offset, data)
+
+    def snapshot(self) -> dict:
+        snap = self.cpu.snapshot()
+        snap["border_color"] = self.border_color
+        snap["last_out_fe"] = self.last_out_fe
+        snap["last_out_7ffd"] = self.last_out_7ffd
+        snap["active_rom_bank"] = self.active_rom_bank
+        snap["paged_ram_bank"] = self.paged_ram_bank
+        snap["screen_bank"] = self.screen_bank
+        snap["paging_locked"] = self.paging_locked
+        snap["tstates"] = self.tstates
+        snap["frame_counter"] = self.frame_counter
+        snap["frame_tstates"] = self.frame_tstates
+        return snap
+
+    def debug_devices(self) -> list[dict]:
+        devices = super().debug_devices() + [
+            self._debug_device("rom0", self.rom_banks[0], "memory", label="ROM 0"),
+            self._debug_device("rom1", self.rom_banks[1], "memory", label="ROM 1"),
+            self._debug_device("ram_bank_5", self.ram_banks[5], "memory", label="RAM Bank 5"),
+            self._debug_device("ram_bank_2", self.ram_banks[2], "memory", label="RAM Bank 2"),
+            self._debug_device("ram_bank_paged", self.ram_banks[self.paged_ram_bank], "memory", label="Paged RAM"),
+            self._debug_device("ula", self.ula, "chip", label="ULA"),
+            self._debug_device("ay", self.psg, "chip", label="AY-3-8912"),
+        ]
+        if self.cassette is not None:
+            devices.append(self._debug_device("cassette", self.cassette, "device", label="Cassette"))
+        return devices

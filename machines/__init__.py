@@ -3,7 +3,7 @@
 from .base import BaseMachine
 from .gameboy import CGB, DMG, GameBoyMachineBase
 from .m6502 import KIM1, M6502MachineBase, VIC20, VIC20NTSC, VIC20PAL
-from .z80 import CPC464, CPC6128, CPC664, Spectrum16K, Spectrum48K, SpectrumBase
+from .z80 import CPC464, CPC6128, CPC664, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumBase
 
 __all__ = [
     "BaseMachine",
@@ -18,6 +18,7 @@ __all__ = [
     "CPC464",
     "CPC6128",
     "CPC664",
+    "Spectrum128K",
     "SpectrumBase",
     "Spectrum16K",
     "Spectrum48K",

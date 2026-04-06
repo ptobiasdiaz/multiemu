@@ -44,7 +44,7 @@ def test_tcp_client_welcome_records_joystick_devices():
                 {"device_id": "joystick_0", "device_type": "joystick"},
                 {"device_id": "joystick_1", "device_type": "joystick"},
             ],
-            "frontend": {"keymap": "spectrum", "gamepad_map": "spectrum"},
+            "frontend": {"keymap": "spectrum48k", "gamepad_map": "spectrum"},
         }
     )
 
@@ -64,3 +64,30 @@ def test_tcp_client_falls_back_to_other_joystick_when_preferred_is_taken():
     client._gamepad_assignments[10] = 1
 
     assert client._next_gamepad_assignment() == 0
+
+
+def test_tcp_client_welcome_accepts_inline_keymap_spec():
+    client = TcpPygameClient()
+
+    client._configure_from_welcome(
+        {
+            "type": "welcome",
+            "video": {"width": 160, "height": 144, "pixel_format": "rgb24", "fps": 50},
+            "audio": {"format": "s16le", "sample_rate": 44100, "chunk_samples": 512},
+            "machine": {"id": "spectrum128k"},
+            "input_devices": [{"device_id": "keyboard_0", "device_type": "key_matrix"}],
+            "frontend": {
+                "keymap": "spectrum128k",
+                "gamepad_map": "spectrum",
+                "keymap_spec": {
+                    "id": "custom_spectrum",
+                    "base": "spectrum128k",
+                    "keys": {"K_a": [9, 9]},
+                },
+            },
+        }
+    )
+
+    assert client.keymap_name == "spectrum128k"
+    assert client.keymap[97] == (9, 9)
+    assert client.gamepad_map["button_south"] == 16

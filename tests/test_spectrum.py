@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from frontend.input_events import InputEvent
-from machines.z80 import Spectrum16K, Spectrum48K
+from machines.z80 import Spectrum128K, Spectrum16K, Spectrum48K
 from devices import SpectrumCassetteTape
 
 
@@ -235,3 +235,60 @@ def test_spectrum48k_tape_starts_paused_and_can_be_toggled():
     assert machine.cassette.playing is False
     assert machine.toggle_tape_play_pause() is True
     assert machine.cassette.playing is True
+
+
+def test_spectrum128k_combined_rom_selects_second_rom_with_7ffd():
+    rom0 = bytes([0x00]) * 0x4000
+    rom1 = bytes([0xFF]) * 0x4000
+    machine = Spectrum128K(rom0 + rom1)
+    machine.reset()
+
+    assert machine.peek(0x0000) == 0x00
+
+    machine._port_write(0x7FFD, 0x10)
+
+    assert machine.peek(0x0000) == 0xFF
+    assert machine.active_rom_bank == 1
+
+
+def test_spectrum128k_pages_ram_bank_into_top_16k():
+    machine = Spectrum128K(bytes([0x00]) * 0x4000)
+    machine.reset()
+
+    machine._port_write(0x7FFD, 0x03)
+    machine.poke(0xC000, 0x42)
+    machine._port_write(0x7FFD, 0x04)
+
+    assert machine.peek(0xC000) == 0x00
+
+    machine._port_write(0x7FFD, 0x03)
+    assert machine.peek(0xC000) == 0x42
+
+
+def test_spectrum128k_switches_display_bank_for_ula():
+    machine = Spectrum128K(bytes([0x00]) * 0x4000)
+    machine.reset()
+    machine.border_color = 0
+
+    machine.ram_banks[5].load(0x0000, bytes([0x80]))
+    machine.ram_banks[5].load(0x1800, bytes([0x07]))
+    packed = machine.render_frame()
+    x = machine.ula.border_left
+    y = machine.ula.border_top
+    assert _pixel_at_rgb24(packed, machine.ula.frame_width, x, y) == machine.ula.PALETTE[7]
+
+    machine.ram_banks[7].load(0x0000, bytes([0x00]))
+    machine.ram_banks[7].load(0x1800, bytes([0x07]))
+    machine._port_write(0x7FFD, 0x08)
+    packed = machine.render_frame()
+
+    assert _pixel_at_rgb24(packed, machine.ula.frame_width, x, y) == machine.ula.PALETTE[0]
+
+
+def test_spectrum128k_ignores_writes_to_rom_space():
+    machine = Spectrum128K(bytes([0xAA]) * 0x4000)
+    machine.reset()
+
+    machine.memory_map.write(0x0000, 0x55)
+
+    assert machine.peek(0x0000) == 0xAA

@@ -54,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument("--scale", type=int, default=2, help="window scale factor")
     run_parser.add_argument("--title", default=None, help="window title override")
+    run_parser.add_argument("--keymap", default=None, help="custom keymap JSON file")
     run_parser.set_defaults(handler=_handle_run)
 
     serve_parser = subparsers.add_parser("serve", help="serve a machine over a selected transport")
@@ -67,6 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     serve_parser.add_argument("--host", default="127.0.0.1", help="bind host")
     serve_parser.add_argument("--port", type=int, default=8765, help="bind port")
+    serve_parser.add_argument("--keymap", default=None, help="custom keymap JSON file")
     serve_parser.set_defaults(handler=_handle_serve)
 
     debug_parser = subparsers.add_parser("debug", help="serve a machine with debug controls over TCP")
@@ -74,6 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_machine_options(debug_parser)
     debug_parser.add_argument("--host", default="127.0.0.1", help="bind host")
     debug_parser.add_argument("--port", type=int, default=8765, help="bind port")
+    debug_parser.add_argument("--keymap", default=None, help="custom keymap JSON file")
     debug_parser.set_defaults(handler=_handle_debug)
 
     connect_parser = subparsers.add_parser("connect", help="connect to a remote session")
@@ -93,6 +96,7 @@ def build_parser() -> argparse.ArgumentParser:
     connect_parser.add_argument("--port", type=int, default=8765, help="server port")
     connect_parser.add_argument("--scale", type=int, default=2, help="window scale factor")
     connect_parser.add_argument("--title", default="MultiEmu TCP Client", help="window title")
+    connect_parser.add_argument("--keymap", default=None, help="custom keymap JSON file")
     connect_parser.add_argument(
         "--joystick-player",
         type=int,
@@ -196,6 +200,7 @@ def _handle_run(args) -> int:
         fps_limit=args.fps,
         audio_sample_rate=args.audio_sample_rate,
         audio_chunk_size=args.audio_chunk_size,
+        keymap_file=args.keymap,
     )
     app.run()
     return 0
@@ -217,6 +222,7 @@ def _handle_serve(args) -> int:
         fps_limit=args.fps,
         audio_sample_rate=args.audio_sample_rate,
         audio_chunk_size=args.audio_chunk_size,
+        keymap_file=args.keymap,
     )
     try:
         app.run()
@@ -245,6 +251,7 @@ def _handle_debug(args) -> int:
         fps_limit=args.fps,
         audio_sample_rate=args.audio_sample_rate,
         audio_chunk_size=args.audio_chunk_size,
+        keymap_file=args.keymap,
     )
     try:
         app.run()
@@ -264,6 +271,7 @@ def _handle_connect(args) -> int:
         scale=args.scale,
         window_title=args.title,
         joystick_player=args.joystick_player,
+        keymap_file=args.keymap,
     )
     app.run()
     return 0

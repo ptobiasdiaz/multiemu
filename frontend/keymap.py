@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
+
 import pygame
+
 from frontend.input_events import (
     JOYSTICK_DOWN,
     JOYSTICK_FIRE,
@@ -11,332 +17,363 @@ from frontend.input_events import (
 )
 
 
-SPECTRUM_PYGAME_KEYMAP = {
-    pygame.K_LSHIFT: (0, 0),
-    pygame.K_z: (0, 1),
-    pygame.K_x: (0, 2),
-    pygame.K_c: (0, 3),
-    pygame.K_v: (0, 4),
-    pygame.K_a: (1, 0),
-    pygame.K_s: (1, 1),
-    pygame.K_d: (1, 2),
-    pygame.K_f: (1, 3),
-    pygame.K_g: (1, 4),
-    pygame.K_q: (2, 0),
-    pygame.K_w: (2, 1),
-    pygame.K_e: (2, 2),
-    pygame.K_r: (2, 3),
-    pygame.K_t: (2, 4),
-    pygame.K_1: (3, 0),
-    pygame.K_2: (3, 1),
-    pygame.K_3: (3, 2),
-    pygame.K_4: (3, 3),
-    pygame.K_5: (3, 4),
-    pygame.K_0: (4, 0),
-    pygame.K_9: (4, 1),
-    pygame.K_8: (4, 2),
-    pygame.K_7: (4, 3),
-    pygame.K_6: (4, 4),
-    pygame.K_p: (5, 0),
-    pygame.K_o: (5, 1),
-    pygame.K_i: (5, 2),
-    pygame.K_u: (5, 3),
-    pygame.K_y: (5, 4),
-    pygame.K_RETURN: (6, 0),
-    pygame.K_l: (6, 1),
-    pygame.K_k: (6, 2),
-    pygame.K_j: (6, 3),
-    pygame.K_h: (6, 4),
-    pygame.K_SPACE: (7, 0),
-    pygame.K_RCTRL: (7, 1),
-    pygame.K_m: (7, 2),
-    pygame.K_n: (7, 3),
-    pygame.K_b: (7, 4),
-}
-
-
-# The CPC matrix is 10x8. Coordinates are expressed as (line, bit), matching
-# the scan layout expected by the firmware through the PSG keyboard port.
-CPC_PYGAME_KEYMAP = {
-    pygame.K_UP: (0, 0),
-    pygame.K_RIGHT: (0, 1),
-    pygame.K_DOWN: (0, 2),
-    pygame.K_LEFT: (1, 0),
-    pygame.K_KP_ENTER: (0, 6),
-    pygame.K_LCTRL: (2, 7),
-    pygame.K_RCTRL: (2, 7),
-    pygame.K_BACKSLASH: (2, 6),
-    pygame.K_LSHIFT: (2, 5),
-    pygame.K_RSHIFT: (2, 5),
-    pygame.K_RIGHTBRACKET: (2, 3),
-    pygame.K_RETURN: (2, 2),
-    pygame.K_LEFTBRACKET: (2, 1),
-    pygame.K_BACKSPACE: (9, 7),
-    pygame.K_COMMA: (4, 7),
-    pygame.K_SLASH: (3, 6),
-    pygame.K_SEMICOLON: (3, 4),
-    pygame.K_p: (3, 3),
-    pygame.K_MINUS: (3, 1),
-    pygame.K_PERIOD: (3, 7),
-    pygame.K_m: (4, 6),
-    pygame.K_k: (4, 5),
-    pygame.K_l: (4, 4),
-    pygame.K_i: (4, 3),
-    pygame.K_o: (4, 2),
-    pygame.K_9: (4, 1),
-    pygame.K_0: (4, 0),
-    pygame.K_SPACE: (5, 7),
-    pygame.K_n: (5, 6),
-    pygame.K_j: (5, 5),
-    pygame.K_h: (5, 4),
-    pygame.K_y: (5, 3),
-    pygame.K_u: (5, 2),
-    pygame.K_7: (5, 1),
-    pygame.K_8: (5, 0),
-    pygame.K_v: (6, 7),
-    pygame.K_b: (6, 6),
-    pygame.K_f: (6, 5),
-    pygame.K_g: (6, 4),
-    pygame.K_t: (6, 3),
-    pygame.K_r: (6, 2),
-    pygame.K_5: (6, 1),
-    pygame.K_6: (6, 0),
-    pygame.K_x: (7, 7),
-    pygame.K_c: (7, 6),
-    pygame.K_d: (7, 5),
-    pygame.K_s: (7, 4),
-    pygame.K_w: (7, 3),
-    pygame.K_e: (7, 2),
-    pygame.K_3: (7, 1),
-    pygame.K_4: (7, 0),
-    pygame.K_z: (8, 7),
-    pygame.K_CAPSLOCK: (8, 6),
-    pygame.K_a: (8, 5),
-    pygame.K_TAB: (8, 4),
-    pygame.K_q: (8, 3),
-    pygame.K_ESCAPE: (8, 2),
-    pygame.K_2: (8, 1),
-    pygame.K_1: (8, 0),
-    pygame.K_DELETE: (9, 7),
-    pygame.K_KP_PERIOD: (9, 6),
-}
-
-GAMEBOY_PYGAME_KEYMAP = {
-    pygame.K_RIGHT: (0, 0),
-    pygame.K_LEFT: (0, 1),
-    pygame.K_UP: (0, 2),
-    pygame.K_DOWN: (0, 3),
-    pygame.K_z: (1, 0),
-    pygame.K_LALT: (1, 0),
-    pygame.K_x: (1, 1),
-    pygame.K_LCTRL: (1, 1),
-    pygame.K_BACKSPACE: (1, 2),
-    pygame.K_SPACE: (1, 2),
-    pygame.K_RETURN: (1, 3),
-    pygame.K_RSHIFT: (1, 3),
-}
-
-KIM1_PYGAME_KEYMAP = {
-    pygame.K_KP0: (0, 6),
-    pygame.K_KP1: (0, 5),
-    pygame.K_KP2: (0, 4),
-    pygame.K_KP3: (0, 3),
-    pygame.K_KP4: (0, 2),
-    pygame.K_KP5: (0, 1),
-    pygame.K_KP6: (0, 0),
-    pygame.K_KP7: (1, 6),
-    pygame.K_KP8: (1, 5),
-    pygame.K_KP9: (1, 4),
-    pygame.K_a: (1, 3),
-    pygame.K_b: (1, 2),
-    pygame.K_c: (1, 1),
-    pygame.K_d: (1, 0),
-    pygame.K_e: (2, 6),
-    pygame.K_f: (2, 5),
-    pygame.K_KP_MINUS: (2, 4),
-    pygame.K_KP_PERIOD: (2, 3),
-    pygame.K_KP_PLUS: (2, 2),
-    pygame.K_KP_ENTER: (2, 1),
-    pygame.K_KP_DIVIDE: (2, 0),
-}
-
-
-# VIC-20 keyboard matrix expressed as (row, column). The KERNAL key tables are
-# laid out by column, so each 8-byte group in the ROM maps to one matrix
-# column, with the byte position inside the group selecting the row.
-VIC20_PYGAME_KEYMAP = {
-    pygame.K_1: (0, 0),
-    pygame.K_3: (1, 0),
-    pygame.K_5: (2, 0),
-    pygame.K_7: (3, 0),
-    pygame.K_9: (4, 0),
-    pygame.K_KP_PLUS: (5, 0),
-    pygame.K_BACKQUOTE: (6, 0),
-    pygame.K_BACKSPACE: (7, 0),
-    pygame.K_LEFTBRACKET: (0, 1),
-    pygame.K_w: (1, 1),
-    pygame.K_r: (2, 1),
-    pygame.K_y: (3, 1),
-    pygame.K_i: (4, 1),
-    pygame.K_p: (5, 1),
-    pygame.K_RIGHTBRACKET: (6, 1),
-    pygame.K_RETURN: (7, 1),
-    pygame.K_LCTRL: (0, 2),
-    pygame.K_a: (1, 2),
-    pygame.K_d: (2, 2),
-    pygame.K_g: (3, 2),
-    pygame.K_j: (4, 2),
-    pygame.K_l: (5, 2),
-    pygame.K_SEMICOLON: (6, 2),
-    pygame.K_RIGHT: (7, 2),
-    pygame.K_ESCAPE: (0, 3),
-    pygame.K_LSHIFT: (1, 3),
-    pygame.K_x: (2, 3),
-    pygame.K_v: (3, 3),
-    pygame.K_n: (4, 3),
-    pygame.K_COMMA: (5, 3),
-    pygame.K_SLASH: (6, 3),
-    pygame.K_DOWN: (7, 3),
-    pygame.K_SPACE: (0, 4),
-    pygame.K_z: (1, 4),
-    pygame.K_c: (2, 4),
-    pygame.K_b: (3, 4),
-    pygame.K_m: (4, 4),
-    pygame.K_PERIOD: (5, 4),
-    pygame.K_RSHIFT: (6, 4),
-    pygame.K_F1: (7, 4),
-    pygame.K_LALT: (0, 5),
-    pygame.K_s: (1, 5),
-    pygame.K_f: (2, 5),
-    pygame.K_h: (3, 5),
-    pygame.K_k: (4, 5),
-    pygame.K_QUOTE: (5, 5),
-    pygame.K_EQUALS: (6, 5),
-    pygame.K_F3: (7, 5),
-    pygame.K_q: (0, 6),
-    pygame.K_e: (1, 6),
-    pygame.K_t: (2, 6),
-    pygame.K_u: (3, 6),
-    pygame.K_o: (4, 6),
-    pygame.K_UP: (5, 6),
-    pygame.K_CARET: (6, 6),
-    pygame.K_F5: (7, 6),
-    pygame.K_2: (0, 7),
-    pygame.K_4: (1, 7),
-    pygame.K_6: (2, 7),
-    pygame.K_8: (3, 7),
-    pygame.K_0: (4, 7),
-    pygame.K_MINUS: (5, 7),
-    pygame.K_HOME: (6, 7),
-    pygame.K_DELETE: (7, 0),
-    pygame.K_LEFT: (7, 2),
-    pygame.K_F7: (7, 7),
-}
-
-
-PYGAME_KEYMAPS = {
-    "spectrum": SPECTRUM_PYGAME_KEYMAP,
-    "cpc": CPC_PYGAME_KEYMAP,
-    "gameboy": GAMEBOY_PYGAME_KEYMAP,
-    "kim1": KIM1_PYGAME_KEYMAP,
-    "vic20": VIC20_PYGAME_KEYMAP,
-}
-
-
+KEYMAP_SEARCH_DIRS = (
+    Path.cwd() / "keymaps",
+    Path(__file__).resolve().parent.parent / "keymaps",
+)
 ALTGR_MOD_MASK = pygame.KMOD_MODE | pygame.KMOD_RALT
 
-CPC_PYGAME_COMBO_KEYMAP = {
-    (pygame.K_1, ALTGR_MOD_MASK): ((2, 5), (3, 2)),
+_JOYSTICK_NAME_TO_VALUE = {
+    "JOYSTICK_UP": JOYSTICK_UP,
+    "JOYSTICK_RIGHT": JOYSTICK_RIGHT,
+    "JOYSTICK_DOWN": JOYSTICK_DOWN,
+    "JOYSTICK_LEFT": JOYSTICK_LEFT,
+    "JOYSTICK_FIRE": JOYSTICK_FIRE,
+    "JOYSTICK_FIRE_2": JOYSTICK_FIRE_2,
 }
+_JOYSTICK_VALUE_TO_NAME = {value: name for name, value in _JOYSTICK_NAME_TO_VALUE.items()}
 
-
-PYGAME_COMBO_KEYMAPS = {
-    "cpc": CPC_PYGAME_COMBO_KEYMAP,
+_PYGAME_KEY_NAME_TO_VALUE = {
+    name: getattr(pygame, name)
+    for name in dir(pygame)
+    if name.startswith("K_") and isinstance(getattr(pygame, name), int)
 }
+_PYGAME_KEY_VALUE_TO_NAME = {}
+for _name, _value in _PYGAME_KEY_NAME_TO_VALUE.items():
+    _PYGAME_KEY_VALUE_TO_NAME.setdefault(_value, _name)
 
-
-SPECTRUM_PYGAME_GAMEPAD_MAP = {
-    "dpad_left": JOYSTICK_LEFT,
-    "dpad_down": JOYSTICK_DOWN,
-    "dpad_up": JOYSTICK_UP,
-    "dpad_right": JOYSTICK_RIGHT,
-    "button_south": JOYSTICK_FIRE,
-    "button_east": JOYSTICK_FIRE_2,
-    "button_start": JOYSTICK_FIRE,
-    "button_select": JOYSTICK_FIRE_2,
+_PYGAME_MOD_NAME_TO_VALUE = {
+    name: getattr(pygame, name)
+    for name in dir(pygame)
+    if name.startswith("KMOD_") and isinstance(getattr(pygame, name), int)
 }
-
-CPC_PYGAME_GAMEPAD_MAP = {
-    "dpad_up": JOYSTICK_UP,
-    "dpad_right": JOYSTICK_RIGHT,
-    "dpad_down": JOYSTICK_DOWN,
-    "dpad_left": JOYSTICK_LEFT,
-    "button_south": JOYSTICK_FIRE,
-    "button_east": JOYSTICK_FIRE_2,
-    "button_start": JOYSTICK_FIRE,
-}
-
-GAMEBOY_PYGAME_GAMEPAD_MAP = {
-    "dpad_right": (0, 0),
-    "dpad_left": (0, 1),
-    "dpad_up": (0, 2),
-    "dpad_down": (0, 3),
-    "button_south": (1, 0),  # A
-    "button_east": (1, 1),   # B
-    "button_select": (1, 2),
-    "button_start": (1, 3),
-}
-
-VIC20_PYGAME_GAMEPAD_MAP = {
-    "dpad_right": JOYSTICK_RIGHT,
-    "dpad_left": JOYSTICK_LEFT,
-    "dpad_down": JOYSTICK_DOWN,
-    "dpad_up": JOYSTICK_UP,
-    "button_south": JOYSTICK_FIRE,
-    "button_start": JOYSTICK_FIRE_2,
-}
+_PYGAME_MOD_VALUE_TO_NAME = {}
+for _name, _value in _PYGAME_MOD_NAME_TO_VALUE.items():
+    _PYGAME_MOD_VALUE_TO_NAME.setdefault(_value, _name)
 
 
-PYGAME_GAMEPAD_MAPS = {
-    "spectrum": SPECTRUM_PYGAME_GAMEPAD_MAP,
-    "cpc": CPC_PYGAME_GAMEPAD_MAP,
-    "gameboy": GAMEBOY_PYGAME_GAMEPAD_MAP,
-    "vic20": VIC20_PYGAME_GAMEPAD_MAP,
-}
+@dataclass(frozen=True)
+class PygameInputMaps:
+    keymap_name: str | None
+    keymap: dict[int, tuple[int, int]]
+    combo_keymap: dict[tuple[int, int], tuple[tuple[int, int], ...]]
+    unicode_combo_keymap: dict[str, tuple[tuple[int, int], ...]]
+    gamepad_map: dict[str, object]
+    keymap_spec: dict | None = None
+
+
+def _resolve_key_constant(value) -> int:
+    if isinstance(value, int):
+        return value
+    if not isinstance(value, str):
+        raise ValueError(f"constante de tecla inválida: {value!r}")
+    try:
+        return int(_PYGAME_KEY_NAME_TO_VALUE[value])
+    except KeyError as exc:
+        raise ValueError(f"tecla pygame desconocida: {value!r}") from exc
+
+
+def _resolve_mod_constant(value) -> int:
+    if isinstance(value, int):
+        return value
+    if value in (None, ""):
+        return 0
+    if not isinstance(value, str):
+        raise ValueError(f"constante de modificador inválida: {value!r}")
+    try:
+        return int(_PYGAME_MOD_NAME_TO_VALUE[value])
+    except KeyError as exc:
+        raise ValueError(f"modificador pygame desconocido: {value!r}") from exc
+
+
+def _resolve_gamepad_value(value):
+    if isinstance(value, str):
+        try:
+            return int(_JOYSTICK_NAME_TO_VALUE[value])
+        except KeyError as exc:
+            raise ValueError(f"control de gamepad desconocido: {value!r}") from exc
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        return (int(value[0]), int(value[1]))
+    raise ValueError(f"valor de gamepad inválido: {value!r}")
+
+
+def _parse_control(control) -> tuple[int, int]:
+    if not isinstance(control, (list, tuple)) or len(control) != 2:
+        raise ValueError(f"control inválido: {control!r}")
+    return (int(control[0]), int(control[1]))
+
+
+def _parse_controls(controls) -> tuple[tuple[int, int], ...]:
+    return tuple(_parse_control(control) for control in controls)
+
+
+def _merge_payloads(base: dict, overlay: dict) -> dict:
+    merged = {
+        "id": overlay.get("id", base.get("id")),
+        "keys": dict(base.get("keys", {})),
+        "combos": list(base.get("combos", [])),
+        "unicode_combos": dict(base.get("unicode_combos", {})),
+        "gamepad": dict(base.get("gamepad", {})),
+    }
+    merged["keys"].update(overlay.get("keys", {}))
+    merged["unicode_combos"].update(overlay.get("unicode_combos", {}))
+    merged["gamepad"].update(overlay.get("gamepad", {}))
+
+    combo_map = {
+        (item["key"], str(item.get("mod", 0))): dict(item)
+        for item in merged["combos"]
+    }
+    for item in overlay.get("combos", []):
+        combo_map[(item["key"], str(item.get("mod", 0)))] = dict(item)
+    merged["combos"] = list(combo_map.values())
+    return merged
+
+
+def _resolve_spec_base(payload: dict, *, implicit_base: str | None, source_path: Path | None) -> dict | None:
+    base_ref = payload.get("base")
+    if base_ref is None:
+        base_ref = implicit_base
+    if base_ref is None:
+        return None
+    if source_path is not None:
+        candidate = (source_path.parent / str(base_ref)).expanduser()
+        if candidate.exists():
+            return _load_keymap_payload_from_path(candidate)
+    return _load_builtin_keymap_payload(str(base_ref))
+
+
+def _load_keymap_payload_from_path(path: str | Path, *, implicit_base: str | None = None) -> dict:
+    resolved_path = Path(path).expanduser().resolve()
+    payload = json.loads(resolved_path.read_text(encoding="utf-8"))
+    base = _resolve_spec_base(payload, implicit_base=implicit_base, source_path=resolved_path)
+    if base is None:
+        payload.pop("base", None)
+        return payload
+    overlay = dict(payload)
+    overlay.pop("base", None)
+    return _merge_payloads(base, overlay)
+
+
+@lru_cache(maxsize=None)
+def _load_builtin_keymap_payload(keymap_id: str) -> dict:
+    filename = f"{keymap_id}.json"
+    for directory in KEYMAP_SEARCH_DIRS:
+        path = directory / filename
+        if path.is_file():
+            return _load_keymap_payload_from_path(path)
+    raise ValueError(f"keymap no soportado: {keymap_id}")
+
+
+def _payload_to_maps(payload: dict) -> PygameInputMaps:
+    keymap = {
+        _resolve_key_constant(key): _parse_control(control)
+        for key, control in payload.get("keys", {}).items()
+    }
+    combo_keymap = {
+        (
+            _resolve_key_constant(item["key"]),
+            _resolve_mod_constant(item.get("mod", 0)),
+        ): _parse_controls(item.get("controls", ()))
+        for item in payload.get("combos", [])
+    }
+    unicode_combo_keymap = {
+        str(text): _parse_controls(controls)
+        for text, controls in payload.get("unicode_combos", {}).items()
+    }
+    gamepad_map = {
+        str(name): _resolve_gamepad_value(value)
+        for name, value in payload.get("gamepad", {}).items()
+    }
+    return PygameInputMaps(
+        keymap_name=payload.get("id"),
+        keymap=keymap,
+        combo_keymap=combo_keymap,
+        unicode_combo_keymap=unicode_combo_keymap,
+        gamepad_map=gamepad_map,
+        keymap_spec=_serialize_maps(
+            payload.get("id"),
+            keymap,
+            combo_keymap,
+            unicode_combo_keymap,
+            gamepad_map,
+        ),
+    )
+
+
+@lru_cache(maxsize=None)
+def _load_builtin_maps(keymap_id: str) -> PygameInputMaps:
+    return _payload_to_maps(_load_builtin_keymap_payload(keymap_id))
+
+
+def _serialize_maps(
+    keymap_name: str | None,
+    keymap: dict[int, tuple[int, int]],
+    combo_keymap: dict[tuple[int, int], tuple[tuple[int, int], ...]],
+    unicode_combo_keymap: dict[str, tuple[tuple[int, int], ...]],
+    gamepad_map: dict[str, object],
+) -> dict:
+    return {
+        "id": keymap_name,
+        "keys": {
+            _PYGAME_KEY_VALUE_TO_NAME.get(key, str(key)): [control[0], control[1]]
+            for key, control in sorted(keymap.items())
+        },
+        "combos": [
+            {
+                "key": _PYGAME_KEY_VALUE_TO_NAME.get(key, str(key)),
+                "mod": _PYGAME_MOD_VALUE_TO_NAME.get(mod, str(mod)),
+                "controls": [[row, bit] for row, bit in controls],
+            }
+            for (key, mod), controls in sorted(combo_keymap.items())
+        ],
+        "unicode_combos": {
+            text: [[row, bit] for row, bit in controls]
+            for text, controls in sorted(unicode_combo_keymap.items())
+        },
+        "gamepad": {
+            name: (
+                _JOYSTICK_VALUE_TO_NAME[value]
+                if isinstance(value, int) and value in _JOYSTICK_VALUE_TO_NAME
+                else [int(value[0]), int(value[1])]
+            )
+            for name, value in sorted(gamepad_map.items())
+        },
+    }
+
+
+def load_pygame_input_maps(
+    keymap_name: str | None,
+    *,
+    gamepad_name: str | None = None,
+    keymap_file: str | None = None,
+    keymap_spec: dict | None = None,
+) -> PygameInputMaps:
+    if keymap_spec is not None:
+        payload = dict(keymap_spec)
+        if payload.get("base") is None and keymap_name:
+            payload["base"] = keymap_name
+        maps = _payload_to_maps(
+            _merge_payloads(
+                _resolve_spec_base(payload, implicit_base=None, source_path=None) or {},
+                {k: v for k, v in payload.items() if k != "base"},
+            )
+        )
+    elif keymap_file is not None:
+        maps = _payload_to_maps(
+            _load_keymap_payload_from_path(keymap_file, implicit_base=keymap_name)
+        )
+    else:
+        effective_name = keymap_name or "spectrum"
+        maps = _load_builtin_maps(effective_name)
+
+    if keymap_name is None and keymap_spec is None and keymap_file is None:
+        maps = PygameInputMaps(
+            keymap_name=maps.keymap_name,
+            keymap=maps.keymap,
+            combo_keymap=maps.combo_keymap,
+            unicode_combo_keymap=maps.unicode_combo_keymap,
+            gamepad_map={},
+            keymap_spec=None,
+        )
+
+    if maps.gamepad_map:
+        return maps
+    if gamepad_name:
+        gamepad_maps = _load_builtin_maps(gamepad_name).gamepad_map
+        return PygameInputMaps(
+            keymap_name=maps.keymap_name,
+            keymap=maps.keymap,
+            combo_keymap=maps.combo_keymap,
+            unicode_combo_keymap=maps.unicode_combo_keymap,
+            gamepad_map=gamepad_maps,
+            keymap_spec=_serialize_maps(
+                maps.keymap_name,
+                maps.keymap,
+                maps.combo_keymap,
+                maps.unicode_combo_keymap,
+                gamepad_maps,
+            ) if maps.keymap_spec is not None else None,
+        )
+    return maps
 
 
 def get_pygame_keymap(name: str | None):
     """Return the requested pygame keymap or the Spectrum default."""
 
-    if name is None:
-        return SPECTRUM_PYGAME_KEYMAP
-    return PYGAME_KEYMAPS.get(name, SPECTRUM_PYGAME_KEYMAP)
+    return load_pygame_input_maps(name).keymap
 
 
 def get_pygame_combo_keymap(name: str | None):
     """Return host key+modifier combinations for the active machine."""
 
-    if name is None:
-        return {}
-    return PYGAME_COMBO_KEYMAPS.get(name, {})
+    return load_pygame_input_maps(name).combo_keymap
 
 
-def resolve_pygame_key_controls(keymap, combo_keymap, event):
+def get_pygame_unicode_combo_map(name: str | None):
+    """Return text-driven combos for layouts needing symbol translation."""
+
+    return load_pygame_input_maps(name).unicode_combo_keymap
+
+
+def get_pygame_gamepad_map(name: str | None):
+    """Return the requested pygame gamepad map or an empty mapping."""
+
+    return load_pygame_input_maps(None, gamepad_name=name).gamepad_map
+
+
+def resolve_pygame_key_controls(keymap, combo_keymap, unicode_combo_map, event):
     """Resolve one host keyboard event to one or more emulated key controls."""
 
+    text = getattr(event, "unicode", "") or ""
+    if text and text in unicode_combo_map:
+        return tuple(unicode_combo_map[text])
     mod = int(getattr(event, "mod", 0))
-    combo = combo_keymap.get((event.key, ALTGR_MOD_MASK))
-    if combo is not None and (mod & ALTGR_MOD_MASK):
-        return tuple(combo)
+    for (combo_key, required_mod), combo_controls in combo_keymap.items():
+        if combo_key != event.key:
+            continue
+        if required_mod == 0:
+            return tuple(combo_controls)
+        if required_mod == pygame.KMOD_MODE and (mod & ALTGR_MOD_MASK):
+            return tuple(combo_controls)
+        if (mod & required_mod) == required_mod:
+            return tuple(combo_controls)
     control = keymap.get(event.key)
     if control is None:
         return ()
     return (control,)
 
 
-def get_pygame_gamepad_map(name: str | None):
-    """Return the requested pygame gamepad map or an empty mapping."""
+_SPECTRUM_MAPS = load_pygame_input_maps("spectrum", gamepad_name="spectrum")
+SPECTRUM_PYGAME_KEYMAP = _SPECTRUM_MAPS.keymap
+SPECTRUM_PYGAME_COMBO_KEYMAP = _SPECTRUM_MAPS.combo_keymap
+SPECTRUM_PYGAME_UNICODE_COMBO_MAP = _SPECTRUM_MAPS.unicode_combo_keymap
+SPECTRUM_PYGAME_GAMEPAD_MAP = _SPECTRUM_MAPS.gamepad_map
 
-    if name is None:
-        return {}
-    return PYGAME_GAMEPAD_MAPS.get(name, {})
+_SPECTRUM48K_MAPS = load_pygame_input_maps("spectrum48k", gamepad_name="spectrum")
+_SPECTRUM128K_MAPS = load_pygame_input_maps("spectrum128k", gamepad_name="spectrum")
+
+_CPC_MAPS = load_pygame_input_maps("cpc", gamepad_name="cpc")
+CPC_PYGAME_KEYMAP = _CPC_MAPS.keymap
+CPC_PYGAME_COMBO_KEYMAP = _CPC_MAPS.combo_keymap
+CPC_PYGAME_GAMEPAD_MAP = _CPC_MAPS.gamepad_map
+
+_GAMEBOY_MAPS = load_pygame_input_maps("gameboy", gamepad_name="gameboy")
+GAMEBOY_PYGAME_KEYMAP = _GAMEBOY_MAPS.keymap
+GAMEBOY_PYGAME_GAMEPAD_MAP = _GAMEBOY_MAPS.gamepad_map
+
+_KIM1_MAPS = load_pygame_input_maps("kim1")
+KIM1_PYGAME_KEYMAP = _KIM1_MAPS.keymap
+
+_VIC20_MAPS = load_pygame_input_maps("vic20", gamepad_name="vic20")
+VIC20_PYGAME_KEYMAP = _VIC20_MAPS.keymap
+VIC20_PYGAME_GAMEPAD_MAP = _VIC20_MAPS.gamepad_map
+
+PYGAME_KEYMAPS = {
+    "spectrum": SPECTRUM_PYGAME_KEYMAP,
+    "spectrum48k": _SPECTRUM48K_MAPS.keymap,
+    "spectrum128k": _SPECTRUM128K_MAPS.keymap,
+    "cpc": CPC_PYGAME_KEYMAP,
+    "gameboy": GAMEBOY_PYGAME_KEYMAP,
+    "kim1": KIM1_PYGAME_KEYMAP,
+    "vic20": VIC20_PYGAME_KEYMAP,
+}

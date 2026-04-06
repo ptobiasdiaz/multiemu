@@ -1,0 +1,275 @@
+{
+  "id": "cpc",
+  "keys": {
+    "K_BACKSPACE": [
+      9,
+      7
+    ],
+    "K_TAB": [
+      8,
+      4
+    ],
+    "K_RETURN": [
+      2,
+      2
+    ],
+    "K_ESCAPE": [
+      8,
+      2
+    ],
+    "K_SPACE": [
+      5,
+      7
+    ],
+    "K_COMMA": [
+      4,
+      7
+    ],
+    "K_MINUS": [
+      3,
+      1
+    ],
+    "K_PERIOD": [
+      3,
+      7
+    ],
+    "K_SLASH": [
+      3,
+      6
+    ],
+    "K_0": [
+      4,
+      0
+    ],
+    "K_1": [
+      8,
+      0
+    ],
+    "K_2": [
+      8,
+      1
+    ],
+    "K_3": [
+      7,
+      1
+    ],
+    "K_4": [
+      7,
+      0
+    ],
+    "K_5": [
+      6,
+      1
+    ],
+    "K_6": [
+      6,
+      0
+    ],
+    "K_7": [
+      5,
+      1
+    ],
+    "K_8": [
+      5,
+      0
+    ],
+    "K_9": [
+      4,
+      1
+    ],
+    "K_SEMICOLON": [
+      3,
+      4
+    ],
+    "K_LEFTBRACKET": [
+      2,
+      1
+    ],
+    "K_BACKSLASH": [
+      2,
+      6
+    ],
+    "K_RIGHTBRACKET": [
+      2,
+      3
+    ],
+    "K_a": [
+      8,
+      5
+    ],
+    "K_b": [
+      6,
+      6
+    ],
+    "K_c": [
+      7,
+      6
+    ],
+    "K_d": [
+      7,
+      5
+    ],
+    "K_e": [
+      7,
+      2
+    ],
+    "K_f": [
+      6,
+      5
+    ],
+    "K_g": [
+      6,
+      4
+    ],
+    "K_h": [
+      5,
+      4
+    ],
+    "K_i": [
+      4,
+      3
+    ],
+    "K_j": [
+      5,
+      5
+    ],
+    "K_k": [
+      4,
+      5
+    ],
+    "K_l": [
+      4,
+      4
+    ],
+    "K_m": [
+      4,
+      6
+    ],
+    "K_n": [
+      5,
+      6
+    ],
+    "K_o": [
+      4,
+      2
+    ],
+    "K_p": [
+      3,
+      3
+    ],
+    "K_q": [
+      8,
+      3
+    ],
+    "K_r": [
+      6,
+      2
+    ],
+    "K_s": [
+      7,
+      4
+    ],
+    "K_t": [
+      6,
+      3
+    ],
+    "K_u": [
+      5,
+      2
+    ],
+    "K_v": [
+      6,
+      7
+    ],
+    "K_w": [
+      7,
+      3
+    ],
+    "K_x": [
+      7,
+      7
+    ],
+    "K_y": [
+      5,
+      3
+    ],
+    "K_z": [
+      8,
+      7
+    ],
+    "K_DELETE": [
+      9,
+      7
+    ],
+    "K_CAPSLOCK": [
+      8,
+      6
+    ],
+    "K_RIGHT": [
+      0,
+      1
+    ],
+    "K_LEFT": [
+      1,
+      0
+    ],
+    "K_DOWN": [
+      0,
+      2
+    ],
+    "K_UP": [
+      0,
+      0
+    ],
+    "K_KP_ENTER": [
+      0,
+      6
+    ],
+    "K_KP_PERIOD": [
+      9,
+      6
+    ],
+    "K_LCTRL": [
+      2,
+      7
+    ],
+    "K_LSHIFT": [
+      2,
+      5
+    ],
+    "K_RCTRL": [
+      2,
+      7
+    ],
+    "K_RSHIFT": [
+      2,
+      5
+    ]
+  },
+  "combos": [
+    {
+      "key": "K_1",
+      "mod": "KMOD_MODE",
+      "controls": [
+        [
+          2,
+          5
+        ],
+        [
+          3,
+          2
+        ]
+      ]
+    }
+  ],
+  "unicode_combos": {},
+  "gamepad": {
+    "button_east": "JOYSTICK_FIRE_2",
+    "button_south": "JOYSTICK_FIRE",
+    "button_start": "JOYSTICK_FIRE",
+    "dpad_down": "JOYSTICK_DOWN",
+    "dpad_left": "JOYSTICK_LEFT",
+    "dpad_right": "JOYSTICK_RIGHT",
+    "dpad_up": "JOYSTICK_UP"
+  }
+}

@@ -14,7 +14,7 @@ import warnings
 
 from machines.gameboy import CGB, DMG
 from machines.m6502 import KIM1, VIC20NTSC, VIC20PAL
-from machines.z80 import CPC464, CPC6128, CPC664, Spectrum16K, Spectrum48K
+from machines.z80 import CPC464, CPC6128, CPC664, Spectrum128K, Spectrum16K, Spectrum48K
 from video import get_display_profile
 
 
@@ -124,6 +124,28 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 slot_id="main",
                 description="ROM principal del Spectrum 48K",
                 filenames=("spec48k.rom",),
+            ),
+            RomSlotSpec(
+                slot_id="tape",
+                description="Imagen de cinta TZX/TAP para Spectrum",
+                filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
+                required=False,
+            ),
+        ),
+    ),
+    "spectrum128k": MachineSpec(
+        machine_id="spectrum128k",
+        display_name="ZX Spectrum 128K",
+        factory=lambda roms, display_profile: Spectrum128K(
+            roms["main"],
+            tape_data=roms.get("tape"),
+            display_profile=display_profile,
+        ),
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="main",
+                description="ROM principal del Spectrum 128K",
+                filenames=("spec128k.rom", "spectrum128k.rom"),
             ),
             RomSlotSpec(
                 slot_id="tape",

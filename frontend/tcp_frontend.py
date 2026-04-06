@@ -19,6 +19,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 
+from frontend.keymap import load_pygame_input_maps
 from multiemu.remote_runtime import RemoteFrontendSession
 
 
@@ -67,6 +68,7 @@ class TcpFrontend(RemoteFrontendSession):
         fps_limit: int | None = None,
         audio_sample_rate: int = 44100,
         audio_chunk_size: int = 512,
+        keymap_file: str | None = None,
     ):
         super().__init__(
             backend,
@@ -80,6 +82,12 @@ class TcpFrontend(RemoteFrontendSession):
         self._next_client_id = 1
         self.clients: dict[int, ClientSession] = {}
         self.machine = getattr(self.backend, "machine", None)
+        self.keymap_file = keymap_file
+        self.input_maps = load_pygame_input_maps(
+            self.input_keymap_name,
+            gamepad_name=self.input_gamepad_map_name,
+            keymap_file=self.keymap_file,
+        )
 
     def start_transport(self) -> None:
         """Create and configure the listening TCP socket."""
@@ -248,8 +256,9 @@ class TcpFrontend(RemoteFrontendSession):
                 },
                 "input_devices": input_devices,
                 "frontend": {
-                    "keymap": self.input_keymap_name,
+                    "keymap": self.input_maps.keymap_name or self.input_keymap_name,
                     "gamepad_map": self.input_gamepad_map_name,
+                    "keymap_spec": self.input_maps.keymap_spec if self.keymap_file else None,
                 },
             },
         )

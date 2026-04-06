@@ -6,9 +6,7 @@ import pygame
 from frontend.backend import wrap_backend
 from frontend.input_events import InputEvent
 from frontend.keymap import (
-    get_pygame_combo_keymap,
-    get_pygame_gamepad_map,
-    get_pygame_keymap,
+    load_pygame_input_maps,
     resolve_pygame_key_controls,
 )
 
@@ -38,6 +36,7 @@ class PygameFrontend:
         fps_limit: int | None = None,
         audio_sample_rate: int = 44100,
         audio_chunk_size: int = 512,
+        keymap_file: str | None = None,
     ):
         self.backend = wrap_backend(backend)
 
@@ -75,9 +74,17 @@ class PygameFrontend:
         self.use_surfarray = np is not None and hasattr(pygame, "surfarray")
         self._configure_audio_profile()
 
-        self.keymap = get_pygame_keymap(getattr(self.backend, "input_keymap_name", None))
-        self.combo_keymap = get_pygame_combo_keymap(getattr(self.backend, "input_keymap_name", None))
-        self.gamepad_map = get_pygame_gamepad_map(getattr(self.backend, "input_gamepad_map_name", None))
+        self.keymap_name = getattr(self.backend, "input_keymap_name", None)
+        self.keymap_file = keymap_file
+        self.input_maps = load_pygame_input_maps(
+            self.keymap_name,
+            gamepad_name=getattr(self.backend, "input_gamepad_map_name", None),
+            keymap_file=self.keymap_file,
+        )
+        self.keymap = self.input_maps.keymap
+        self.combo_keymap = self.input_maps.combo_keymap
+        self.unicode_combo_keymap = self.input_maps.unicode_combo_keymap
+        self.gamepad_map = self.input_maps.gamepad_map
         self.joystick_count = max(0, int(getattr(self.backend, "input_joystick_count", 0)))
         self.tap_hold_frames = getattr(
             self.backend,
@@ -193,8 +200,12 @@ class PygameFrontend:
                 if event.key == pygame.K_F1:
                     self.backend.toggle_tape_play_pause()
                     continue
-                controls = resolve_pygame_key_controls(self.keymap, self.combo_keymap, event)
+                controls = resolve_pygame_key_controls(
+                    self.keymap, self.combo_keymap, self.unicode_combo_keymap, event
+                )
                 if controls:
+                    if getattr(event, "unicode", ""):
+                        self._suppress_host_shift_bindings()
                     self._keyboard_key_bindings[event.key] = controls
                     for control in controls:
                         self.active_keyboard_controls.add(control)
@@ -202,7 +213,9 @@ class PygameFrontend:
             elif event.type == pygame.KEYUP:
                 controls = self._keyboard_key_bindings.pop(event.key, None)
                 if controls is None:
-                    controls = resolve_pygame_key_controls(self.keymap, self.combo_keymap, event)
+                    controls = resolve_pygame_key_controls(
+                        self.keymap, self.combo_keymap, self.unicode_combo_keymap, event
+                    )
                 for control in controls:
                     held_frames = self.active_control_frames.get(control, 0)
                     if held_frames <= self.quick_tap_max_frames:
@@ -267,6 +280,15 @@ class PygameFrontend:
             else:
                 self.tap_pulse_frames.pop(control, None)
                 self.pending_tap_counts.pop(control, None)
+
+    def _suppress_host_shift_bindings(self) -> None:
+        for shift_key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
+            controls = self._keyboard_key_bindings.pop(shift_key, None)
+            if not controls:
+                continue
+            for control in controls:
+                self.active_keyboard_controls.discard(control)
+                self.active_control_frames.pop(control, None)
 
     def _refresh_gamepads(self) -> None:
         if not pygame.joystick.get_init():

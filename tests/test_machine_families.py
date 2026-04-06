@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from machines import BaseMachine, CGB, DMG, GameBoyMachineBase, M6502MachineBase, VIC20NTSC, VIC20PAL
-from machines.z80 import CPC6128, CPC664, Spectrum48K
+from machines.z80 import CPC6128, CPC664, Spectrum128K, Spectrum48K
 
 
 def _make_gameboy_rom() -> bytes:
@@ -14,6 +14,7 @@ def test_z80_family_machines_still_inherit_from_base_machine():
     machine = Spectrum48K(bytes([0x00]) * 0x4000)
 
     assert isinstance(machine, BaseMachine)
+    assert machine.input_keymap_name == "spectrum48k"
 
 
 def test_cpc664_uses_base_machine_family():
@@ -28,6 +29,14 @@ def test_cpc6128_uses_base_machine_family():
 
     assert isinstance(machine, BaseMachine)
     assert machine.machine_id == "cpc6128"
+
+
+def test_spectrum128k_uses_base_machine_family():
+    machine = Spectrum128K(bytes([0x00]) * 0x8000)
+
+    assert isinstance(machine, BaseMachine)
+    assert machine.machine_id == "spectrum128k"
+    assert machine.input_keymap_name == "spectrum128k"
 
 
 def test_gameboy_family_uses_gameboy_base():

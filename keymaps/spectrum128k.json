@@ -1,0 +1,109 @@
+{
+  "id": "spectrum128k",
+  "base": "spectrum",
+  "combos": [
+    {
+      "key": "K_LEFT",
+      "mod": "KMOD_NONE",
+      "controls": [[0, 0], [3, 4]]
+    },
+    {
+      "key": "K_DOWN",
+      "mod": "KMOD_NONE",
+      "controls": [[0, 0], [4, 4]]
+    },
+    {
+      "key": "K_UP",
+      "mod": "KMOD_NONE",
+      "controls": [[0, 0], [4, 3]]
+    },
+    {
+      "key": "K_RIGHT",
+      "mod": "KMOD_NONE",
+      "controls": [[0, 0], [4, 2]]
+    },
+    {
+      "key": "K_BACKSPACE",
+      "mod": "KMOD_NONE",
+      "controls": [[0, 0], [4, 0]]
+    },
+    {
+      "key": "K_COMMA",
+      "mod": "KMOD_NONE",
+      "controls": [[7, 1], [7, 3]]
+    },
+    {
+      "key": "K_PERIOD",
+      "mod": "KMOD_NONE",
+      "controls": [[7, 1], [7, 2]]
+    },
+    {
+      "key": "K_1",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [3, 0]]
+    },
+    {
+      "key": "K_2",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [3, 1]]
+    },
+    {
+      "key": "K_3",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [3, 2]]
+    },
+    {
+      "key": "K_4",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [3, 3]]
+    },
+    {
+      "key": "K_5",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [3, 4]]
+    },
+    {
+      "key": "K_6",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [4, 4]]
+    },
+    {
+      "key": "K_7",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [4, 3]]
+    },
+    {
+      "key": "K_8",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [4, 2]]
+    },
+    {
+      "key": "K_9",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [4, 1]]
+    },
+    {
+      "key": "K_0",
+      "mod": "KMOD_SHIFT",
+      "controls": [[7, 1], [4, 0]]
+    }
+  ],
+  "unicode_combos": {
+    "!": [[7, 1], [3, 0]],
+    "\"": [[7, 1], [5, 0]],
+    "#": [[7, 1], [3, 2]],
+    "$": [[7, 1], [3, 3]],
+    "%": [[7, 1], [3, 4]],
+    "&": [[7, 1], [4, 4]],
+    "'": [[7, 1], [4, 3]],
+    "(": [[7, 1], [4, 2]],
+    ")": [[7, 1], [4, 1]],
+    "+": [[7, 1], [6, 2]],
+    "-": [[7, 1], [6, 3]],
+    "/": [[7, 1], [0, 4]],
+    "=": [[7, 1], [6, 1]],
+    "@": [[7, 1], [3, 1]],
+    "_": [[7, 1], [4, 0]],
+    "·": [[7, 1], [3, 2]]
+  }
+}

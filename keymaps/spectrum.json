@@ -1,0 +1,62 @@
+{
+  "id": "spectrum",
+  "keys": {
+    "K_RETURN": [6, 0],
+    "K_SPACE": [7, 0],
+    "K_0": [4, 0],
+    "K_1": [3, 0],
+    "K_2": [3, 1],
+    "K_3": [3, 2],
+    "K_4": [3, 3],
+    "K_5": [3, 4],
+    "K_6": [4, 4],
+    "K_7": [4, 3],
+    "K_8": [4, 2],
+    "K_9": [4, 1],
+    "K_a": [1, 0],
+    "K_b": [7, 4],
+    "K_c": [0, 3],
+    "K_d": [1, 2],
+    "K_e": [2, 2],
+    "K_f": [1, 3],
+    "K_g": [1, 4],
+    "K_h": [6, 4],
+    "K_i": [5, 2],
+    "K_j": [6, 3],
+    "K_k": [6, 2],
+    "K_l": [6, 1],
+    "K_m": [7, 2],
+    "K_n": [7, 3],
+    "K_o": [5, 1],
+    "K_p": [5, 0],
+    "K_q": [2, 0],
+    "K_r": [2, 3],
+    "K_s": [1, 1],
+    "K_t": [2, 4],
+    "K_u": [5, 3],
+    "K_v": [0, 4],
+    "K_w": [2, 1],
+    "K_x": [0, 2],
+    "K_y": [5, 4],
+    "K_z": [0, 1],
+    "K_LSHIFT": [0, 0],
+    "K_RCTRL": [7, 1]
+  },
+  "combos": [
+    {
+      "key": "K_BACKSPACE",
+      "mod": "KMOD_NONE",
+      "controls": [[0, 0], [4, 0]]
+    }
+  ],
+  "gamepad": {
+    "button_east": "JOYSTICK_FIRE_2",
+    "button_select": "JOYSTICK_FIRE_2",
+    "button_south": "JOYSTICK_FIRE",
+    "button_start": "JOYSTICK_FIRE",
+    "dpad_down": "JOYSTICK_DOWN",
+    "dpad_left": "JOYSTICK_LEFT",
+    "dpad_right": "JOYSTICK_RIGHT",
+    "dpad_up": "JOYSTICK_UP"
+  }
+}
