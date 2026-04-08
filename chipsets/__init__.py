@@ -5,7 +5,9 @@ peripherals such as tapes, disks and similar devices stay under `devices/`.
 """
 
 from .ay38912 import AY38912
-from .cpc import CPCGateArray, CPCCRTC, CPCPPI, AmstradCPCVideo, CPCVideo, HD6845, Intel8255
+from .cpc_crtc import CPCCRTC, HD6845
+from .cpc_gate_array import CPCGateArray
+from .cpc_ppi import CPCPPI, Intel8255
 from .cpc_render import (
     build_horizontal_display_map,
     build_vertical_display_map,
@@ -13,6 +15,7 @@ from .cpc_render import (
     render_frame_rgb24_from_ram,
     render_scanline_from_ram,
 )
+from .cpc_video import AmstradCPCVideo, CPCVideo
 from .m6530 import M6530
 from .ula import Spectrum48KULA, ULABeeper
 

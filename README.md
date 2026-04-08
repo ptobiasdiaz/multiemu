@@ -21,6 +21,8 @@ Máquinas soportadas hoy:
 
 - `spectrum16k`
 - `spectrum48k`
+- `spectrum128k`
+- `spectrumplus2`
 - `cpc464` (experimental)
 - `cpc664` (experimental)
 - `cpc6128` (experimental)
@@ -49,6 +51,8 @@ El frontend también puede cargar un keymap externo con:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `spectrum16k` | usable | sí | beeper básico | sí | sí, hasta 2 | cinta `TZX/TAP` | ROM principal | soporte estable de arranque y carga básica |
 | `spectrum48k` | usable | sí | beeper básico | sí | sí, hasta 2 | cinta `TZX/TAP` | ROM principal | base más madura del proyecto |
+| `spectrum128k` | experimental avanzada | sí | beeper + AY básico | sí | sí, hasta 2 | cinta `TZX/TAP`, snapshot `.z80` | ROM principal, snapshot `.z80` | paging `0x7FFD`, RAM `128K` y keymap específico |
+| `spectrumplus2` | experimental | sí | beeper + AY básico | sí | sí, hasta 2 | cinta `TZX/TAP`, snapshot `.z80` | ROM principal, snapshot `.z80` | hoy reutiliza el perfil hardware base del `128K` con ROM/identidad `+2` |
 | `cpc464` | experimental | sí | AY básico | sí | sí, 1 | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | timings y fidelidad aún incompletos |
 | `cpc664` | experimental | sí | AY básico | sí | sí, 1 | disco `DSK` | ROM OS/BASIC/AMSDOS | reutiliza el scaffold CPC actual con ROMs 664 |
 | `cpc6128` | experimental | sí | AY básico | sí | sí, 1 | disco `DSK` | ROM OS/BASIC/AMSDOS/expansion | RAM bancaria `128K` y scaffold 6128 inicial |
@@ -133,6 +137,14 @@ Slots y nombres esperados por defecto:
 - `spectrum48k`
   - `main` -> `spec48k.rom`
   - `tape` -> `program.tzx`, `tape.tzx`
+- `spectrum128k`
+  - `main` -> `zx128k.rom`, `zx128k_derby.rom`, `spec128k.rom`
+  - `tape` -> `program.tzx`, `tape.tzx`
+  - `snapshot` -> `game.z80`, `snapshot.z80`
+- `spectrumplus2`
+  - `main` -> `zx128k_2plus_es.rom`, `plus2.rom`
+  - `tape` -> `program.tzx`, `tape.tzx`
+  - `snapshot` -> `game.z80`, `snapshot.z80`
 - `cpc464`
   - `os` -> `OS_464.ROM`
   - `basic` -> `BASIC_1.0.ROM`, `BASIC_1.1.ROM`, `BASIC_464.ROM`, `BASIC.ROM`, `cpc464.rom`
@@ -173,6 +185,9 @@ Ejemplos:
 
 ```bash
 multiemu run spectrum48k --rom spec48k.rom
+multiemu run spectrum128k --rom main=zx128k.rom
+multiemu run spectrumplus2 --rom main=zx128k_2plus_es.rom
+multiemu run spectrum128k --rom main=zx128k.rom --rom snapshot=juego.z80
 multiemu run cpc464 --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
 multiemu run cpc664 --rom os=cpc664.rom
 multiemu run cpc6128 --rom os=cpc6128.rom
@@ -222,6 +237,7 @@ Nota sobre `cpc464`:
 Nota sobre soporte de cinta:
 
 - `spectrum16k` y `spectrum48k` aceptan un slot opcional `tape` en formato `TZX`
+- `spectrum128k` y `spectrumplus2` aceptan `tape` en formato `TZX/TAP` y `snapshot` en formato `.z80`
 - `cpc464` acepta un slot opcional `tape` en formato `CDT/TZX`
 - en el frontend `pygame`, `F1` hace `play/pause` de la cinta
 

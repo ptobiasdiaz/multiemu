@@ -14,7 +14,7 @@ import warnings
 
 from machines.gameboy import CGB, DMG
 from machines.m6502 import KIM1, VIC20NTSC, VIC20PAL
-from machines.z80 import CPC464, CPC6128, CPC664, Spectrum128K, Spectrum16K, Spectrum48K
+from machines.z80 import CPC464, CPC6128, CPC664, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
 from video import get_display_profile
 
 
@@ -88,15 +88,47 @@ def _build_cpc6128(roms: dict[str, bytes], display_profile: str) -> CPC6128:
     )
 
 
+def _build_spectrum16k(roms: dict[str, bytes], display_profile: str) -> Spectrum16K:
+    return Spectrum16K(
+        roms.get("main", bytes([0x00]) * 0x4000),
+        tape_data=roms.get("tape"),
+        snapshot_data=roms.get("snapshot"),
+        display_profile=display_profile,
+    )
+
+
+def _build_spectrum48k(roms: dict[str, bytes], display_profile: str) -> Spectrum48K:
+    return Spectrum48K(
+        roms.get("main", bytes([0x00]) * 0x4000),
+        tape_data=roms.get("tape"),
+        snapshot_data=roms.get("snapshot"),
+        display_profile=display_profile,
+    )
+
+
+def _build_spectrum128k(roms: dict[str, bytes], display_profile: str) -> Spectrum128K:
+    return Spectrum128K(
+        roms.get("main", bytes([0x00]) * 0x8000),
+        tape_data=roms.get("tape"),
+        snapshot_data=roms.get("snapshot"),
+        display_profile=display_profile,
+    )
+
+
+def _build_spectrumplus2(roms: dict[str, bytes], display_profile: str) -> SpectrumPlus2:
+    return SpectrumPlus2(
+        roms.get("main", bytes([0x00]) * 0x8000),
+        tape_data=roms.get("tape"),
+        snapshot_data=roms.get("snapshot"),
+        display_profile=display_profile,
+    )
+
+
 MACHINE_SPECS: dict[str, MachineSpec] = {
     "spectrum16k": MachineSpec(
         machine_id="spectrum16k",
         display_name="ZX Spectrum 16K",
-        factory=lambda roms, display_profile: Spectrum16K(
-            roms["main"],
-            tape_data=roms.get("tape"),
-            display_profile=display_profile,
-        ),
+        factory=_build_spectrum16k,
         rom_slots=(
             RomSlotSpec(
                 slot_id="main",
@@ -109,16 +141,18 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
                 required=False,
             ),
+            RomSlotSpec(
+                slot_id="snapshot",
+                description="Snapshot .z80 para Spectrum",
+                filenames=(),
+                required=False,
+            ),
         ),
     ),
     "spectrum48k": MachineSpec(
         machine_id="spectrum48k",
         display_name="ZX Spectrum 48K",
-        factory=lambda roms, display_profile: Spectrum48K(
-            roms["main"],
-            tape_data=roms.get("tape"),
-            display_profile=display_profile,
-        ),
+        factory=_build_spectrum48k,
         rom_slots=(
             RomSlotSpec(
                 slot_id="main",
@@ -131,16 +165,18 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
                 required=False,
             ),
+            RomSlotSpec(
+                slot_id="snapshot",
+                description="Snapshot .z80 para Spectrum",
+                filenames=(),
+                required=False,
+            ),
         ),
     ),
     "spectrum128k": MachineSpec(
         machine_id="spectrum128k",
         display_name="ZX Spectrum 128K",
-        factory=lambda roms, display_profile: Spectrum128K(
-            roms["main"],
-            tape_data=roms.get("tape"),
-            display_profile=display_profile,
-        ),
+        factory=_build_spectrum128k,
         rom_slots=(
             RomSlotSpec(
                 slot_id="main",
@@ -151,6 +187,36 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 slot_id="tape",
                 description="Imagen de cinta TZX/TAP para Spectrum",
                 filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="snapshot",
+                description="Snapshot .z80 para Spectrum 128K",
+                filenames=(),
+                required=False,
+            ),
+        ),
+    ),
+    "spectrumplus2": MachineSpec(
+        machine_id="spectrumplus2",
+        display_name="ZX Spectrum +2",
+        factory=_build_spectrumplus2,
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="main",
+                description="ROM principal del Spectrum +2",
+                filenames=("plus2.rom", "specplus2.rom", "spectrumplus2.rom", "zx128k_2plus_es.rom"),
+            ),
+            RomSlotSpec(
+                slot_id="tape",
+                description="Imagen de cinta TZX/TAP para Spectrum +2",
+                filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="snapshot",
+                description="Snapshot .z80 para Spectrum +2",
+                filenames=(),
                 required=False,
             ),
         ),
@@ -572,8 +638,7 @@ def has_single_rom_slot(spec: MachineSpec) -> bool:
     optional_slots = [slot for slot in spec.rom_slots if not slot.required]
     return (
         len(required_slots) == 1
-        and len(optional_slots) == 1
-        and optional_slots[0].slot_id == "tape"
+        and all(slot.slot_id in {"tape", "snapshot"} for slot in optional_slots)
     )
 
 
@@ -744,6 +809,16 @@ def resolve_machine_rom_paths(
         candidate = resolve_rom_slot_path(slot, search_dirs)
         if candidate is not None:
             rom_paths[slot.slot_id] = candidate
+            continue
+
+        if (
+            slot.slot_id == "main"
+            and "snapshot" in explicit_roms
+            and any(candidate.slot_id == "snapshot" for candidate in spec.rom_slots)
+        ):
+            candidate = resolve_rom_slot_path(slot, search_dirs)
+            if candidate is not None:
+                rom_paths[slot.slot_id] = candidate
             continue
 
         if slot.required:

@@ -2,6 +2,42 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.7
+
+Versión centrada en cerrar la línea Spectrum `128K/+2`, añadir snapshots
+`.z80` como formato de entrada y simplificar la superficie interna del árbol.
+
+### Incluye
+
+- Nueva máquina visible `spectrumplus2`.
+- Soporte inicial de snapshots `.z80` en:
+  - `spectrum48k`
+  - `spectrum128k`
+  - `spectrumplus2`
+- Restauración ampliada de estado `.z80` para Spectrum:
+  - bancos RAM `48K` y `128K`
+  - selección de ROM `48 BASIC` al restaurar snapshots `48K` sobre hardware `128K/+2`
+  - `last_out_7ffd`
+  - registros `AY`
+  - posición básica dentro del frame
+- Ajustes prácticos de ejecución para snapshots Spectrum:
+  - mejor momento de entrega de IM1 por frame en la ULA
+  - conservación correcta del bit alto del registro `R` del Z80
+- Separación explícita de keymaps Spectrum por máquina:
+  - `spectrum48k`
+  - `spectrum128k`
+- Simplificación interna del árbol:
+  - eliminación de wrappers triviales en `chipsets/`
+  - desaparición del sufijo `_accel` en los módulos canónicos exportados
+
+### Testing
+
+- Nuevos tests para:
+  - snapshots `.z80` `48K`, `128K` y `+2`
+  - restauración de RAM `48K` sobre hardware `128K/+2`
+  - despertar de `HALT` por interrupción Spectrum dentro del frame
+  - preservación del bit alto de `R` en el Z80
+
 ## 0.2.6
 
 Versión centrada en abrir `spectrum128k` como nueva variante visible y en

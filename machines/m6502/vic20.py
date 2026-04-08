@@ -6,15 +6,15 @@ from chipsets.via6522 import VIA6522
 from chipsets.vic6560 import VIC6560
 
 try:
-    from chipsets.vic6560_accel import draw_char_cell_scanline_rgb24 as _draw_char_cell_scanline_rgb24_accel
-    from chipsets.vic6560_accel import draw_scanline_cells_rgb24 as _draw_scanline_cells_rgb24_accel
-    from chipsets.vic6560_accel import draw_scanline_contexts_rgb24 as _draw_scanline_contexts_rgb24_accel
-    from chipsets.vic6560_accel import build_scanline_contexts as _build_scanline_contexts_accel
+    from chipsets.vic6560_render import draw_char_cell_scanline_rgb24 as _draw_char_cell_scanline_rgb24_render
+    from chipsets.vic6560_render import draw_scanline_cells_rgb24 as _draw_scanline_cells_rgb24_render
+    from chipsets.vic6560_render import draw_scanline_contexts_rgb24 as _draw_scanline_contexts_rgb24_render
+    from chipsets.vic6560_render import build_scanline_contexts as _build_scanline_contexts_render
 except ImportError:  # pragma: no cover - fallback when extension is unavailable
-    _draw_char_cell_scanline_rgb24_accel = None
-    _draw_scanline_cells_rgb24_accel = None
-    _draw_scanline_contexts_rgb24_accel = None
-    _build_scanline_contexts_accel = None
+    _draw_char_cell_scanline_rgb24_render = None
+    _draw_scanline_cells_rgb24_render = None
+    _draw_scanline_contexts_rgb24_render = None
+    _build_scanline_contexts_render = None
 
 from cpu.m6502 import RAMBlock, ROMBlock
 from frontend.input_events import (
@@ -461,8 +461,8 @@ class VIC20(M6502MachineBase):
                     self._read_vic_visible(self.vic.glyph_row_address_for_cell(screen_code, pixel_y))
                     for (_, _, _, pixel_y, _, _), screen_code in zip(fetch_cells, screen_codes, strict=False)
                 ]
-                if _build_scanline_contexts_accel is not None:
-                    fetch_contexts = _build_scanline_contexts_accel(
+                if _build_scanline_contexts_render is not None:
+                    fetch_contexts = _build_scanline_contexts_render(
                         self.vic,
                         y,
                         width,
@@ -480,8 +480,8 @@ class VIC20(M6502MachineBase):
                         color_nibbles,
                         glyph_row_bits,
                     )
-            if _draw_scanline_contexts_rgb24_accel is not None and fetch_contexts:
-                _draw_scanline_contexts_rgb24_accel(
+            if _draw_scanline_contexts_rgb24_render is not None and fetch_contexts:
+                _draw_scanline_contexts_rgb24_render(
                     out,
                     width,
                     height,

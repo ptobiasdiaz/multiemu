@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from chipsets import AY38912
-from chipsets.cpc_crtc import HD6845
+from chipsets import AY38912, HD6845
 from chipsets.cpc_render import (
     build_horizontal_display_map as build_horizontal_display_map_accel,
     build_vertical_display_map as build_vertical_display_map_accel,

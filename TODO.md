@@ -10,18 +10,18 @@
   La regla debe seguir siendo: dispositivo caliente en Cython, maquina en Python.
 - [ ] Decidir si el siguiente paso prioritario es mas fidelidad de video o perifericos pendientes.
 
-### Arquitectura
-
-- [ ] Separar `AmstradCPCVideo` siguiendo el patron accel + fallback solo para tests.
-  Objetivo: dejar `devices/cpc.py` para `CPCGateArray`, `CPCCRTC` y `CPCPPI`, y mover el subsistema de video a algo tipo `cpc_video.py`, `cpc_video_accel.pyx` y `cpc_video_fallback.py`, pero sin seleccion dinamica de fallback en la ruta principal.
-- [ ] Valorar si `devices/cpc.py` debe dividirse en varios modulos:
-  `cpc_video.py`, `cpc_crtc.py`, `cpc_gate_array.py`, `cpc_ppi.py`.
-
 ### AY / Audio
 
-- [ ] Seguir mejorando `AY38912`.
-- [ ] Mantener `AY38912` reusable entre arquitecturas.
-- [ ] Valorar paso adicional a Cython solo dentro del dispositivo cuando la semantica este mas estable.
+- [ ] Medir mejor el estado real de `AY38912` en las maquinas que ya lo usan
+  (`CPC`, `Spectrum 128K` y futuras maquinas con AY) antes de tocar mas codigo.
+- [ ] Seguir afinando fidelidad de `AY38912`:
+  mezcla, envolventes, temporizacion y diferencias observables frente a
+  hardware/software real.
+- [ ] Mantener `AY38912` como dispositivo comun reutilizable entre
+  arquitecturas, evitando forks por maquina salvo que haya una diferencia real
+  de cableado o reloj.
+- [ ] Revisar si el siguiente cuello del `AY38912` es realmente de rendimiento
+  o ya es principalmente de fidelidad.
 
 ### Teclado
 
@@ -79,14 +79,16 @@ Siguiente paso:
 
 - [ ] `Game Gear`
 - [ ] `Master System II`
-- [ ] `ZX Spectrum 128K`
-- [ ] `ZX Spectrum +2`
 - [ ] `MSX`
 - [ ] `MSX-2`
+- [ ] `ColecoVision`
+- [ ] `Vectrex`
+- [ ] `Videopac G4000`
+- [ ] `Atari 2600`
 
 ## Orden recomendado
 
 1. Medir rendimiento real del CPC tras la nueva arquitectura de video.
 2. Decidir si el siguiente paso prioritario es mas fidelidad de video o perifericos pendientes.
 3. Seguir afinando `AY38912`.
-4. Valorar si `devices/cpc.py` ya merece dividirse en modulos mas pequeños.
+4. Revisar si el siguiente frente en CPC debe ser audio/fidelidad o teclado/eventos.

@@ -27,6 +27,36 @@ def test_machine_registry_exposes_spectrum128k():
     assert spec.rom_slots[0].slot_id == "main"
     assert "spec128k.rom" in spec.rom_slots[0].filenames
     assert "program.tap" in spec.rom_slots[1].filenames
+    assert spec.rom_slots[2].slot_id == "snapshot"
+
+
+def test_machine_registry_exposes_spectrumplus2():
+    spec = get_machine_spec("spectrumplus2")
+
+    assert spec.machine_id == "spectrumplus2"
+    assert spec.display_name == "ZX Spectrum +2"
+    assert spec.rom_slots[0].slot_id == "main"
+    assert "plus2.rom" in spec.rom_slots[0].filenames
+    assert "zx128k_2plus_es.rom" in spec.rom_slots[0].filenames
+    assert "program.tap" in spec.rom_slots[1].filenames
+    assert spec.rom_slots[2].slot_id == "snapshot"
+
+
+def test_resolve_machine_rom_paths_prefers_default_main_rom_when_snapshot_is_explicit(monkeypatch, tmp_path):
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    snapshot = tmp_path / "bombjack.z80"
+    main = tmp_path / "zx128k_2plus_es.rom"
+    snapshot.write_bytes(b"z80")
+    main.write_bytes(b"rom")
+
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.chdir(tmp_path)
+
+    roms = resolve_machine_rom_paths("spectrumplus2", roms={"snapshot": snapshot})
+
+    assert roms["snapshot"] == snapshot
+    assert roms["main"] == main
 
 
 def test_machine_registry_exposes_gameboy():

@@ -70,7 +70,7 @@ cdef class Z80Core:
     cdef uint8_t fetch8(self):
         cdef uint8_t v = self.bus.mem_read(self.PC)
         self.PC = <uint16_t>((self.PC + 1) & 0xFFFF)
-        self.R = <uint8_t>((self.R + 1) & 0x7F)
+        self.R = <uint8_t>((self.R & 0x80) | ((self.R + 1) & 0x7F))
         return v
 
     cdef uint16_t fetch16(self):

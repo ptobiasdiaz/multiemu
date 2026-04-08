@@ -106,6 +106,19 @@ def test_z80_run_cycles_keeps_counting_clock_while_halted():
     assert cpu.snapshot()["halted"] is True
 
 
+def test_z80_fetch_preserves_high_bit_of_r_register():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0x00, 0x00, 0x76]))  # NOP, NOP, HALT
+
+    cpu.write_state({"R": 0x80})
+    cpu.run_cycles(20)
+
+    assert cpu.read_state()["R"] == 0x83
+
+
 def test_z80_ini_reads_from_port_into_memory_and_updates_registers():
     bus = Z80Bus()
     cpu = Z80Core(bus)

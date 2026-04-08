@@ -3,8 +3,7 @@ from __future__ import annotations
 from array import array
 
 from cpu.z80 import MemoryDevice, RAMBlock, ROMBlock, PythonPortHandler, Z80Bus, Z80Core
-from chipsets import AY38912
-from chipsets.ula import Spectrum48KULA
+from chipsets import AY38912, Spectrum48KULA
 from devices import SpectrumCassetteTape
 from frontend.input_events import (
     InputEvent,
@@ -17,6 +16,7 @@ from frontend.input_events import (
 )
 from machines.base import BaseMachine
 from machines.frame_runner import SteppedFrameRunner
+from machines.z80.spectrum_snapshot import apply_z80_snapshot
 from video import get_display_profile
 
 
@@ -55,6 +55,7 @@ class SpectrumBase(BaseMachine):
         rom_data: bytes | None = None,
         *,
         tape_data: bytes | None = None,
+        snapshot_data: bytes | None = None,
         display_profile: str = "default",
     ):
         bus = Z80Bus()
@@ -93,6 +94,7 @@ class SpectrumBase(BaseMachine):
             PythonPortHandler(self._port_read_fe, self._port_write_fe),
         )
         self._frame_runner = SteppedFrameRunner(self.TSTATES_PER_FRAME)
+        self._pending_snapshot_data = snapshot_data
 
     @property
     def framebuffer_rgb24(self):
@@ -147,10 +149,15 @@ class SpectrumBase(BaseMachine):
         self._tape_tstates = 0
         self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
         self.audio_samples = self.ula.get_frame_samples()
+        if self._pending_snapshot_data is not None:
+            snapshot = self._pending_snapshot_data
+            self._pending_snapshot_data = None
+            apply_z80_snapshot(self, snapshot)
 
     def _begin_frame(self) -> None:
         self.frame_tstates = 0
         self._tape_tstates = 0
+        self.ula.begin_frame()
         self.ula.beeper.begin_frame()
 
     def _finish_frame(self) -> None:
@@ -320,6 +327,7 @@ class Spectrum128K(SpectrumBase):
         rom_data: bytes | None = None,
         *,
         tape_data: bytes | None = None,
+        snapshot_data: bytes | None = None,
         display_profile: str = "default",
     ):
         bus = Z80Bus()
@@ -362,6 +370,7 @@ class Spectrum128K(SpectrumBase):
         for port_low in range(256):
             self.bus.set_port_handler(port_low, PythonPortHandler(self._port_read, self._port_write))
         self._frame_runner = SteppedFrameRunner(self.TSTATES_PER_FRAME)
+        self._pending_snapshot_data = snapshot_data
 
     def _mix_audio_frame(self):
         beeper = self.ula.get_frame_samples()
@@ -423,10 +432,15 @@ class Spectrum128K(SpectrumBase):
         self._tape_tstates = 0
         self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
         self.audio_samples = self._mix_audio_frame()
+        if self._pending_snapshot_data is not None:
+            snapshot = self._pending_snapshot_data
+            self._pending_snapshot_data = None
+            apply_z80_snapshot(self, snapshot)
 
     def _begin_frame(self) -> None:
         self.frame_tstates = 0
         self._tape_tstates = 0
+        self.ula.begin_frame()
         self.ula.beeper.begin_frame()
 
     def _finish_frame(self) -> None:
@@ -459,6 +473,10 @@ class Spectrum128K(SpectrumBase):
             return self.ram_banks[2]
         return self.ram_banks[self.paged_ram_bank]
 
+    @property
+    def ram_top(self) -> int:
+        return 0x10000
+
     def poke(self, addr: int, value: int):
         if not self._is_ram_address(addr):
             raise ValueError("solo se puede escribir en RAM 0x4000-0xFFFF")
@@ -475,6 +493,29 @@ class Spectrum128K(SpectrumBase):
 
     def load_ram_bank(self, bank: int, offset: int, data: bytes):
         self.ram_banks[bank & 0x07].load(offset, data)
+
+    def load_ram(self, addr: int, data: bytes):
+        if not self._is_ram_address(addr) or addr + len(data) > self.ram_top:
+            raise ValueError("el rango debe caer dentro de la RAM del Spectrum 128K/+2 0x4000-0xFFFF")
+
+        remaining = memoryview(data)
+        cursor = addr
+        while remaining:
+            if 0x4000 <= cursor < 0x8000:
+                bank = self.ram_banks[5]
+                offset = cursor - 0x4000
+                chunk_len = min(len(remaining), 0x8000 - cursor)
+            elif 0x8000 <= cursor < 0xC000:
+                bank = self.ram_banks[2]
+                offset = cursor - 0x8000
+                chunk_len = min(len(remaining), 0xC000 - cursor)
+            else:
+                bank = self.ram_banks[self.paged_ram_bank]
+                offset = cursor - 0xC000
+                chunk_len = min(len(remaining), 0x10000 - cursor)
+            bank.load(offset, remaining[:chunk_len].tobytes())
+            remaining = remaining[chunk_len:]
+            cursor += chunk_len
 
     def snapshot(self) -> dict:
         snap = self.cpu.snapshot()
@@ -503,3 +544,23 @@ class Spectrum128K(SpectrumBase):
         if self.cassette is not None:
             devices.append(self._debug_device("cassette", self.cassette, "device", label="Cassette"))
         return devices
+
+
+class SpectrumPlus2(Spectrum128K):
+    """ZX Spectrum +2 scaffold reusing the 128K hardware profile."""
+
+    def __init__(
+        self,
+        rom_data: bytes | None = None,
+        *,
+        tape_data: bytes | None = None,
+        snapshot_data: bytes | None = None,
+        display_profile: str = "default",
+    ):
+        super().__init__(
+            rom_data,
+            tape_data=tape_data,
+            snapshot_data=snapshot_data,
+            display_profile=display_profile,
+        )
+        self.machine_id = "spectrumplus2"

@@ -226,6 +226,7 @@ cdef class Spectrum48KULA:
     cdef public int border_bottom
     cdef public int frame_width
     cdef public int frame_height
+    cdef public bint interrupt_fired
 
     SCREEN_WIDTH = 256
     SCREEN_HEIGHT = 192
@@ -240,6 +241,7 @@ cdef class Spectrum48KULA:
 
     SCREEN_BITMAP_BASE = 0x4000
     SCREEN_ATTR_BASE = 0x5800
+    INTERRUPT_TSTATE = 32
 
     PALETTE = (
         (0, 0, 0),
@@ -265,6 +267,7 @@ cdef class Spectrum48KULA:
         self.machine = machine
         self.ram = <RAMBlock>machine.ram
         self.last_tstates = 0
+        self.interrupt_fired = False
         self.flash_phase = False
         self.flash_counter = 0
         profile = get_display_profile(getattr(machine, "display_profile_name", "default"))
@@ -283,12 +286,20 @@ cdef class Spectrum48KULA:
 
     cpdef reset(self):
         self.last_tstates = 0
+        self.interrupt_fired = False
         self.flash_phase = False
         self.flash_counter = 0
         self.framebuffer_rgb24 = self._make_blank_frame_rgb24((0, 0, 0))
         self.beeper.reset()
 
+    cpdef begin_frame(self):
+        self.last_tstates = 0
+        self.interrupt_fired = False
+
     cpdef run_until(self, int tstates):
+        if (not self.interrupt_fired) and tstates >= self.INTERRUPT_TSTATE:
+            self.machine.cpu.interrupt()
+            self.interrupt_fired = True
         self.last_tstates = tstates
         self.beeper.run_until(tstates)
 
@@ -298,7 +309,6 @@ cdef class Spectrum48KULA:
             self.flash_counter = 0
             self.flash_phase = not self.flash_phase
 
-        self.machine.cpu.interrupt()
         self.framebuffer_rgb24 = self.render_frame()
         self.beeper.end_frame()
 
@@ -390,6 +400,7 @@ cdef class Spectrum48KULA:
                 "border_bottom",
                 "frame_width",
                 "frame_height",
+                "interrupt_fired",
             ),
             meta={"type": "Spectrum48KULA"},
         )
@@ -410,6 +421,7 @@ cdef class Spectrum48KULA:
                 "border_bottom",
                 "frame_width",
                 "frame_height",
+                "interrupt_fired",
             ),
         )
         if "beeper" in state:

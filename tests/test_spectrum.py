@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import pytest
+from pathlib import Path
 
 from frontend.input_events import InputEvent
-from machines.z80 import Spectrum128K, Spectrum16K, Spectrum48K
+from machines.z80 import Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
 from devices import SpectrumCassetteTape
+from multiemu.machine_registry import instantiate_machine
 
 
 def _pixel_at_rgb24(packed: bytes, width: int, x: int, y: int) -> tuple[int, int, int]:
@@ -45,6 +47,20 @@ def _build_beeper_rom() -> bytes:
         0xC3, 0x01, 0x00,       #       JP loop
     ])
     return code + bytes(0x4000 - len(code))
+
+
+def _build_interrupt_wakeup_rom() -> bytes:
+    rom = bytearray([0x00] * 0x4000)
+    rom[0:5] = bytes([
+        0xFB,       # EI
+        0x76,       # HALT
+        0x3E, 0x42, # LD A,42h
+        0x76,       # HALT
+    ])
+    rom[0x38:0x3A] = bytes([
+        0xED, 0x4D, # RETI
+    ])
+    return bytes(rom)
 
 
 def test_spectrum16k_exposes_only_installed_ram():
@@ -151,6 +167,17 @@ def test_spectrum_run_frame_produces_audio_and_advances_frame_counter():
     assert len(machine.get_audio_samples()) > 0
     assert any(sample != 0 for sample in machine.get_audio_samples())
     assert machine.get_audio_buffered_samples() > 0
+
+
+def test_spectrum_interrupt_wakes_halt_within_same_frame():
+    machine = Spectrum48K(_build_interrupt_wakeup_rom())
+    machine.reset()
+
+    machine.run_frame()
+
+    snap = machine.cpu.read_state()
+    assert snap["A"] == 0x42
+    assert snap["halted"] is True
 
 
 def test_tzx_parser_accepts_standard_speed_blocks_for_spectrum():
@@ -292,3 +319,144 @@ def test_spectrum128k_ignores_writes_to_rom_space():
     machine.memory_map.write(0x0000, 0x55)
 
     assert machine.peek(0x0000) == 0xAA
+
+
+def test_spectrumplus2_uses_128k_profile_with_distinct_machine_id():
+    machine = SpectrumPlus2(bytes([0x00]) * 0x8000)
+
+    assert machine.machine_id == "spectrumplus2"
+    assert machine.input_keymap_name == "spectrum128k"
+    assert machine.peek(0x0000) == 0x00
+
+
+def test_spectrumplus2_combined_rom_selects_second_rom_with_7ffd():
+    rom0 = bytes([0x11]) * 0x4000
+    rom1 = bytes([0x22]) * 0x4000
+    machine = SpectrumPlus2(rom0 + rom1)
+    machine.reset()
+
+    assert machine.peek(0x0000) == 0x11
+
+    machine._port_write(0x7FFD, 0x10)
+
+    assert machine.peek(0x0000) == 0x22
+    assert machine.active_rom_bank == 1
+
+
+def _build_z80_v1_snapshot() -> bytes:
+    header = bytearray(30)
+    header[0] = 0x12  # A
+    header[1] = 0x34  # F
+    header[2] = 0x78  # C
+    header[3] = 0x56  # B
+    header[4] = 0xBC  # L
+    header[5] = 0x9A  # H
+    header[6] = 0x00  # PC lo
+    header[7] = 0x80  # PC hi
+    header[8] = 0xFE  # SP lo
+    header[9] = 0xFF  # SP hi
+    header[10] = 0x3F  # I
+    header[11] = 0x22  # R low 7 bits
+    header[12] = (3 << 1)  # border = 3, uncompressed
+    header[13] = 0x11  # E
+    header[14] = 0x22  # D
+    header[15] = 0x33  # C'
+    header[16] = 0x44  # B'
+    header[17] = 0x55  # E'
+    header[18] = 0x66  # D'
+    header[19] = 0x77  # L'
+    header[20] = 0x88  # H'
+    header[21] = 0x99  # A'
+    header[22] = 0xAA  # F'
+    header[23] = 0x34  # IY lo
+    header[24] = 0x12  # IY hi
+    header[25] = 0x78  # IX lo
+    header[26] = 0x56  # IX hi
+    header[27] = 1
+    header[28] = 1
+    header[29] = 2  # IM 2
+    ram = bytearray(48 * 1024)
+    ram[0] = 0xA5
+    ram[0x4000] = 0x5A
+    ram[0x4000 + 0x1800] = 0x47
+    return bytes(header) + bytes(ram)
+
+
+def _build_z80_v3_plus2_snapshot() -> bytes:
+    header = bytearray(30)
+    header[8] = 0x00
+    header[9] = 0xF0
+    header[12] = (5 << 1)
+    header[27] = 1
+    header[28] = 1
+    header[29] = 1
+
+    ext = bytearray(55)
+    ext[0] = 0x34  # PC lo
+    ext[1] = 0x12  # PC hi
+    ext[2] = 12  # +2
+    ext[3] = 0x18  # 7ffd -> ROM1 + screen bank 7
+    ext[5] = 0x04  # AY in use
+    ext[6] = 7  # selected AY register
+    ext[23] = 0x10  # low tstates lo (file offset 55)
+    ext[24] = 0x00  # low tstates hi (file offset 56)
+    ext[25] = 0x02  # hi tstate counter (file offset 57)
+    for i in range(16):
+        ext[7 + i] = i
+
+    blocks = bytearray()
+    for page in range(3, 11):
+        block = bytes([page]) * 0x4000
+        blocks.extend((0xFF, 0xFF, page))
+        blocks.extend(block)
+
+    return bytes(header) + bytes((55, 0)) + bytes(ext) + bytes(blocks)
+
+
+def test_spectrum48k_can_boot_from_z80_snapshot_without_main_rom(tmp_path: Path):
+    snapshot_path = tmp_path / "bombjack.z80"
+    snapshot_path.write_bytes(_build_z80_v1_snapshot())
+
+    machine = instantiate_machine("spectrum48k", roms={"snapshot": snapshot_path})
+    cpu = machine.cpu.read_state()
+
+    assert cpu["PC"] == 0x8000
+    assert cpu["A"] == 0x12
+    assert cpu["F"] == 0x34
+    assert machine.border_color == 3
+    assert machine.peek(0x4000) == 0xA5
+    assert machine.peek(0x8000) == 0x5A
+    assert machine.peek(0x9800) == 0x47
+
+
+def test_spectrumplus2_can_boot_from_z80_snapshot_without_main_rom(tmp_path: Path):
+    snapshot_path = tmp_path / "plus2.z80"
+    snapshot_path.write_bytes(_build_z80_v3_plus2_snapshot())
+
+    machine = instantiate_machine("spectrumplus2", roms={"snapshot": snapshot_path})
+    cpu = machine.cpu.read_state()
+
+    assert cpu["PC"] == 0x1234
+    assert machine.border_color == 5
+    assert machine.frame_tstates == ((2 + 1) & 0x03) * 17472 + (17472 - 0x0010)
+    assert machine.active_rom_bank == 1
+    assert machine.screen_bank == 7
+    assert machine.peek(0xC000) == 0x03
+    assert machine.psg.read_state()["selected_register"] == 7
+    assert machine.psg.registers[15] == 15
+
+
+def test_spectrumplus2_48k_snapshot_selects_48_basic_rom(tmp_path: Path):
+    snapshot_path = tmp_path / "bombjack.z80"
+    snapshot_path.write_bytes(_build_z80_v1_snapshot())
+    rom_path = tmp_path / "plus2.rom"
+    rom_path.write_bytes(bytes([0x11]) * 0x4000 + bytes([0x22]) * 0x4000)
+
+    machine = instantiate_machine("spectrumplus2", roms={"snapshot": snapshot_path, "main": rom_path})
+
+    assert machine.active_rom_bank == 1
+    assert machine.last_out_7ffd & 0x10 == 0x10
+    assert machine.peek(0x0000) == 0x22
+    assert machine.peek(0x4000) == 0xA5
+    assert machine.peek(0x8000) == 0x5A
+    assert machine.peek(0x9800) == 0x47
