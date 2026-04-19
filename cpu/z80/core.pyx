@@ -6,12 +6,28 @@
 from .types cimport uint8_t, uint16_t, int8_t
 from .core cimport Z80Core
 
+import logging
+
 cdef int FLAG_S  = 0x80
 cdef int FLAG_Z  = 0x40
 cdef int FLAG_H  = 0x10
 cdef int FLAG_PV = 0x04
 cdef int FLAG_N  = 0x02
 cdef int FLAG_C  = 0x01
+
+_LOGGER = logging.getLogger(__name__)
+_UNDOCUMENTED_ED_OPCODES_LOGGED = set()
+
+
+cdef inline uint8_t block_io_flags(uint8_t b_after):
+    cdef uint8_t flags = FLAG_N
+    if b_after & 0x80:
+        flags |= FLAG_S
+    if b_after == 0:
+        flags |= FLAG_Z
+    if b_after != 0:
+        flags |= FLAG_PV
+    return flags
 
 
 cdef class Z80Core:
@@ -50,7 +66,7 @@ cdef class Z80Core:
         cdef uint8_t lo
         cdef uint8_t hi
 
-        if not self.iff1:
+        if (not self.iff1) or self.ei_pending:
             return
 
         self.halted = False
@@ -772,6 +788,42 @@ cdef class Z80Core:
                 self.F |= FLAG_PV
             return 9
 
+        elif op == 0x67:
+            # RRD
+            val = self.bus.mem_read(self.get_HL())
+            old_c = self.F & FLAG_C
+            self.bus.mem_write(
+                self.get_HL(),
+                <uint8_t>(((self.A & 0x0F) << 4) | ((val >> 4) & 0x0F)),
+            )
+            self.A = <uint8_t>((self.A & 0xF0) | (val & 0x0F))
+            self.F = old_c
+            if self.A & 0x80:
+                self.F |= FLAG_S
+            if self.A == 0:
+                self.F |= FLAG_Z
+            if self.parity_even(self.A):
+                self.F |= FLAG_PV
+            return 18
+
+        elif op == 0x6F:
+            # RLD
+            val = self.bus.mem_read(self.get_HL())
+            old_c = self.F & FLAG_C
+            self.bus.mem_write(
+                self.get_HL(),
+                <uint8_t>(((val & 0x0F) << 4) | (self.A & 0x0F)),
+            )
+            self.A = <uint8_t>((self.A & 0xF0) | ((val >> 4) & 0x0F))
+            self.F = old_c
+            if self.A & 0x80:
+                self.F |= FLAG_S
+            if self.A == 0:
+                self.F |= FLAG_Z
+            if self.parity_even(self.A):
+                self.F |= FLAG_PV
+            return 18
+
         elif op == 0xA0:
             # LDI
             val = self.bus.mem_read(self.get_HL())
@@ -1066,9 +1118,7 @@ cdef class Z80Core:
             self.bus.mem_write(hl, val)
             self.B = <uint8_t>((self.B - 1) & 0xFF)
             self.set_HL(<uint16_t>((hl + 1) & 0xFFFF))
-            self.F = FLAG_N
-            if self.B != 0:
-                self.F |= FLAG_PV
+            self.F = block_io_flags(self.B)
             return 16
 
         elif op == 0xB2:
@@ -1078,9 +1128,8 @@ cdef class Z80Core:
             self.bus.mem_write(hl, val)
             self.B = <uint8_t>((self.B - 1) & 0xFF)
             self.set_HL(<uint16_t>((hl + 1) & 0xFFFF))
-            self.F = FLAG_N
+            self.F = block_io_flags(self.B)
             if self.B != 0:
-                self.F |= FLAG_PV
                 self.PC = <uint16_t>((self.PC - 2) & 0xFFFF)
                 return 21
             return 16
@@ -1092,9 +1141,7 @@ cdef class Z80Core:
             self.bus.mem_write(hl, val)
             self.B = <uint8_t>((self.B - 1) & 0xFF)
             self.set_HL(<uint16_t>((hl - 1) & 0xFFFF))
-            self.F = FLAG_N
-            if self.B != 0:
-                self.F |= FLAG_PV
+            self.F = block_io_flags(self.B)
             return 16
 
         elif op == 0xBA:
@@ -1104,9 +1151,8 @@ cdef class Z80Core:
             self.bus.mem_write(hl, val)
             self.B = <uint8_t>((self.B - 1) & 0xFF)
             self.set_HL(<uint16_t>((hl - 1) & 0xFFFF))
-            self.F = FLAG_N
+            self.F = block_io_flags(self.B)
             if self.B != 0:
-                self.F |= FLAG_PV
                 self.PC = <uint16_t>((self.PC - 2) & 0xFFFF)
                 return 21
             return 16
@@ -1118,9 +1164,7 @@ cdef class Z80Core:
             self.bus.io_write(self.get_BC(), val)
             self.B = <uint8_t>((self.B - 1) & 0xFF)
             self.set_HL(<uint16_t>((hl + 1) & 0xFFFF))
-            self.F = FLAG_N
-            if self.B != 0:
-                self.F |= FLAG_PV
+            self.F = block_io_flags(self.B)
             return 16
 
         elif op == 0xB3:
@@ -1130,9 +1174,8 @@ cdef class Z80Core:
             self.bus.io_write(self.get_BC(), val)
             self.B = <uint8_t>((self.B - 1) & 0xFF)
             self.set_HL(<uint16_t>((hl + 1) & 0xFFFF))
-            self.F = FLAG_N
+            self.F = block_io_flags(self.B)
             if self.B != 0:
-                self.F |= FLAG_PV
                 self.PC = <uint16_t>((self.PC - 2) & 0xFFFF)
                 return 21
             return 16
@@ -1144,9 +1187,7 @@ cdef class Z80Core:
             self.bus.io_write(self.get_BC(), val)
             self.B = <uint8_t>((self.B - 1) & 0xFF)
             self.set_HL(<uint16_t>((hl - 1) & 0xFFFF))
-            self.F = FLAG_N
-            if self.B != 0:
-                self.F |= FLAG_PV
+            self.F = block_io_flags(self.B)
             return 16
 
         elif op == 0xBB:
@@ -1156,15 +1197,20 @@ cdef class Z80Core:
             self.bus.io_write(self.get_BC(), val)
             self.B = <uint8_t>((self.B - 1) & 0xFF)
             self.set_HL(<uint16_t>((hl - 1) & 0xFFFF))
-            self.F = FLAG_N
+            self.F = block_io_flags(self.B)
             if self.B != 0:
-                self.F |= FLAG_PV
                 self.PC = <uint16_t>((self.PC - 2) & 0xFFFF)
                 return 21
             return 16
 
         else:
-            # Undocumented ED-prefixed opcodes behave as inert two-byte NOPs.
+            if op not in _UNDOCUMENTED_ED_OPCODES_LOGGED:
+                _UNDOCUMENTED_ED_OPCODES_LOGGED.add(op)
+                _LOGGER.warning(
+                    "Undocumented Z80 ED opcode %02X at %04X treated as NOP",
+                    op,
+                    (self.PC - 2) & 0xFFFF,
+                )
             return 8
 
     cdef int exec_index_cb(self, bint use_iy):
@@ -2227,7 +2273,10 @@ cdef class Z80Core:
         elif op == 0xF3:
             self.iff1 = False; self.iff2 = False; return 4
         elif op == 0xFB:
-            self.ei_pending = True; return 4
+            self.iff1 = True
+            self.iff2 = True
+            self.ei_pending = True
+            return 4
 
         elif op == 0xDB:
             tmp8 = self.fetch8()
@@ -2244,16 +2293,16 @@ cdef class Z80Core:
     cpdef int step(self):
         cdef uint8_t op
         cdef int cycles
+        cdef bint clear_ei_pending
 
         if self.halted:
             return 4
 
+        clear_ei_pending = self.ei_pending
         op = self.fetch8()
         cycles = self.exec_main(op)
 
-        if self.ei_pending:
-            self.iff1 = True
-            self.iff2 = True
+        if clear_ei_pending:
             self.ei_pending = False
 
         return cycles

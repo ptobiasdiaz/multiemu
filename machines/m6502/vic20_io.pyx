@@ -50,15 +50,17 @@ cdef class ColorRAM:
         self.data[:] = bytes(self.size)
 
     def read_state(self) -> dict:
-        return read_state_fields(
-            self,
-            scalar_fields=("size",),
-            byte_fields=("data",),
-            meta={"type": "ColorRAM"},
-        )
+        return {
+            "__meta__": {"type": "ColorRAM"},
+            "size": self.size,
+            "data": list(self.data),
+        }
 
     def write_state(self, state: dict) -> None:
-        write_state_fields(self, state, scalar_fields=("size",), byte_fields=("data",))
+        if "size" in state and int(state["size"]) != self.size:
+            raise ValueError("tamaño de ColorRAM incompatible")
+        if "data" in state:
+            self.data[:] = bytes(int(v) & 0x0F for v in state["data"][: self.size]).ljust(self.size, b"\x00")
 
 
 cdef class IoRam:
@@ -82,12 +84,14 @@ cdef class IoRam:
         self.data[:] = bytes(self.size)
 
     def read_state(self) -> dict:
-        return read_state_fields(
-            self,
-            scalar_fields=("size",),
-            byte_fields=("data",),
-            meta={"type": "IoRam"},
-        )
+        return {
+            "__meta__": {"type": "IoRam"},
+            "size": self.size,
+            "data": list(self.data),
+        }
 
     def write_state(self, state: dict) -> None:
-        write_state_fields(self, state, scalar_fields=("size",), byte_fields=("data",))
+        if "size" in state and int(state["size"]) != self.size:
+            raise ValueError("tamaño de IoRam incompatible")
+        if "data" in state:
+            self.data[:] = bytes(int(v) & 0xFF for v in state["data"][: self.size]).ljust(self.size, b"\x00")

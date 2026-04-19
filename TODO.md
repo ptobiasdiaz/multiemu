@@ -75,10 +75,30 @@ Siguiente paso:
   Prioridades razonables:
   MMIO, timing fino por dot/cycle y cobertura adicional con ROMs reales.
 
+## Master System II
+
+Estado actual:
+
+- `mastersystem2` arranca cartuchos `.sms`.
+- La BIOS europea con juego built-in arranca sin cartucho.
+- BIOS + cartucho reproduce el flujo esperado: logo BIOS y salto al cartucho.
+- VDP y `SN76489` viven como chips Cython con referencia Python en tests.
+- `F12`/`--state` y debug devices cumplen el contrato de hardware trazable.
+
+Pendiente:
+
+- [ ] Seguir afinando compatibilidad con más juegos reales.
+- [ ] Mejorar fidelidad fina de VDP:
+  timing por scanline/dot, flags raros, modos no usados por los tests actuales.
+- [ ] Mejorar fidelidad fina de `SN76489`:
+  volumen, ruido, mezcla y diferencias audibles frente a hardware real.
+- [ ] Revisar si conviene separar más explícitamente cartucho/BIOS/mapper como
+  clases de dispositivo reales, no solo como wrappers de debug.
+- [ ] Medir rendimiento tras la cythonización antes de tocar más código caliente.
+
 ## Nuevas maquinas de 8 bits
 
 - [ ] `Game Gear`
-- [ ] `Master System II`
 - [ ] `MSX`
 - [ ] `MSX-2`
 - [ ] `ColecoVision`
@@ -88,7 +108,8 @@ Siguiente paso:
 
 ## Orden recomendado
 
-1. Medir rendimiento real del CPC tras la nueva arquitectura de video.
-2. Decidir si el siguiente paso prioritario es mas fidelidad de video o perifericos pendientes.
-3. Seguir afinando `AY38912`.
-4. Revisar si el siguiente frente en CPC debe ser audio/fidelidad o teclado/eventos.
+1. Probar mas ROMs reales de `mastersystem2` para detectar huecos de VDP/mapper.
+2. Medir rendimiento real del CPC tras la nueva arquitectura de video.
+3. Decidir si el siguiente paso prioritario es mas fidelidad de video o perifericos pendientes.
+4. Seguir afinando `AY38912`.
+5. Revisar si el siguiente frente en CPC debe ser audio/fidelidad o teclado/eventos.

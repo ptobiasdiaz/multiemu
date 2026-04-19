@@ -82,15 +82,26 @@ cdef class GameBoyTimer:
         self.tac = value & 0x07
 
     def read_state(self) -> dict:
-        return read_state_fields(
-            self,
-            scalar_fields=("_div_counter", "_tima_counter", "div", "tima", "tma", "tac"),
-            meta={"type": "GameBoyTimer"},
-        )
+        return {
+            "__meta__": {"type": "GameBoyTimer"},
+            "_div_counter": self._div_counter,
+            "_tima_counter": self._tima_counter,
+            "div": self.div,
+            "tima": self.tima,
+            "tma": self.tma,
+            "tac": self.tac,
+        }
 
     def write_state(self, state: dict) -> None:
-        write_state_fields(
-            self,
-            state,
-            scalar_fields=("_div_counter", "_tima_counter", "div", "tima", "tma", "tac"),
-        )
+        if "_div_counter" in state:
+            self._div_counter = int(state["_div_counter"]) & 0xFFFF
+        if "_tima_counter" in state:
+            self._tima_counter = int(state["_tima_counter"])
+        if "div" in state:
+            self.div = int(state["div"]) & 0xFF
+        if "tima" in state:
+            self.tima = int(state["tima"]) & 0xFF
+        if "tma" in state:
+            self.tma = int(state["tma"]) & 0xFF
+        if "tac" in state:
+            self.tac = int(state["tac"]) & 0x07

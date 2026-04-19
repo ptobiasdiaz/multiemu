@@ -276,6 +276,39 @@ class SpectrumBase(BaseMachine):
         snap["ram_size"] = self.RAM_SIZE
         return snap
 
+    def read_state(self) -> dict:
+        state = super().read_state()
+        state |= {
+            "border_color": self.border_color,
+            "last_out_fe": self.last_out_fe,
+            "keyboard_rows": list(self.keyboard_rows),
+            "tape_tstates": self._tape_tstates,
+            "ram": self.ram.read_state(),
+            "ula": self.ula.read_state(),
+            "cassette": None if self.cassette is None else self.cassette.read_state(),
+        }
+        return state
+
+    def write_state(self, state: dict) -> None:
+        super().write_state(state)
+        if "border_color" in state:
+            self.border_color = int(state["border_color"]) & 0x07
+        if "last_out_fe" in state:
+            self.last_out_fe = int(state["last_out_fe"]) & 0xFF
+        if "keyboard_rows" in state:
+            self.keyboard_rows = [int(v) & 0x1F for v in state["keyboard_rows"][:8]]
+            self.keyboard_rows += [0x1F] * (8 - len(self.keyboard_rows))
+        if "tape_tstates" in state:
+            self._tape_tstates = int(state["tape_tstates"])
+        if "ram" in state:
+            self.ram.write_state(state["ram"])
+        if "ula" in state:
+            self.ula.write_state(state["ula"])
+        if self.cassette is not None and state.get("cassette") is not None:
+            self.cassette.write_state(state["cassette"])
+        self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
+        self.audio_samples = self.ula.get_frame_samples()
+
     def debug_devices(self) -> list[dict]:
         devices = super().debug_devices() + [
             self._debug_device("rom", self.rom, "memory", label="ROM"),
@@ -530,6 +563,60 @@ class Spectrum128K(SpectrumBase):
         snap["frame_counter"] = self.frame_counter
         snap["frame_tstates"] = self.frame_tstates
         return snap
+
+    def read_state(self) -> dict:
+        state = BaseMachine.read_state(self)
+        state |= {
+            "border_color": self.border_color,
+            "last_out_fe": self.last_out_fe,
+            "last_out_7ffd": self.last_out_7ffd,
+            "active_rom_bank": self.active_rom_bank,
+            "paged_ram_bank": self.paged_ram_bank,
+            "screen_bank": self.screen_bank,
+            "paging_locked": self.paging_locked,
+            "keyboard_rows": list(self.keyboard_rows),
+            "tape_tstates": self._tape_tstates,
+            "ram_banks": [bank.read_state() for bank in self.ram_banks],
+            "ula": self.ula.read_state(),
+            "psg": self.psg.read_state(),
+            "cassette": None if self.cassette is None else self.cassette.read_state(),
+        }
+        return state
+
+    def write_state(self, state: dict) -> None:
+        BaseMachine.write_state(self, state)
+        if "border_color" in state:
+            self.border_color = int(state["border_color"]) & 0x07
+        if "last_out_fe" in state:
+            self.last_out_fe = int(state["last_out_fe"]) & 0xFF
+        if "last_out_7ffd" in state:
+            self.last_out_7ffd = int(state["last_out_7ffd"]) & 0xFF
+        if "active_rom_bank" in state:
+            self.active_rom_bank = int(state["active_rom_bank"]) & 0x01
+        if "paged_ram_bank" in state:
+            self.paged_ram_bank = int(state["paged_ram_bank"]) & 0x07
+        if "screen_bank" in state:
+            self.screen_bank = int(state["screen_bank"]) & 0x07
+        if "paging_locked" in state:
+            self.paging_locked = bool(state["paging_locked"])
+        if "keyboard_rows" in state:
+            self.keyboard_rows = [int(v) & 0x1F for v in state["keyboard_rows"][:8]]
+            self.keyboard_rows += [0x1F] * (8 - len(self.keyboard_rows))
+        if "tape_tstates" in state:
+            self._tape_tstates = int(state["tape_tstates"])
+        if "ram_banks" in state:
+            for bank, bank_state in zip(self.ram_banks, state["ram_banks"], strict=False):
+                bank.write_state(bank_state)
+        if "ula" in state:
+            self.ula.write_state(state["ula"])
+        if "psg" in state:
+            self.psg.write_state(state["psg"])
+        if self.cassette is not None and state.get("cassette") is not None:
+            self.cassette.write_state(state["cassette"])
+        self.ram = self.ram_banks[5]
+        self.ula.set_display_ram(self.ram_banks[self.screen_bank])
+        self.framebuffer_rgb24 = self.ula.framebuffer_rgb24
+        self.audio_samples = self._mix_audio_frame()
 
     def debug_devices(self) -> list[dict]:
         devices = super().debug_devices() + [

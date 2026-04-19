@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+from pathlib import Path
 from frontend.backend import LocalMachineBackend
 from frontend.pygame_frontend import PygameFrontend
 import pygame
@@ -88,6 +89,23 @@ def test_local_machine_backend_can_toggle_tape_play_pause():
     assert backend.tape_playing is True
 
 
+def test_local_machine_backend_can_dump_debug_state(tmp_path, monkeypatch):
+    machine = _FakeMachine("mastersystem2")
+    machine.read_state = lambda: {"ok": True, "blob": bytes([1, 2, 3])}
+    machine.resolved_rom_paths = {"main": tmp_path / "Asterix.sms"}
+    backend = LocalMachineBackend(machine)
+
+    monkeypatch.chdir(tmp_path)
+    dump_path = backend.dump_debug_state()
+
+    assert dump_path is not None
+    payload = json.loads(Path(dump_path).read_text(encoding="utf-8"))
+    assert payload["machine_id"] == "mastersystem2"
+    assert payload["rom_paths"] == {"main": str(tmp_path / "Asterix.sms")}
+    assert payload["state"]["ok"] is True
+    assert payload["state"]["blob"] == [1, 2, 3]
+
+
 def test_pygame_frontend_keeps_cpc_tape_auto_turbo_disabled_by_default():
     frontend = PygameFrontend(_FakeMachine("cpc464", tape_motor_on=True))
 
@@ -135,6 +153,22 @@ def test_pygame_frontend_f1_toggles_tape_play_pause(monkeypatch):
 
     assert machine.tape_toggles == 1
     assert machine.cassette.playing is True
+
+
+def test_pygame_frontend_f12_dumps_debug_state(monkeypatch):
+    machine = _FakeMachine("mastersystem2")
+    frontend = PygameFrontend(machine)
+    dumps = []
+
+    class _Event:
+        type = pygame.KEYDOWN
+        key = pygame.K_F12
+
+    frontend.backend.dump_debug_state = lambda: dumps.append("/tmp/dump.json") or "/tmp/dump.json"
+    monkeypatch.setattr("pygame.event.get", lambda: [_Event()])
+    frontend._handle_events()
+
+    assert dumps == ["/tmp/dump.json"]
 
 
 def test_pygame_frontend_alt_enter_toggles_fullscreen(monkeypatch):
@@ -209,6 +243,31 @@ def test_pygame_frontend_applies_gamepad_joystick_mapping(monkeypatch):
         event.kind == "joystick" and event.control_a == 0 and event.control_b == 0x10 and event.active
         for event in machine.events
     )
+
+
+def test_pygame_frontend_keeps_shift_pressed_for_cpc_shifted_keys(monkeypatch):
+    machine = _FakeMachine("cpc464")
+    machine.input_keymap_name = "cpc"
+    frontend = PygameFrontend(machine)
+
+    class _ShiftDown:
+        type = pygame.KEYDOWN
+        key = pygame.K_LSHIFT
+        mod = pygame.KMOD_SHIFT
+        unicode = ""
+
+    class _ADown:
+        type = pygame.KEYDOWN
+        key = pygame.K_a
+        mod = pygame.KMOD_SHIFT
+        unicode = "A"
+
+    monkeypatch.setattr("pygame.event.get", lambda: [_ShiftDown(), _ADown()])
+    frontend._handle_events()
+
+    assert pygame.K_LSHIFT in frontend._keyboard_key_bindings
+    assert frontend._keyboard_key_bindings[pygame.K_LSHIFT] == ((2, 5),)
+    assert (2, 5) in frontend.active_keyboard_controls
 
 
 def test_pygame_frontend_accepts_custom_keymap_file(tmp_path):

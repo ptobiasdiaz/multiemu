@@ -17,6 +17,10 @@ from .cpc_render import (
 )
 from .cpc_video import AmstradCPCVideo, CPCVideo
 from .m6530 import M6530
+from .sms_vdp import SMSVDP
+from .sms_vdp_reference import SMSVDPReference
+from .sn76489 import SN76489
+from .sn76489_reference import SN76489Reference
 from .ula import Spectrum48KULA, ULABeeper
 
 __all__ = [
@@ -34,6 +38,10 @@ __all__ = [
     "render_frame_rgb24_from_ram",
     "render_scanline_from_ram",
     "M6530",
+    "SMSVDP",
+    "SMSVDPReference",
+    "SN76489",
+    "SN76489Reference",
     "Spectrum48KULA",
     "ULABeeper",
 ]

@@ -2,6 +2,63 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.8
+
+Versión centrada en abrir `mastersystem2`, madurar su VDP/PSG como chips
+reutilizables y cerrar el soporte común de snapshots de estado por máquina.
+
+### Incluye
+
+- Nueva máquina visible `mastersystem2`.
+- Soporte de cartuchos `.sms` y BIOS de Master System II, incluyendo:
+  - arranque con BIOS sola
+  - BIOS + cartucho
+  - BIOS europea grande con juego built-in en bancos internos
+  - selección de fuente ROM por control de memoria
+- Nuevo VDP de Master System II en Cython, con referencia Python para tests:
+  - VRAM/CRAM/registros
+  - scroll horizontal y vertical
+  - locks de scroll por zonas definidas por registros VDP
+  - sprites, prioridad, zoom, colisión y overflow
+  - interrupciones de línea y vblank
+  - latch de estado de render en vblank
+- Nuevo `SN76489` en Cython, con referencia Python para tests:
+  - tonos
+  - ruido periódico/blanco
+  - mezcla básica
+  - filtros prácticos para suavizar salida
+  - estado serializable
+- Keymap y joystick para `mastersystem2`, incluyendo segundo botón.
+- Mejoras de temporización y audio por frame en SMS2.
+- Soporte común de dump/carga de estado:
+  - `F12` genera snapshot JSON
+  - `--state <dump>` carga snapshots
+  - cobertura de roundtrip para todas las máquinas actuales
+- Trazabilidad de hardware ampliada para SMS2:
+  - dispositivos debug `cartridge`, `mapper`, `ram`, `vdp` y `psg`
+  - validación de tamaño/SHA256 de ROM, BIOS y built-in al restaurar estado
+- Mejoras Z80 necesarias para software real:
+  - `RRD`
+  - `RLD`
+  - ajuste de `EI`/interrupciones
+  - opcodes `ED` no documentados tratados como NOP con warning
+- Organización local de ROMs en `roms/<machine_id>/` e ignorado explícito de
+  medios/artefactos locales.
+- Ajustes de build para Python 3.13/setuptools/Cython en el entorno actual.
+
+### Testing
+
+- Nuevos tests para:
+  - registro/CLI de `mastersystem2`
+  - mapeo BIOS/cartucho/built-in
+  - VDP SMS2 frente a referencia Python
+  - `SN76489` frente a referencia Python
+  - input y joystick SMS2
+  - roundtrip de estado para todas las máquinas
+  - dispositivos debug SMS2
+  - validación de snapshots SMS2 contra ROM incompatible
+  - opcodes Z80 `RRD`, `RLD`, `EI` y `ED` no documentados
+
 ## 0.2.7
 
 Versión centrada en cerrar la línea Spectrum `128K/+2`, añadir snapshots

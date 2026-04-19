@@ -185,6 +185,29 @@ class KIM1(M6502MachineBase):
     def drain_tty_output_ascii(self) -> bytes:
         return self.riot.drain_tty_output_ascii()
 
+    def read_state(self) -> dict:
+        state = super().read_state()
+        state |= {
+            "riot_clock": self._riot_clock,
+            "ram": self.ram.read_state(),
+            "monitor_ram": self.monitor_ram.read_state(),
+            "riot": self.riot.read_state(),
+        }
+        return state
+
+    def write_state(self, state: dict) -> None:
+        super().write_state(state)
+        if "riot_clock" in state:
+            self._riot_clock = int(state["riot_clock"])
+        if "ram" in state:
+            self.ram.write_state(state["ram"])
+        if "monitor_ram" in state:
+            self.monitor_ram.write_state(state["monitor_ram"])
+        if "riot" in state:
+            self.riot.write_state(state["riot"])
+        self.framebuffer_rgb24 = self._render_panel()
+        self.audio_samples = array("h")
+
     def handle_input_event(self, event):
         if not isinstance(event, InputEvent):
             raise TypeError(f"evento de input inválido: {type(event)!r}")

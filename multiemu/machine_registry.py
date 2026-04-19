@@ -7,6 +7,7 @@ parser so new frontends or automation entry points can reuse the same factory.
 """
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 from typing import Callable
@@ -14,7 +15,7 @@ import warnings
 
 from machines.gameboy import CGB, DMG
 from machines.m6502 import KIM1, VIC20NTSC, VIC20PAL
-from machines.z80 import CPC464, CPC6128, CPC664, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
+from machines.z80 import CPC464, CPC6128, CPC664, MasterSystem2, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
 from video import get_display_profile
 
 
@@ -124,6 +125,16 @@ def _build_spectrumplus2(roms: dict[str, bytes], display_profile: str) -> Spectr
     )
 
 
+def _build_mastersystem2(roms: dict[str, bytes], display_profile: str) -> MasterSystem2:
+    if "main" not in roms and "bios" not in roms:
+        raise FileNotFoundError("mastersystem2 requiere `main` o `bios`")
+    return MasterSystem2(
+        roms.get("main"),
+        bios_data=roms.get("bios"),
+        display_profile=display_profile,
+    )
+
+
 MACHINE_SPECS: dict[str, MachineSpec] = {
     "spectrum16k": MachineSpec(
         machine_id="spectrum16k",
@@ -217,6 +228,25 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 slot_id="snapshot",
                 description="Snapshot .z80 para Spectrum +2",
                 filenames=(),
+                required=False,
+            ),
+        ),
+    ),
+    "mastersystem2": MachineSpec(
+        machine_id="mastersystem2",
+        display_name="Sega Master System II (early scaffold)",
+        factory=_build_mastersystem2,
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="bios",
+                description="BIOS interna de Master System II",
+                filenames=("bios.sms", "akbios.sms", "mastersystem2_bios.sms"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="main",
+                description="Cartucho principal de Master System II",
+                filenames=("mastersystem2.sms", "mastersystem.sms", "game.sms", "cart.sms"),
                 required=False,
             ),
         ),
@@ -664,6 +694,12 @@ def parse_cli_rom_specs(machine_id: str, rom_specs: list[str] | None) -> dict[st
             rom_map[slot_id] = Path(path_str)
             continue
 
+        if machine_id == "mastersystem2":
+            path = Path(raw_spec)
+            lower_name = path.name.lower()
+            rom_map["bios" if "bios" in lower_name else "main"] = path
+            continue
+
         if not has_single_rom_slot(spec):
             raise ValueError(
                 f"{machine_id!r} usa varios slots de ROM; especifica `slot=fichero`, por ejemplo "
@@ -806,6 +842,9 @@ def resolve_machine_rom_paths(
             rom_paths[slot.slot_id] = explicit_path
             continue
 
+        if machine_id == "mastersystem2" and explicit_roms:
+            continue
+
         candidate = resolve_rom_slot_path(slot, search_dirs)
         if candidate is not None:
             rom_paths[slot.slot_id] = candidate
@@ -832,11 +871,27 @@ def resolve_machine_rom_paths(
     return rom_paths
 
 
+def load_state_dump(path: str | Path) -> dict:
+    dump_path = Path(path)
+    payload = json.loads(dump_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"dump de estado inválido: {dump_path}")
+    if "machine_id" not in payload or "state" not in payload:
+        raise ValueError(f"dump de estado incompleto: {dump_path}")
+    if not isinstance(payload["state"], dict):
+        raise ValueError(f"dump de estado inválido: campo 'state' no es un objeto en {dump_path}")
+    rom_paths = payload.get("rom_paths", {})
+    if rom_paths is not None and not isinstance(rom_paths, dict):
+        raise ValueError(f"dump de estado inválido: campo 'rom_paths' no es un objeto en {dump_path}")
+    return payload
+
+
 def instantiate_machine(
     machine_id: str,
     *,
     roms: dict[str, str | Path] | None = None,
     display_profile: str = "default",
+    state_dump: dict | None = None,
 ):
     """Build and reset a machine instance, resolving any needed ROM slots first.
 
@@ -845,11 +900,23 @@ def instantiate_machine(
     """
 
     spec = get_machine_spec(machine_id)
+    if state_dump is not None:
+        dump_machine_id = str(state_dump.get("machine_id", ""))
+        if dump_machine_id and dump_machine_id != spec.machine_id:
+            raise ValueError(
+                f"el dump de estado es para {dump_machine_id!r}, no para {spec.machine_id!r}"
+            )
     explicit_rom_slots = set((roms or {}).keys())
     # Resolve early so the CLI fails with a user-facing error before reading
     # ROMs or constructing a machine with an unsupported monitor profile.
     get_display_profile(display_profile)
-    rom_paths = resolve_machine_rom_paths(machine_id, roms=roms)
+    dump_roms = {
+        slot_id: Path(path)
+        for slot_id, path in (state_dump.get("rom_paths", {}) if state_dump else {}).items()
+    }
+    combined_roms = dump_roms | {slot_id: Path(path) for slot_id, path in (roms or {}).items()}
+
+    rom_paths = resolve_machine_rom_paths(machine_id, roms=combined_roms)
     rom_bytes = {slot_id: path.read_bytes() for slot_id, path in rom_paths.items()}
     vic20_diag_io_ram = False
 
@@ -902,5 +969,8 @@ def instantiate_machine(
     # frontend layers can describe the machine without hardcoding families.
     machine.machine_id = spec.machine_id
     machine.display_name = spec.display_name
+    machine.resolved_rom_paths = dict(rom_paths)
     machine.reset()
+    if state_dump is not None:
+        machine.write_state(state_dump["state"])
     return machine

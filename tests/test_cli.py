@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Smoke coverage for the CLI parser and machine registry wiring."""
 
+import json
 from pathlib import Path
 
 from multiemu.cli import build_parser
@@ -9,6 +10,7 @@ from multiemu.machine_registry import (
     get_default_rom_search_dirs,
     get_machine_spec,
     instantiate_machine,
+    load_state_dump,
     parse_cli_rom_specs,
     resolve_machine_rom_paths,
 )
@@ -40,6 +42,29 @@ def test_machine_registry_exposes_spectrumplus2():
     assert "zx128k_2plus_es.rom" in spec.rom_slots[0].filenames
     assert "program.tap" in spec.rom_slots[1].filenames
     assert spec.rom_slots[2].slot_id == "snapshot"
+
+
+def test_machine_registry_exposes_mastersystem2():
+    spec = get_machine_spec("mastersystem2")
+
+    assert spec.machine_id == "mastersystem2"
+    assert spec.display_name == "Sega Master System II (early scaffold)"
+    assert spec.rom_slots[0].slot_id == "bios"
+    assert "akbios.sms" in spec.rom_slots[0].filenames
+    assert spec.rom_slots[1].slot_id == "main"
+    assert "cart.sms" in spec.rom_slots[1].filenames
+
+
+def test_parse_cli_rom_specs_accepts_short_form_for_mastersystem2():
+    roms = parse_cli_rom_specs("mastersystem2", ["sonic.sms"])
+
+    assert roms == {"main": Path("sonic.sms")}
+
+
+def test_parse_cli_rom_specs_infers_bios_slot_for_mastersystem2_bios_name():
+    roms = parse_cli_rom_specs("mastersystem2", ["akbios.sms"])
+
+    assert roms == {"bios": Path("akbios.sms")}
 
 
 def test_resolve_machine_rom_paths_prefers_default_main_rom_when_snapshot_is_explicit(monkeypatch, tmp_path):
@@ -161,6 +186,62 @@ def test_parse_cli_rom_specs_accepts_short_form_for_gameboy():
     assert roms == {"main": Path("gameboy.gb")}
 
 
+def test_load_state_dump_reads_payload(tmp_path):
+    dump_path = tmp_path / "state.json"
+    dump_path.write_text(
+        json.dumps(
+            {
+                "machine_id": "mastersystem2",
+                "rom_paths": {"main": str(tmp_path / "game.sms")},
+                "state": {"frame_counter": 12},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = load_state_dump(dump_path)
+
+    assert payload["machine_id"] == "mastersystem2"
+    assert payload["state"]["frame_counter"] == 12
+
+
+def test_instantiate_machine_can_restore_state_dump_and_rom_paths(tmp_path):
+    rom_path = tmp_path / "game.sms"
+    rom_path.write_bytes(
+        bytes([0x00]) * 0x4000
+        + bytes([0x01]) * 0x4000
+        + bytes([0x02]) * 0x4000
+        + bytes([0x03]) * 0x4000
+    )
+
+    machine = instantiate_machine("mastersystem2", roms={"main": rom_path})
+    machine.poke(0xC000, 0x56)
+    machine.poke(0xFFFD, 2)
+    state_dump = {
+        "machine_id": "mastersystem2",
+        "rom_paths": {"main": str(rom_path)},
+        "state": machine.read_state(),
+    }
+
+    restored = instantiate_machine("mastersystem2", state_dump=state_dump)
+
+    assert restored.peek(0xC000) == 0x56
+    assert restored.frame_page_0 == 2
+    assert restored.resolved_rom_paths == {"main": rom_path}
+
+
+def test_instantiate_machine_rejects_mismatched_state_dump_machine():
+    try:
+        instantiate_machine(
+            "spectrum48k",
+            state_dump={"machine_id": "mastersystem2", "state": {}},
+        )
+    except ValueError as exc:
+        assert "dump de estado" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for mismatched dump machine")
+
+
 def test_cli_run_accepts_custom_keymap_file():
     parser = build_parser()
 
@@ -168,6 +249,15 @@ def test_cli_run_accepts_custom_keymap_file():
 
     assert args.machine == "spectrum48k"
     assert args.keymap == "custom.json"
+
+
+def test_cli_run_accepts_state_dump():
+    parser = build_parser()
+
+    args = parser.parse_args(["run", "mastersystem2", "--state", "session.json"])
+
+    assert args.machine == "mastersystem2"
+    assert args.state == "session.json"
 
 
 def test_cli_connect_accepts_custom_keymap_file():

@@ -26,7 +26,7 @@ class RemoteFrontendSession(ABC):
     ):
         self.backend = wrap_backend(backend)
         target_fps = getattr(self.backend, "target_fps", None)
-        self.fps_limit = int(target_fps) if fps_limit is None and target_fps else fps_limit
+        self.fps_limit = float(target_fps) if fps_limit is None and target_fps else fps_limit
         self.audio_sample_rate = audio_sample_rate
         self.audio_chunk_size = audio_chunk_size
         self.running = False

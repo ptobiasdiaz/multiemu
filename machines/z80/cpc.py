@@ -498,6 +498,111 @@ class CPC464(BaseMachine):
             devices.append(self._debug_device("disk", self.disk, "device", label="Disk image"))
         return devices
 
+    def read_state(self) -> dict:
+        state = super().read_state()
+        state |= {
+            "lower_rom_enabled": self.lower_rom_enabled,
+            "upper_rom_enabled": self.upper_rom_enabled,
+            "selected_upper_rom_bank": self.selected_upper_rom_bank,
+            "keyboard_lines": list(self.keyboard_lines),
+            "joystick_state": self.joystick_state,
+            "last_keyboard_line_read": self.last_keyboard_line_read,
+            "interrupt_counter": self.interrupt_counter,
+            "vsync_active": self.vsync_active,
+            "current_scanline": self.current_scanline,
+            "current_crtc_row": self.current_crtc_row,
+            "current_char_row": self.current_char_row,
+            "current_raster_address": self.current_raster_address,
+            "frame_display_start_address": self.frame_display_start_address,
+            "frame_gate_mode": self.frame_gate_mode,
+            "frame_border_hardware_color": self.frame_border_hardware_color,
+            "line_display_start_addresses": list(self.line_display_start_addresses),
+            "line_gate_modes": list(self.line_gate_modes),
+            "line_border_colours": list(self.line_border_colours),
+            "frame_audio": list(self._frame_audio),
+            "audio_rendered_samples": self._audio_rendered_samples,
+            "device_tstates": self._device_tstates,
+            "fast_tape": self.fast_tape,
+            "ram": self.ram.read_state(),
+            "gate_array": self.gate_array.read_state(),
+            "crtc": self.crtc.read_state(),
+            "ppi": self.ppi.read_state(),
+            "video": self.video.read_state(),
+            "psg": self.psg.read_state(),
+            "fdc": self.fdc.read_state(),
+            "disk": None if self.disk is None else self.disk.read_state(),
+            "cassette": None if self.cassette is None else self.cassette.read_state(),
+        }
+        return state
+
+    def write_state(self, state: dict) -> None:
+        super().write_state(state)
+        if "lower_rom_enabled" in state:
+            self.lower_rom_enabled = bool(state["lower_rom_enabled"])
+        if "upper_rom_enabled" in state:
+            self.upper_rom_enabled = bool(state["upper_rom_enabled"]) and self._has_upper_rom
+        if "selected_upper_rom_bank" in state:
+            self.selected_upper_rom_bank = int(state["selected_upper_rom_bank"]) & 0xFF
+        if "keyboard_lines" in state:
+            self.keyboard_lines = [int(v) & 0xFF for v in state["keyboard_lines"][: self.KEYBOARD_LINES]]
+            self.keyboard_lines += [0xFF] * (self.KEYBOARD_LINES - len(self.keyboard_lines))
+        if "joystick_state" in state:
+            self.joystick_state = int(state["joystick_state"]) & 0x3F
+        if "last_keyboard_line_read" in state:
+            self.last_keyboard_line_read = int(state["last_keyboard_line_read"]) & 0xFF
+        if "interrupt_counter" in state:
+            self.interrupt_counter = int(state["interrupt_counter"])
+        if "vsync_active" in state:
+            self.vsync_active = bool(state["vsync_active"])
+        if "current_scanline" in state:
+            self.current_scanline = int(state["current_scanline"])
+        if "current_crtc_row" in state:
+            self.current_crtc_row = int(state["current_crtc_row"])
+        if "current_char_row" in state:
+            self.current_char_row = int(state["current_char_row"])
+        if "current_raster_address" in state:
+            self.current_raster_address = int(state["current_raster_address"])
+        if "frame_display_start_address" in state:
+            self.frame_display_start_address = int(state["frame_display_start_address"]) & 0x3FFF
+        if "frame_gate_mode" in state:
+            self.frame_gate_mode = int(state["frame_gate_mode"]) & 0x03
+        if "frame_border_hardware_color" in state:
+            self.frame_border_hardware_color = int(state["frame_border_hardware_color"]) & 0x1F
+        if "line_display_start_addresses" in state:
+            self.line_display_start_addresses = [int(v) & 0x3FFF for v in state["line_display_start_addresses"]]
+        if "line_gate_modes" in state:
+            self.line_gate_modes = [int(v) & 0x03 for v in state["line_gate_modes"]]
+        if "line_border_colours" in state:
+            self.line_border_colours = [int(v) & 0x1F for v in state["line_border_colours"]]
+        if "frame_audio" in state:
+            self._frame_audio = array("h", (int(v) for v in state["frame_audio"]))
+        if "audio_rendered_samples" in state:
+            self._audio_rendered_samples = int(state["audio_rendered_samples"])
+        if "device_tstates" in state:
+            self._device_tstates = int(state["device_tstates"])
+        if "fast_tape" in state:
+            self.fast_tape = bool(state["fast_tape"])
+        if "ram" in state:
+            self.ram.write_state(state["ram"])
+        if "gate_array" in state:
+            self.gate_array.write_state(state["gate_array"])
+        if "crtc" in state:
+            self.crtc.write_state(state["crtc"])
+        if "ppi" in state:
+            self.ppi.write_state(state["ppi"])
+        if "video" in state:
+            self.video.write_state(state["video"])
+        if "psg" in state:
+            self.psg.write_state(state["psg"])
+        if "fdc" in state:
+            self.fdc.write_state(state["fdc"])
+        if self.disk is not None and state.get("disk") is not None:
+            self.disk.write_state(state["disk"])
+        if self.cassette is not None and state.get("cassette") is not None:
+            self.cassette.write_state(state["cassette"])
+        self.framebuffer_rgb24 = self.video.framebuffer_rgb24
+        self.audio_samples = array("h", self._frame_audio)
+
     def clear_input_state(self):
         """Release all CPC keyboard lines before the frontend applies a frame state."""
 

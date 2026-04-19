@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+import sys
 
 import pygame
 from frontend.backend import wrap_backend
@@ -43,7 +44,7 @@ class PygameFrontend:
         self.scale = scale
         self.window_title = window_title
         target_fps = getattr(self.backend, "target_fps", None)
-        self.fps_limit = int(target_fps) if fps_limit is None and target_fps else fps_limit
+        self.fps_limit = float(target_fps) if fps_limit is None and target_fps else fps_limit
         self.audio_sample_rate = audio_sample_rate
         self.audio_chunk_size = audio_chunk_size
         self.audio_play_chunk_size = max(audio_chunk_size, 2048)
@@ -141,6 +142,12 @@ class PygameFrontend:
             self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
             return
 
+        if machine_id.startswith("mastersystem"):
+            self.audio_prebuffer_chunks = 2
+            self.audio_max_queue_chunks = 8
+            self.audio_play_chunk_size = max(1024, self.audio_chunk_size)
+            return
+
         self.audio_prebuffer_chunks = 4
         self.audio_max_queue_chunks = 12
         self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
@@ -200,11 +207,18 @@ class PygameFrontend:
                 if event.key == pygame.K_F1:
                     self.backend.toggle_tape_play_pause()
                     continue
+                if event.key == pygame.K_F12:
+                    dump_state = getattr(self.backend, "dump_debug_state", None)
+                    if dump_state is not None:
+                        dump_path = dump_state()
+                        if dump_path:
+                            print(f"multiemu: dump guardado en {dump_path}", file=sys.stderr)
+                    continue
                 controls = resolve_pygame_key_controls(
                     self.keymap, self.combo_keymap, self.unicode_combo_keymap, event
                 )
                 if controls:
-                    if getattr(event, "unicode", ""):
+                    if self._uses_unicode_combo(event):
                         self._suppress_host_shift_bindings()
                     self._keyboard_key_bindings[event.key] = controls
                     for control in controls:
@@ -280,6 +294,10 @@ class PygameFrontend:
             else:
                 self.tap_pulse_frames.pop(control, None)
                 self.pending_tap_counts.pop(control, None)
+
+    def _uses_unicode_combo(self, event) -> bool:
+        text = getattr(event, "unicode", "") or ""
+        return bool(text and text in self.unicode_combo_keymap)
 
     def _suppress_host_shift_bindings(self) -> None:
         for shift_key in (pygame.K_LSHIFT, pygame.K_RSHIFT):

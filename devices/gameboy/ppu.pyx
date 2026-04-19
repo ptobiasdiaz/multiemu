@@ -572,40 +572,35 @@ cdef class GameBoyPPU:
         return pixel * (self.FRAME_WIDTH * self.FRAME_HEIGHT)
 
     def read_state(self) -> dict:
-        state = read_state_fields(
-            self,
-            scalar_fields=(
-                "frame_width",
-                "frame_height",
-                "lcdc",
-                "stat",
-                "scy",
-                "scx",
-                "ly",
-                "lyc",
-                "bgp",
-                "obp0",
-                "obp1",
-                "wy",
-                "wx",
-                "cgb_mode",
-                "bgpi",
-                "obpi",
-                "_last_tstates",
-                "_last_mode",
-                "_last_ly",
-            ),
-            byte_fields=(
-                "bg_palette_data",
-                "obj_palette_data",
-                "bg_palette_rgb",
-                "obj_palette_rgb",
-                "_render_buffer",
-                "_bg_color_ids_buffer",
-                "_bg_priorities_buffer",
-            ),
-            meta={"type": "GameBoyPPU"},
-        )
+        state = {
+            "__meta__": {"type": "GameBoyPPU"},
+            "frame_width": self.frame_width,
+            "frame_height": self.frame_height,
+            "lcdc": self.lcdc,
+            "stat": self.stat,
+            "scy": self.scy,
+            "scx": self.scx,
+            "ly": self.ly,
+            "lyc": self.lyc,
+            "bgp": self.bgp,
+            "obp0": self.obp0,
+            "obp1": self.obp1,
+            "wy": self.wy,
+            "wx": self.wx,
+            "cgb_mode": bool(self.cgb_mode),
+            "bgpi": self.bgpi,
+            "obpi": self.obpi,
+            "_last_tstates": self._last_tstates,
+            "_last_mode": self._last_mode,
+            "_last_ly": self._last_ly,
+            "bg_palette_data": list(self.bg_palette_data),
+            "obj_palette_data": list(self.obj_palette_data),
+            "bg_palette_rgb": list(self.bg_palette_rgb),
+            "obj_palette_rgb": list(self.obj_palette_rgb),
+            "_render_buffer": list(self._render_buffer),
+            "_bg_color_ids_buffer": list(self._bg_color_ids_buffer),
+            "_bg_priorities_buffer": list(self._bg_priorities_buffer),
+        }
         state["_line_scx"] = list(self._line_scx)
         state["_line_scy"] = list(self._line_scy)
         state["_line_wx"] = list(self._line_wx)
@@ -618,40 +613,58 @@ cdef class GameBoyPPU:
         return state
 
     def write_state(self, state: dict) -> None:
-        write_state_fields(
-            self,
-            state,
-            scalar_fields=(
-                "frame_width",
-                "frame_height",
-                "lcdc",
-                "stat",
-                "scy",
-                "scx",
-                "ly",
-                "lyc",
-                "bgp",
-                "obp0",
-                "obp1",
-                "wy",
-                "wx",
-                "cgb_mode",
-                "bgpi",
-                "obpi",
-                "_last_tstates",
-                "_last_mode",
-                "_last_ly",
-            ),
-            byte_fields=(
-                "bg_palette_data",
-                "obj_palette_data",
-                "bg_palette_rgb",
-                "obj_palette_rgb",
-                "_render_buffer",
-                "_bg_color_ids_buffer",
-                "_bg_priorities_buffer",
-            ),
-        )
+        if "frame_width" in state:
+            self.frame_width = int(state["frame_width"])
+        if "frame_height" in state:
+            self.frame_height = int(state["frame_height"])
+        if "lcdc" in state:
+            self.lcdc = int(state["lcdc"]) & 0xFF
+        if "stat" in state:
+            self.stat = int(state["stat"]) & 0xFF
+        if "scy" in state:
+            self.scy = int(state["scy"]) & 0xFF
+        if "scx" in state:
+            self.scx = int(state["scx"]) & 0xFF
+        if "ly" in state:
+            self.ly = int(state["ly"]) & 0xFF
+        if "lyc" in state:
+            self.lyc = int(state["lyc"]) & 0xFF
+        if "bgp" in state:
+            self.bgp = int(state["bgp"]) & 0xFF
+        if "obp0" in state:
+            self.obp0 = int(state["obp0"]) & 0xFF
+        if "obp1" in state:
+            self.obp1 = int(state["obp1"]) & 0xFF
+        if "wy" in state:
+            self.wy = int(state["wy"]) & 0xFF
+        if "wx" in state:
+            self.wx = int(state["wx"]) & 0xFF
+        if "cgb_mode" in state:
+            self.cgb_mode = bool(state["cgb_mode"])
+        if "bgpi" in state:
+            self.bgpi = int(state["bgpi"]) & 0xFF
+        if "obpi" in state:
+            self.obpi = int(state["obpi"]) & 0xFF
+        if "_last_tstates" in state:
+            self._last_tstates = int(state["_last_tstates"])
+        if "_last_mode" in state:
+            self._last_mode = int(state["_last_mode"])
+        if "_last_ly" in state:
+            self._last_ly = int(state["_last_ly"])
+        if "bg_palette_data" in state:
+            self.bg_palette_data[:] = bytes(int(v) & 0xFF for v in state["bg_palette_data"][: len(self.bg_palette_data)])
+        if "obj_palette_data" in state:
+            self.obj_palette_data[:] = bytes(int(v) & 0xFF for v in state["obj_palette_data"][: len(self.obj_palette_data)])
+        if "bg_palette_rgb" in state:
+            self.bg_palette_rgb[:] = bytes(int(v) & 0xFF for v in state["bg_palette_rgb"][: len(self.bg_palette_rgb)])
+        if "obj_palette_rgb" in state:
+            self.obj_palette_rgb[:] = bytes(int(v) & 0xFF for v in state["obj_palette_rgb"][: len(self.obj_palette_rgb)])
+        if "_render_buffer" in state:
+            self._render_buffer[:] = bytes(int(v) & 0xFF for v in state["_render_buffer"][: len(self._render_buffer)])
+        if "_bg_color_ids_buffer" in state:
+            self._bg_color_ids_buffer[:] = bytes(int(v) & 0xFF for v in state["_bg_color_ids_buffer"][: len(self._bg_color_ids_buffer)])
+        if "_bg_priorities_buffer" in state:
+            self._bg_priorities_buffer[:] = bytes(int(v) & 0xFF for v in state["_bg_priorities_buffer"][: len(self._bg_priorities_buffer)])
         if "_line_scx" in state:
             self._line_scx = [int(v) & 0xFF for v in state["_line_scx"]]
         if "_line_scy" in state:

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import logging
+
+import pytest
+
 from cpu.z80 import PythonPortHandler, RAMBlock, Z80Bus, Z80Core
 from cpu.z80.bus import MemoryDevice
 
@@ -82,6 +86,84 @@ def test_z80_read_state_write_state_roundtrip():
     assert other.read_state() == state
 
 
+def test_z80_ei_delays_interrupt_acceptance_until_after_next_instruction():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0xFB, 0x00, 0x00]))  # EI; NOP; NOP
+    cpu.write_state({"SP": 0x1000, "iff1": False, "iff2": False, "PC": 0x0000})
+
+    cpu.step()
+    cpu.interrupt()
+    assert cpu.snapshot()["PC"] == 0x0001
+
+    cpu.step()
+    cpu.interrupt()
+    assert cpu.snapshot()["PC"] == 0x0038
+
+
+def test_z80_rrd_rotates_a_and_memory_nibbles():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0xED, 0x67, 0x76]))
+    ram.load(0x0200, bytes([0x34]))
+    cpu.write_state({"A": 0x12, "F": 0x01, "H": 0x02, "L": 0x00})
+
+    cpu.step()
+
+    snap = cpu.snapshot()
+    assert snap["A"] == 0x14
+    assert ram.peek(0x0200) == 0x23
+    assert snap["F"] & 0x01
+
+
+def test_z80_rld_rotates_a_and_memory_nibbles():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0xED, 0x6F, 0x76]))
+    ram.load(0x0200, bytes([0x34]))
+    cpu.write_state({"A": 0x12, "F": 0x01, "H": 0x02, "L": 0x00})
+
+    cpu.step()
+
+    snap = cpu.snapshot()
+    assert snap["A"] == 0x13
+    assert ram.peek(0x0200) == 0x42
+    assert snap["F"] & 0x01
+
+
+def test_z80_undocumented_ed_opcode_is_logged_nop(caplog):
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0xED, 0xFC, 0x3E, 0x42]))
+
+    with caplog.at_level(logging.WARNING, logger="cpu.z80.core"):
+        cpu.step()
+
+    assert cpu.snapshot()["PC"] == 0x0002
+    assert "Undocumented Z80 ED opcode FC at 0000 treated as NOP" in caplog.text
+    cpu.step()
+    assert cpu.snapshot()["A"] == 0x42
+
+
+def test_z80_plain_nop_still_executes():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0x00]))
+
+    assert cpu.step() == 4
+    assert cpu.snapshot()["PC"] == 0x0001
+
+
 def test_z80_memory_read_state_write_state_roundtrip():
     block = RAMBlock(0x20)
     block.load(0, bytes(range(0x20)))
@@ -148,6 +230,37 @@ def test_z80_ini_reads_from_port_into_memory_and_updates_registers():
     assert snap["B"] == 0x00
     assert snap["C"] == 0x34
     assert snap["HL"] == 0x0201
+    assert snap["F"] & 0x40
+
+
+def test_z80_outi_sets_zero_flag_when_b_reaches_zero():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+
+    writes = []
+
+    def write_cb(port, value):
+        writes.append((port, value))
+
+    bus.set_port_handler(0x78, PythonPortHandler(write_cb=write_cb))
+    ram.load(0, bytes([
+        0x06, 0x01,       # LD B,01h
+        0x0E, 0x78,       # LD C,78h
+        0x21, 0x00, 0x02, # LD HL,0200h
+        0xED, 0xA3,       # OUTI
+        0x76,             # HALT
+    ]))
+    ram.load(0x0200, bytes([0x11]))
+
+    cpu.run_cycles(100)
+    snap = cpu.snapshot()
+
+    assert writes == [(0x0178, 0x11)]
+    assert snap["B"] == 0x00
+    assert snap["HL"] == 0x0201
+    assert snap["F"] & 0x40
 
 
 def test_z80_otir_writes_all_bytes_to_port_until_b_reaches_zero():
@@ -291,22 +404,22 @@ def test_z80_dd_prefix_ignores_unaffected_opcode():
     assert snap["halted"] is True
 
 
-def test_z80_ed_ed_behaves_as_undocumented_nop():
+def test_z80_ed_ed_is_logged_nop_and_continues(caplog):
     bus = Z80Bus()
     cpu = Z80Core(bus)
     ram = RAMBlock(0x1000)
     bus.map_block(0x0000, ram)
     ram.load(0, bytes([
         0x06, 0x34,       # LD B,34h
-        0xED, 0xED,       # undocumented ED opcode -> NOP
+        0xED, 0xED,       # unsupported ED opcode
         0x78,             # LD A,B
         0x76,             # HALT
     ]))
 
-    cpu.run_cycles(100)
+    with caplog.at_level(logging.WARNING, logger="cpu.z80.core"):
+        cpu.run_cycles(100)
     snap = cpu.snapshot()
 
     assert snap["A"] == 0x34
-    assert snap["B"] == 0x34
-    assert snap["PC"] == 0x0006
     assert snap["halted"] is True
+    assert "Undocumented Z80 ED opcode ED at 0002 treated as NOP" in caplog.text

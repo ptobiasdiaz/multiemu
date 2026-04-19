@@ -179,19 +179,29 @@ dmypy.json
 cython_debug/
 
 # Local ROM and capture artifacts
-/roms/gameboy_mapper_catalog.json
+/roms/
 /6530-002.bin
 /6530-003.bin
 /*.rom
 /*.ROM
+/*.sms
+/*.z80
+/*.sna
+/*.tap
+/*.dsk
 /*.gb
 /*.gbc
 /*.cdt
 /*.tzx
 /*.cpr
 /*.rar
+/*.zip
 /*.bin
 /vic_src.tar.gz
+/*_hud_*.png
+/multiemu_dump_*.json
+/doc/
+/kim.asm
 /.codex
 
 # PyCharm

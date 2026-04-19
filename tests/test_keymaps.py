@@ -260,6 +260,34 @@ def test_spectrum_shifted_digit_keys_resolve_to_symbol_shift_number_row():
     assert shift3_controls == ((7, 1), (3, 2))
 
 
+def test_mastersystem2_keyboard_buttons_map_z_and_x():
+    maps = load_pygame_input_maps("mastersystem2")
+
+    class _Z:
+        key = pygame.K_z
+        mod = 0
+
+    class _X:
+        key = pygame.K_x
+        mod = 0
+
+    z_controls = resolve_pygame_key_controls(
+        maps.keymap,
+        maps.combo_keymap,
+        maps.unicode_combo_keymap,
+        _Z(),
+    )
+    x_controls = resolve_pygame_key_controls(
+        maps.keymap,
+        maps.combo_keymap,
+        maps.unicode_combo_keymap,
+        _X(),
+    )
+
+    assert z_controls == ((1, 0),)
+    assert x_controls == ((1, 1),)
+
+
 def test_kim1_keymap_keeps_hex_digits_and_commands_distinct():
     assert KIM1_PYGAME_KEYMAP[pygame.K_KP0] == (0, 6)
     assert KIM1_PYGAME_KEYMAP[pygame.K_KP7] == (1, 6)

@@ -212,3 +212,42 @@ class GameBoyMachineBase(BaseMachine):
             self._debug_device("apu", self.apu, "chip", label="APU"),
             self._debug_device("dma", self.dma, "device", label="DMA"),
         ]
+
+    def read_state(self) -> dict:
+        state = super().read_state()
+        state |= {
+            "device_clock": self._device_clock,
+            "cartridge": self.cartridge.read_state(),
+            "interrupts": self.interrupts.read_state(),
+            "joypad": self.joypad.read_state(),
+            "serial": self.serial.read_state(),
+            "timer": self.timer.read_state(),
+            "ppu": self.ppu.read_state(),
+            "apu": self.apu.read_state(),
+            "dma": self.dma.read_state(),
+        }
+        return state
+
+    def write_state(self, state: dict) -> None:
+        super().write_state(state)
+        if "device_clock" in state:
+            self._device_clock = int(state["device_clock"])
+        if "cartridge" in state:
+            self.cartridge.write_state(state["cartridge"])
+        if "interrupts" in state:
+            self.interrupts.write_state(state["interrupts"])
+        if "joypad" in state:
+            self.joypad.write_state(state["joypad"])
+        if "serial" in state:
+            self.serial.write_state(state["serial"])
+        if "timer" in state:
+            self.timer.write_state(state["timer"])
+        if "ppu" in state:
+            self.ppu.write_state(state["ppu"])
+        if "apu" in state:
+            self.apu.write_state(state["apu"])
+        if "dma" in state:
+            self.dma.write_state(state["dma"])
+        self.bus.interrupt_enable = self.interrupts.interrupt_enable
+        self.framebuffer_rgb24 = self.ppu.framebuffer_rgb24
+        self.audio_samples = self.apu.get_frame_samples()

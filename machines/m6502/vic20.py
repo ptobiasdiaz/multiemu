@@ -325,6 +325,63 @@ class VIC20(M6502MachineBase):
             devices.append(self._debug_device("blk5_rom", self.blk5_rom, "memory", label="BLK5 ROM"))
         return devices
 
+    def read_state(self) -> dict:
+        state = super().read_state()
+        state |= {
+            "device_clock": self._device_clock,
+            "current_scanline": self.current_scanline,
+            "vic_bus_last_data": self._vic_bus_last_data,
+            "vic_bus_last_high": self._vic_bus_last_high,
+            "key_matrix": list(self.key_matrix),
+            "joystick_state": self.joystick_state,
+            "low_ram": self.low_ram.read_state(),
+            "main_ram": self.main_ram.read_state(),
+            "color_ram": self.color_ram.read_state(),
+            "io2_ram": None if self.io2_ram is None else self.io2_ram.read_state(),
+            "io3_ram": None if self.io3_ram is None else self.io3_ram.read_state(),
+            "vic": self.vic.read_state(),
+            "via1": self.via1.read_state(),
+            "via2": self.via2.read_state(),
+        }
+        return state
+
+    def write_state(self, state: dict) -> None:
+        super().write_state(state)
+        if "device_clock" in state:
+            self._device_clock = int(state["device_clock"])
+        if "current_scanline" in state:
+            self.current_scanline = int(state["current_scanline"])
+        if "vic_bus_last_data" in state:
+            self._vic_bus_last_data = int(state["vic_bus_last_data"]) & 0xFF
+        if "vic_bus_last_high" in state:
+            self._vic_bus_last_high = int(state["vic_bus_last_high"]) & 0x0F
+        if "key_matrix" in state:
+            self.key_matrix = [int(v) & 0xFF for v in state["key_matrix"][:8]]
+            self.key_matrix += [0x00] * (8 - len(self.key_matrix))
+        if "joystick_state" in state:
+            self.joystick_state = int(state["joystick_state"]) & 0x3F
+        if "low_ram" in state:
+            self.low_ram.write_state(state["low_ram"])
+        if "main_ram" in state:
+            self.main_ram.write_state(state["main_ram"])
+        if "color_ram" in state:
+            self.color_ram.write_state(state["color_ram"])
+        if self.io2_ram is not None and state.get("io2_ram") is not None:
+            self.io2_ram.write_state(state["io2_ram"])
+        if self.io3_ram is not None and state.get("io3_ram") is not None:
+            self.io3_ram.write_state(state["io3_ram"])
+        if "vic" in state:
+            self.vic.write_state(state["vic"])
+        if "via1" in state:
+            self.via1.write_state(state["via1"])
+        if "via2" in state:
+            self.via2.write_state(state["via2"])
+        self.via1.set_port_a_input_callback(self._read_via1_port_a)
+        self.via2.set_port_a_input_callback(self._read_keyboard_rows)
+        self.via2.set_port_b_input_callback(self._read_via2_port_b)
+        self.framebuffer_rgb24 = self._render_screen_frame()
+        self.audio_samples = self.vic.get_frame_samples()
+
     def _clear_nmi(self) -> None:
         self.bus.nmi_pending = False
 

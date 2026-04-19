@@ -74,13 +74,21 @@ class BaseMachine(ABC):
     def handle_input_event(self, event):
         raise ValueError(f"input no soportado: {event!r}")
 
-    def _debug_device(self, device_id: str, obj, kind: str, *, label: str | None = None) -> dict:
+    def _debug_device(
+        self,
+        device_id: str,
+        obj,
+        kind: str,
+        *,
+        label: str | None = None,
+        writable: bool | None = None,
+    ) -> dict:
         return {
             "id": device_id,
             "obj": obj,
             "kind": kind,
             "label": label or device_id,
-            "writable": bool(obj is not None and hasattr(obj, "write_state")),
+            "writable": bool(obj is not None and hasattr(obj, "write_state")) if writable is None else bool(writable),
         }
 
     def debug_devices(self) -> list[dict]:

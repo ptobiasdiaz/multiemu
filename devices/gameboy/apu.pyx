@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 from array import array
-from multiemu.state_codec import read_state_fields, write_state_fields
 
 
 cdef class GameBoyAPU:
@@ -681,67 +680,201 @@ cdef class GameBoyAPU:
                 self._ch4_volume -= 1
 
     def read_state(self) -> dict:
-        return read_state_fields(
-            self,
-            scalar_fields=(
-                "sample_rate",
-                "_cycles_per_sample",
-                "_sample_clock",
-                "nr10", "nr11", "nr12", "nr13", "nr14",
-                "nr21", "nr22", "nr23", "nr24",
-                "nr30", "nr31", "nr32", "nr33", "nr34",
-                "nr41", "nr42", "nr43", "nr44",
-                "nr50", "nr51", "nr52",
-                "_master_enabled",
-                "_sequencer_clock",
-                "_sequencer_step",
-                "_ch1_enabled", "_ch1_length_enabled", "_ch1_envelope_increase", "_ch1_sweep_negate", "_ch1_sweep_enabled",
-                "_ch1_length_counter", "_ch1_duty", "_ch1_initial_volume", "_ch1_volume", "_ch1_envelope_period", "_ch1_envelope_timer",
-                "_ch1_frequency", "_ch1_sweep_period", "_ch1_sweep_timer", "_ch1_sweep_shift", "_ch1_sweep_shadow_frequency",
-                "_ch1_phase", "_ch1_phase_step",
-                "_ch2_enabled", "_ch2_length_enabled", "_ch2_envelope_increase",
-                "_ch2_length_counter", "_ch2_duty", "_ch2_initial_volume", "_ch2_volume", "_ch2_envelope_period", "_ch2_envelope_timer",
-                "_ch2_frequency", "_ch2_phase", "_ch2_phase_step",
-                "_ch3_enabled", "_ch3_dac_enabled", "_ch3_length_enabled",
-                "_ch3_length_counter", "_ch3_output_level", "_ch3_frequency", "_ch3_phase", "_ch3_phase_step",
-                "_ch4_enabled", "_ch4_length_enabled", "_ch4_envelope_increase", "_ch4_width_mode",
-                "_ch4_length_counter", "_ch4_initial_volume", "_ch4_volume", "_ch4_envelope_period", "_ch4_envelope_timer",
-                "_ch4_clock_shift", "_ch4_divisor_code", "_ch4_lfsr", "_ch4_phase", "_ch4_phase_step",
-            ),
-            byte_fields=("_ch3_wave_ram",),
-            array_fields=("_frame_samples",),
-            meta={"type": "GameBoyAPU"},
-        )
+        return {
+            "__meta__": {"type": "GameBoyAPU"},
+            "sample_rate": self.sample_rate,
+            "_cycles_per_sample": self._cycles_per_sample,
+            "_sample_clock": self._sample_clock,
+            "nr10": self.nr10, "nr11": self.nr11, "nr12": self.nr12, "nr13": self.nr13, "nr14": self.nr14,
+            "nr21": self.nr21, "nr22": self.nr22, "nr23": self.nr23, "nr24": self.nr24,
+            "nr30": self.nr30, "nr31": self.nr31, "nr32": self.nr32, "nr33": self.nr33, "nr34": self.nr34,
+            "nr41": self.nr41, "nr42": self.nr42, "nr43": self.nr43, "nr44": self.nr44,
+            "nr50": self.nr50, "nr51": self.nr51, "nr52": self.nr52,
+            "_master_enabled": bool(self._master_enabled),
+            "_sequencer_clock": self._sequencer_clock,
+            "_sequencer_step": self._sequencer_step,
+            "_frame_samples": list(self._frame_samples),
+            "_ch1_enabled": bool(self._ch1_enabled),
+            "_ch1_length_enabled": bool(self._ch1_length_enabled),
+            "_ch1_envelope_increase": bool(self._ch1_envelope_increase),
+            "_ch1_sweep_negate": bool(self._ch1_sweep_negate),
+            "_ch1_sweep_enabled": bool(self._ch1_sweep_enabled),
+            "_ch1_length_counter": self._ch1_length_counter,
+            "_ch1_duty": self._ch1_duty,
+            "_ch1_initial_volume": self._ch1_initial_volume,
+            "_ch1_volume": self._ch1_volume,
+            "_ch1_envelope_period": self._ch1_envelope_period,
+            "_ch1_envelope_timer": self._ch1_envelope_timer,
+            "_ch1_frequency": self._ch1_frequency,
+            "_ch1_sweep_period": self._ch1_sweep_period,
+            "_ch1_sweep_timer": self._ch1_sweep_timer,
+            "_ch1_sweep_shift": self._ch1_sweep_shift,
+            "_ch1_sweep_shadow_frequency": self._ch1_sweep_shadow_frequency,
+            "_ch1_phase": self._ch1_phase,
+            "_ch1_phase_step": self._ch1_phase_step,
+            "_ch2_enabled": bool(self._ch2_enabled),
+            "_ch2_length_enabled": bool(self._ch2_length_enabled),
+            "_ch2_envelope_increase": bool(self._ch2_envelope_increase),
+            "_ch2_length_counter": self._ch2_length_counter,
+            "_ch2_duty": self._ch2_duty,
+            "_ch2_initial_volume": self._ch2_initial_volume,
+            "_ch2_volume": self._ch2_volume,
+            "_ch2_envelope_period": self._ch2_envelope_period,
+            "_ch2_envelope_timer": self._ch2_envelope_timer,
+            "_ch2_frequency": self._ch2_frequency,
+            "_ch2_phase": self._ch2_phase,
+            "_ch2_phase_step": self._ch2_phase_step,
+            "_ch3_enabled": bool(self._ch3_enabled),
+            "_ch3_dac_enabled": bool(self._ch3_dac_enabled),
+            "_ch3_length_enabled": bool(self._ch3_length_enabled),
+            "_ch3_length_counter": self._ch3_length_counter,
+            "_ch3_output_level": self._ch3_output_level,
+            "_ch3_frequency": self._ch3_frequency,
+            "_ch3_phase": self._ch3_phase,
+            "_ch3_phase_step": self._ch3_phase_step,
+            "_ch3_wave_ram": list(self._ch3_wave_ram),
+            "_ch4_enabled": bool(self._ch4_enabled),
+            "_ch4_length_enabled": bool(self._ch4_length_enabled),
+            "_ch4_envelope_increase": bool(self._ch4_envelope_increase),
+            "_ch4_width_mode": bool(self._ch4_width_mode),
+            "_ch4_length_counter": self._ch4_length_counter,
+            "_ch4_initial_volume": self._ch4_initial_volume,
+            "_ch4_volume": self._ch4_volume,
+            "_ch4_envelope_period": self._ch4_envelope_period,
+            "_ch4_envelope_timer": self._ch4_envelope_timer,
+            "_ch4_clock_shift": self._ch4_clock_shift,
+            "_ch4_divisor_code": self._ch4_divisor_code,
+            "_ch4_lfsr": self._ch4_lfsr,
+            "_ch4_phase": self._ch4_phase,
+            "_ch4_phase_step": self._ch4_phase_step,
+        }
 
     def write_state(self, state: dict) -> None:
-        write_state_fields(
-            self,
-            state,
-            scalar_fields=(
-                "sample_rate",
-                "_cycles_per_sample",
-                "_sample_clock",
-                "nr10", "nr11", "nr12", "nr13", "nr14",
-                "nr21", "nr22", "nr23", "nr24",
-                "nr30", "nr31", "nr32", "nr33", "nr34",
-                "nr41", "nr42", "nr43", "nr44",
-                "nr50", "nr51", "nr52",
-                "_master_enabled",
-                "_sequencer_clock",
-                "_sequencer_step",
-                "_ch1_enabled", "_ch1_length_enabled", "_ch1_envelope_increase", "_ch1_sweep_negate", "_ch1_sweep_enabled",
-                "_ch1_length_counter", "_ch1_duty", "_ch1_initial_volume", "_ch1_volume", "_ch1_envelope_period", "_ch1_envelope_timer",
-                "_ch1_frequency", "_ch1_sweep_period", "_ch1_sweep_timer", "_ch1_sweep_shift", "_ch1_sweep_shadow_frequency",
-                "_ch1_phase", "_ch1_phase_step",
-                "_ch2_enabled", "_ch2_length_enabled", "_ch2_envelope_increase",
-                "_ch2_length_counter", "_ch2_duty", "_ch2_initial_volume", "_ch2_volume", "_ch2_envelope_period", "_ch2_envelope_timer",
-                "_ch2_frequency", "_ch2_phase", "_ch2_phase_step",
-                "_ch3_enabled", "_ch3_dac_enabled", "_ch3_length_enabled",
-                "_ch3_length_counter", "_ch3_output_level", "_ch3_frequency", "_ch3_phase", "_ch3_phase_step",
-                "_ch4_enabled", "_ch4_length_enabled", "_ch4_envelope_increase", "_ch4_width_mode",
-                "_ch4_length_counter", "_ch4_initial_volume", "_ch4_volume", "_ch4_envelope_period", "_ch4_envelope_timer",
-                "_ch4_clock_shift", "_ch4_divisor_code", "_ch4_lfsr", "_ch4_phase", "_ch4_phase_step",
-            ),
-            byte_fields=("_ch3_wave_ram",),
-            array_fields=("_frame_samples",),
-        )
+        if "sample_rate" in state:
+            self.sample_rate = int(state["sample_rate"])
+        if "_cycles_per_sample" in state:
+            self._cycles_per_sample = float(state["_cycles_per_sample"])
+        if "_sample_clock" in state:
+            self._sample_clock = float(state["_sample_clock"])
+        for name in ("nr10", "nr11", "nr12", "nr13", "nr14", "nr21", "nr22", "nr23", "nr24", "nr30", "nr31", "nr32", "nr33", "nr34", "nr41", "nr42", "nr43", "nr44", "nr50", "nr51", "nr52"):
+            if name in state:
+                setattr(self, name, int(state[name]) & 0xFF)
+        if "_master_enabled" in state:
+            self._master_enabled = bool(state["_master_enabled"])
+        if "_sequencer_clock" in state:
+            self._sequencer_clock = int(state["_sequencer_clock"])
+        if "_sequencer_step" in state:
+            self._sequencer_step = int(state["_sequencer_step"])
+        if "_frame_samples" in state:
+            self._frame_samples = array("h", (int(v) for v in state["_frame_samples"]))
+
+        if "_ch1_enabled" in state:
+            self._ch1_enabled = bool(state["_ch1_enabled"])
+        if "_ch1_length_enabled" in state:
+            self._ch1_length_enabled = bool(state["_ch1_length_enabled"])
+        if "_ch1_envelope_increase" in state:
+            self._ch1_envelope_increase = bool(state["_ch1_envelope_increase"])
+        if "_ch1_sweep_negate" in state:
+            self._ch1_sweep_negate = bool(state["_ch1_sweep_negate"])
+        if "_ch1_sweep_enabled" in state:
+            self._ch1_sweep_enabled = bool(state["_ch1_sweep_enabled"])
+        if "_ch1_length_counter" in state:
+            self._ch1_length_counter = int(state["_ch1_length_counter"])
+        if "_ch1_duty" in state:
+            self._ch1_duty = int(state["_ch1_duty"])
+        if "_ch1_initial_volume" in state:
+            self._ch1_initial_volume = int(state["_ch1_initial_volume"])
+        if "_ch1_volume" in state:
+            self._ch1_volume = int(state["_ch1_volume"])
+        if "_ch1_envelope_period" in state:
+            self._ch1_envelope_period = int(state["_ch1_envelope_period"])
+        if "_ch1_envelope_timer" in state:
+            self._ch1_envelope_timer = int(state["_ch1_envelope_timer"])
+        if "_ch1_frequency" in state:
+            self._ch1_frequency = int(state["_ch1_frequency"])
+        if "_ch1_sweep_period" in state:
+            self._ch1_sweep_period = int(state["_ch1_sweep_period"])
+        if "_ch1_sweep_timer" in state:
+            self._ch1_sweep_timer = int(state["_ch1_sweep_timer"])
+        if "_ch1_sweep_shift" in state:
+            self._ch1_sweep_shift = int(state["_ch1_sweep_shift"])
+        if "_ch1_sweep_shadow_frequency" in state:
+            self._ch1_sweep_shadow_frequency = int(state["_ch1_sweep_shadow_frequency"])
+        if "_ch1_phase" in state:
+            self._ch1_phase = float(state["_ch1_phase"])
+        if "_ch1_phase_step" in state:
+            self._ch1_phase_step = float(state["_ch1_phase_step"])
+
+        if "_ch2_enabled" in state:
+            self._ch2_enabled = bool(state["_ch2_enabled"])
+        if "_ch2_length_enabled" in state:
+            self._ch2_length_enabled = bool(state["_ch2_length_enabled"])
+        if "_ch2_envelope_increase" in state:
+            self._ch2_envelope_increase = bool(state["_ch2_envelope_increase"])
+        if "_ch2_length_counter" in state:
+            self._ch2_length_counter = int(state["_ch2_length_counter"])
+        if "_ch2_duty" in state:
+            self._ch2_duty = int(state["_ch2_duty"])
+        if "_ch2_initial_volume" in state:
+            self._ch2_initial_volume = int(state["_ch2_initial_volume"])
+        if "_ch2_volume" in state:
+            self._ch2_volume = int(state["_ch2_volume"])
+        if "_ch2_envelope_period" in state:
+            self._ch2_envelope_period = int(state["_ch2_envelope_period"])
+        if "_ch2_envelope_timer" in state:
+            self._ch2_envelope_timer = int(state["_ch2_envelope_timer"])
+        if "_ch2_frequency" in state:
+            self._ch2_frequency = int(state["_ch2_frequency"])
+        if "_ch2_phase" in state:
+            self._ch2_phase = float(state["_ch2_phase"])
+        if "_ch2_phase_step" in state:
+            self._ch2_phase_step = float(state["_ch2_phase_step"])
+
+        if "_ch3_enabled" in state:
+            self._ch3_enabled = bool(state["_ch3_enabled"])
+        if "_ch3_dac_enabled" in state:
+            self._ch3_dac_enabled = bool(state["_ch3_dac_enabled"])
+        if "_ch3_length_enabled" in state:
+            self._ch3_length_enabled = bool(state["_ch3_length_enabled"])
+        if "_ch3_length_counter" in state:
+            self._ch3_length_counter = int(state["_ch3_length_counter"])
+        if "_ch3_output_level" in state:
+            self._ch3_output_level = int(state["_ch3_output_level"])
+        if "_ch3_frequency" in state:
+            self._ch3_frequency = int(state["_ch3_frequency"])
+        if "_ch3_phase" in state:
+            self._ch3_phase = float(state["_ch3_phase"])
+        if "_ch3_phase_step" in state:
+            self._ch3_phase_step = float(state["_ch3_phase_step"])
+        if "_ch3_wave_ram" in state:
+            data = bytes(int(v) & 0xFF for v in state["_ch3_wave_ram"])
+            self._ch3_wave_ram[:] = data[:16].ljust(16, b"\x00")
+
+        if "_ch4_enabled" in state:
+            self._ch4_enabled = bool(state["_ch4_enabled"])
+        if "_ch4_length_enabled" in state:
+            self._ch4_length_enabled = bool(state["_ch4_length_enabled"])
+        if "_ch4_envelope_increase" in state:
+            self._ch4_envelope_increase = bool(state["_ch4_envelope_increase"])
+        if "_ch4_width_mode" in state:
+            self._ch4_width_mode = bool(state["_ch4_width_mode"])
+        if "_ch4_length_counter" in state:
+            self._ch4_length_counter = int(state["_ch4_length_counter"])
+        if "_ch4_initial_volume" in state:
+            self._ch4_initial_volume = int(state["_ch4_initial_volume"])
+        if "_ch4_volume" in state:
+            self._ch4_volume = int(state["_ch4_volume"])
+        if "_ch4_envelope_period" in state:
+            self._ch4_envelope_period = int(state["_ch4_envelope_period"])
+        if "_ch4_envelope_timer" in state:
+            self._ch4_envelope_timer = int(state["_ch4_envelope_timer"])
+        if "_ch4_clock_shift" in state:
+            self._ch4_clock_shift = int(state["_ch4_clock_shift"])
+        if "_ch4_divisor_code" in state:
+            self._ch4_divisor_code = int(state["_ch4_divisor_code"])
+        if "_ch4_lfsr" in state:
+            self._ch4_lfsr = int(state["_ch4_lfsr"])
+        if "_ch4_phase" in state:
+            self._ch4_phase = float(state["_ch4_phase"])
+        if "_ch4_phase_step" in state:
+            self._ch4_phase_step = float(state["_ch4_phase_step"])

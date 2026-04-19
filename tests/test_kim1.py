@@ -33,8 +33,9 @@ def _make_monitor_rom() -> bytes:
 
 
 ROOT = Path(__file__).resolve().parents[1]
-KIM1_LOWER_ROM = ROOT / "6530-002.bin"
-KIM1_UPPER_ROM = ROOT / "6530-003.bin"
+KIM1_LOWER_ROM = ROOT / "roms" / "kim1" / "6530-002.bin"
+KIM1_UPPER_ROM = ROOT / "roms" / "kim1" / "6530-003.bin"
+KIM1_REAL_ROM_REASON = "requiere las ROMs reales del KIM-1 en roms/kim1"
 
 
 def _boot_real_kim1() -> KIM1:
@@ -321,7 +322,7 @@ def test_kim1_requires_explicit_split_rom_slots():
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_addr_command_shifts_open_cell_and_inserts_hex_digit():
     machine = _boot_real_kim1()
@@ -337,7 +338,7 @@ def test_kim1_real_monitor_addr_command_shifts_open_cell_and_inserts_hex_digit()
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_data_command_edits_open_cell_nibble():
     machine = _boot_real_kim1()
@@ -355,7 +356,7 @@ def test_kim1_real_monitor_data_command_edits_open_cell_nibble():
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_step_command_increments_open_cell():
     machine = _boot_real_kim1()
@@ -371,7 +372,7 @@ def test_kim1_real_monitor_step_command_increments_open_cell():
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_pc_command_copies_saved_program_counter_to_open_cell():
     machine = _boot_real_kim1()
@@ -386,7 +387,7 @@ def test_kim1_real_monitor_pc_command_copies_saved_program_counter_to_open_cell(
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_run_command_executes_user_code_and_returns_to_monitor():
     machine = _boot_real_kim1()
@@ -419,7 +420,7 @@ def test_kim1_real_monitor_run_command_executes_user_code_and_returns_to_monitor
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_tty_reset_calibrates_delay_registers_and_reaches_getch():
     machine = KIM1(KIM1_LOWER_ROM.read_bytes(), KIM1_UPPER_ROM.read_bytes())
@@ -437,7 +438,7 @@ def test_kim1_real_monitor_tty_reset_calibrates_delay_registers_and_reaches_getc
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_tty_getch_detects_start_bit_and_enters_delay_path():
     machine = KIM1(KIM1_LOWER_ROM.read_bytes(), KIM1_UPPER_ROM.read_bytes())
@@ -456,7 +457,7 @@ def test_kim1_real_monitor_tty_getch_detects_start_bit_and_enters_delay_path():
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_tty_goexec_runs_user_program_after_calibration_byte():
     machine = KIM1(KIM1_LOWER_ROM.read_bytes(), KIM1_UPPER_ROM.read_bytes())
@@ -497,7 +498,7 @@ def test_kim1_real_monitor_tty_goexec_runs_user_program_after_calibration_byte()
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_tty_open_command_updates_open_cell_and_echoes_state():
     machine = KIM1(KIM1_LOWER_ROM.read_bytes(), KIM1_UPPER_ROM.read_bytes())
@@ -520,7 +521,7 @@ def test_kim1_real_monitor_tty_open_command_updates_open_cell_and_echoes_state()
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_tty_modify_command_updates_memory_and_advances_open_cell():
     machine = KIM1(KIM1_LOWER_ROM.read_bytes(), KIM1_UPPER_ROM.read_bytes())
@@ -549,7 +550,7 @@ def test_kim1_real_monitor_tty_modify_command_updates_memory_and_advances_open_c
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_tty_dump_command_outputs_intel_style_record_stream():
     machine = KIM1(KIM1_LOWER_ROM.read_bytes(), KIM1_UPPER_ROM.read_bytes())
@@ -579,7 +580,7 @@ def test_kim1_real_monitor_tty_dump_command_outputs_intel_style_record_stream():
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_real_monitor_tty_load_command_restores_dumped_record_stream():
     source = KIM1(KIM1_LOWER_ROM.read_bytes(), KIM1_UPPER_ROM.read_bytes())
@@ -624,7 +625,7 @@ def test_kim1_real_monitor_tty_load_command_restores_dumped_record_stream():
 
 @pytest.mark.skipif(
     not (KIM1_LOWER_ROM.exists() and KIM1_UPPER_ROM.exists()),
-    reason="requiere las ROMs reales del KIM-1 en la raiz del proyecto",
+    reason=KIM1_REAL_ROM_REASON,
 )
 def test_kim1_monitor_outch_emits_tty_character():
     machine = KIM1(KIM1_LOWER_ROM.read_bytes(), KIM1_UPPER_ROM.read_bytes())

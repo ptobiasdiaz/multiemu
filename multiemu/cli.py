@@ -14,6 +14,7 @@ from multiemu.machine_registry import (
     get_default_rom_search_dirs,
     instantiate_machine,
     list_machine_specs,
+    load_state_dump,
     parse_cli_rom_specs,
 )
 from multiemu.runtime_registry import (
@@ -159,6 +160,11 @@ def _add_common_machine_options(parser: argparse.ArgumentParser) -> None:
         default="default",
         help="monitor/display profile used to present the machine raster",
     )
+    parser.add_argument(
+        "--state",
+        default=None,
+        help="dump JSON de estado para restaurar la máquina",
+    )
 
 
 def _handle_list_machines(args) -> int:
@@ -186,10 +192,12 @@ def _handle_list_display_profiles(args) -> int:
 def _handle_run(args) -> int:
     """Run a machine locally using the selected frontend implementation."""
 
+    state_dump = load_state_dump(args.state) if args.state else None
     machine = instantiate_machine(
         args.machine,
         roms=parse_cli_rom_specs(args.machine, args.rom),
         display_profile=args.display_profile,
+        state_dump=state_dump,
     )
     title = args.title or f"MultiEmu - {args.machine}"
     frontend_cls = get_runtime_spec(LOCAL_FRONTENDS, args.frontend).factory()
@@ -209,10 +217,12 @@ def _handle_run(args) -> int:
 def _handle_serve(args) -> int:
     """Expose a machine over the selected remote transport implementation."""
 
+    state_dump = load_state_dump(args.state) if args.state else None
     machine = instantiate_machine(
         args.machine,
         roms=parse_cli_rom_specs(args.machine, args.rom),
         display_profile=args.display_profile,
+        state_dump=state_dump,
     )
     transport_cls = get_runtime_spec(SERVER_TRANSPORTS, args.transport).factory()
     app = transport_cls(
@@ -239,10 +249,12 @@ def _handle_debug(args) -> int:
 
     from frontend.tcp_debug_frontend import TcpDebugFrontend
 
+    state_dump = load_state_dump(args.state) if args.state else None
     machine = instantiate_machine(
         args.machine,
         roms=parse_cli_rom_specs(args.machine, args.rom),
         display_profile=args.display_profile,
+        state_dump=state_dump,
     )
     app = TcpDebugFrontend(
         machine,

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
+from array import array
+from datetime import datetime
+from pathlib import Path
 from typing import Protocol
 
 
@@ -84,6 +88,9 @@ class LocalMachineBackend:
 
     @property
     def target_fps(self):
+        target = getattr(self.machine, "TARGET_FPS", None)
+        if target is not None:
+            return target
         return getattr(self.machine, "FRAMES_PER_SECOND", None)
 
     def render_frame(self):
@@ -109,6 +116,38 @@ class LocalMachineBackend:
         if toggle is None:
             return False
         return bool(toggle())
+
+    def dump_debug_state(self) -> str | None:
+        read_state = getattr(self.machine, "read_state", None)
+        if read_state is None:
+            return None
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        machine_id = self.machine_id or "machine"
+        path = Path.cwd() / f"multiemu_dump_{machine_id}_{self.frame_counter}_{timestamp}.json"
+
+        payload = {
+            "machine_id": machine_id,
+            "frame_counter": self.frame_counter,
+            "rom_paths": {
+                slot_id: str(path)
+                for slot_id, path in getattr(self.machine, "resolved_rom_paths", {}).items()
+            },
+            "state": read_state(),
+        }
+
+        def _json_default(value):
+            if isinstance(value, (bytes, bytearray)):
+                return list(value)
+            if isinstance(value, array):
+                return list(value)
+            raise TypeError(f"objeto no serializable en dump: {type(value)!r}")
+
+        path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True, default=_json_default),
+            encoding="utf-8",
+        )
+        return str(path)
 
 
 def wrap_backend(backend):

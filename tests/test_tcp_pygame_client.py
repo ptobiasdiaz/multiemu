@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pygame
+
 from frontend.tcp_pygame_client import TcpPygameClient
 
 
@@ -91,3 +93,31 @@ def test_tcp_client_welcome_accepts_inline_keymap_spec():
     assert client.keymap_name == "spectrum128k"
     assert client.keymap[97] == (9, 9)
     assert client.gamepad_map["button_south"] == 16
+
+
+def test_tcp_client_keeps_shift_pressed_for_cpc_shifted_keys(monkeypatch):
+    client = TcpPygameClient()
+    client.keymap_name = "cpc"
+    client.input_maps = client.input_maps = __import__("frontend.keymap", fromlist=["load_pygame_input_maps"]).load_pygame_input_maps("cpc")
+    client.keymap = client.input_maps.keymap
+    client.combo_keymap = client.input_maps.combo_keymap
+    client.unicode_combo_keymap = client.input_maps.unicode_combo_keymap
+
+    class _ShiftDown:
+        type = pygame.KEYDOWN
+        key = pygame.K_LSHIFT
+        mod = pygame.KMOD_SHIFT
+        unicode = ""
+
+    class _ADown:
+        type = pygame.KEYDOWN
+        key = pygame.K_a
+        mod = pygame.KMOD_SHIFT
+        unicode = "A"
+
+    monkeypatch.setattr("pygame.event.get", lambda: [_ShiftDown(), _ADown()])
+    client._handle_local_events()
+
+    assert pygame.K_LSHIFT in client._keyboard_key_bindings
+    assert client._keyboard_key_bindings[pygame.K_LSHIFT] == ((2, 5),)
+    assert (2, 5) in client.active_keyboard_controls

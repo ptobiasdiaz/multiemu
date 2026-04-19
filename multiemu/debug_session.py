@@ -74,6 +74,10 @@ class DebugSession:
             return getattr(self.machine, "cpu", None)
         if device_id == "bus":
             return getattr(self.machine, "bus", None)
+        if hasattr(self.machine, "debug_devices"):
+            for descriptor in self.machine.debug_devices():
+                if descriptor.get("id") == device_id:
+                    return descriptor.get("obj")
         return getattr(self.machine, device_id, None)
 
     def get_device_state(self, device_id: str) -> dict:

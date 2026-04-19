@@ -77,6 +77,17 @@ class _DummyMachine:
         self.bus.write_state(state["bus"])
 
 
+class _DescriptorOnlyDevice:
+    def __init__(self):
+        self.state = {"value": 1}
+
+    def read_state(self):
+        return dict(self.state)
+
+    def write_state(self, state):
+        self.state = dict(state)
+
+
 def test_debug_session_reads_and_writes_machine_state():
     machine = _DummyMachine()
     session = DebugSession(machine)
@@ -120,6 +131,24 @@ def test_debug_session_prefers_explicit_machine_device_ids():
 
     assert [device["id"] for device in devices] == ["machine", "cpu", "vic"]
     assert devices[2]["label"] == "Fake VIC"
+
+
+def test_debug_session_resolves_descriptor_only_device_ids():
+    machine = _DummyMachine()
+    device = _DescriptorOnlyDevice()
+
+    def _debug_devices():
+        return [
+            {"id": "machine", "obj": machine, "kind": "machine", "label": "Machine", "writable": True},
+            {"id": "ram", "obj": device, "kind": "memory", "label": "RAM", "writable": True},
+        ]
+
+    machine.debug_devices = _debug_devices
+    session = DebugSession(machine)
+
+    assert session.get_device_state("ram") == {"value": 1}
+    session.set_device_state("ram", {"value": 2})
+    assert device.read_state() == {"value": 2}
 
 
 def test_debug_session_uses_machine_debug_devices_from_real_machine():

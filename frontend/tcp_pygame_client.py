@@ -223,6 +223,12 @@ class TcpPygameClient:
             self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
             return
 
+        if machine_id.startswith("mastersystem"):
+            self.audio_prebuffer_chunks = 2
+            self.audio_max_queue_chunks = 8
+            self.audio_play_chunk_size = max(1024, self.audio_chunk_size)
+            return
+
         self.audio_prebuffer_chunks = 4
         self.audio_max_queue_chunks = 12
         self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
@@ -240,7 +246,7 @@ class TcpPygameClient:
                     self.keymap, self.combo_keymap, self.unicode_combo_keymap, event
                 )
                 if controls:
-                    if getattr(event, "unicode", ""):
+                    if self._uses_unicode_combo(event):
                         self._suppress_host_shift_bindings()
                     self._keyboard_key_bindings[event.key] = controls
                     for control in controls:
@@ -318,6 +324,10 @@ class TcpPygameClient:
             else:
                 self.tap_pulse_frames.pop(control, None)
                 self.pending_tap_counts.pop(control, None)
+
+    def _uses_unicode_combo(self, event) -> bool:
+        text = getattr(event, "unicode", "") or ""
+        return bool(text and text in self.unicode_combo_keymap)
 
     def _suppress_host_shift_bindings(self) -> None:
         for shift_key in (pygame.K_LSHIFT, pygame.K_RSHIFT):

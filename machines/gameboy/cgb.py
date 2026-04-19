@@ -109,3 +109,26 @@ class CGB(GameBoyMachineBase):
         bank = value & 0x07
         self.svbk = bank if bank != 0 else 1
         self.bus.wram_bank_select = self.svbk
+
+    def read_state(self) -> dict:
+        state = super().read_state()
+        state |= {
+            "vbk": self.vbk,
+            "svbk": self.svbk,
+            "device_real_clock": self._device_real_clock,
+        }
+        return state
+
+    def write_state(self, state: dict) -> None:
+        super().write_state(state)
+        if "vbk" in state:
+            self.vbk = int(state["vbk"]) & 0x01
+        if "svbk" in state:
+            bank = int(state["svbk"]) & 0x07
+            self.svbk = bank if bank != 0 else 1
+        if "device_real_clock" in state:
+            self._device_real_clock = int(state["device_real_clock"])
+        self.bus.cgb_mode = True
+        self.ppu.cgb_mode = True
+        self.bus.vram_bank_select = self.vbk
+        self.bus.wram_bank_select = self.svbk

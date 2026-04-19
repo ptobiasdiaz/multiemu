@@ -35,11 +35,13 @@ extensions = [
     Extension("chipsets.cpc_ppi", ["chipsets/cpc_ppi.pyx"]),
     Extension("chipsets.cpc_render", ["chipsets/cpc_render.pyx"]),
     Extension("chipsets.cpc_video", ["chipsets/cpc_video.pyx"]),
+    Extension("chipsets.sms_vdp", ["chipsets/sms_vdp.pyx"]),
+    Extension("chipsets.sn76489", ["chipsets/sn76489.pyx"]),
 ]
 
 setup(
     name="multiemu",
-    version="0.2.7",
+    version="0.2.8",
     description="Work-in-progress retro machine emulator in Python and Cython",
     packages=find_packages(),
     entry_points={
