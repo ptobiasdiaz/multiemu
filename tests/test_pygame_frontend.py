@@ -9,8 +9,17 @@ import pygame
 
 
 class _FakeMachine:
-    def __init__(self, machine_id: str, *, tape_motor_on: bool = False, audio_samples: int = 0):
+    def __init__(
+        self,
+        machine_id: str,
+        *,
+        tape_motor_on: bool = False,
+        audio_samples: int = 0,
+        audio_channels: int = 1,
+    ):
         self.machine_id = machine_id
+        self.audio_sample_rate = 44100
+        self.audio_channels = audio_channels
         self.frame_counter = 0
         self.frame_width = 160
         self.frame_height = 144
@@ -72,6 +81,12 @@ def test_pygame_frontend_keeps_default_audio_profile_for_other_machines():
 
     assert frontend.audio_prebuffer_chunks == 4
     assert frontend.audio_play_chunk_size == 2048
+
+
+def test_pygame_frontend_uses_machine_audio_channels():
+    frontend = PygameFrontend(_FakeMachine("gamegear", audio_channels=2))
+
+    assert frontend.audio_channels == 2
 
 
 def test_local_machine_backend_exposes_cassette_motor_state():

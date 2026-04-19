@@ -45,7 +45,8 @@ class PygameFrontend:
         self.window_title = window_title
         target_fps = getattr(self.backend, "target_fps", None)
         self.fps_limit = float(target_fps) if fps_limit is None and target_fps else fps_limit
-        self.audio_sample_rate = audio_sample_rate
+        self.audio_sample_rate = int(getattr(self.backend, "audio_sample_rate", audio_sample_rate))
+        self.audio_channels = max(1, int(getattr(self.backend, "audio_channels", 1)))
         self.audio_chunk_size = audio_chunk_size
         self.audio_play_chunk_size = max(audio_chunk_size, 2048)
 
@@ -156,7 +157,7 @@ class PygameFrontend:
         pygame.mixer.pre_init(
             frequency=self.audio_sample_rate,
             size=-16,
-            channels=1,
+            channels=self.audio_channels,
             buffer=self.audio_play_chunk_size,
         )
         pygame.init()
@@ -420,7 +421,7 @@ class PygameFrontend:
             chunk = self.backend.pop_audio_samples(available)
             self.audio_byte_buffer.extend(chunk.tobytes())
 
-        chunk_bytes = self.audio_play_chunk_size * 2
+        chunk_bytes = self.audio_play_chunk_size * self.audio_channels * 2
         while len(self.audio_byte_buffer) >= chunk_bytes:
             chunk = bytes(self.audio_byte_buffer[:chunk_bytes])
             del self.audio_byte_buffer[:chunk_bytes]

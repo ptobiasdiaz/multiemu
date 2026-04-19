@@ -15,7 +15,7 @@ import warnings
 
 from machines.gameboy import CGB, DMG
 from machines.m6502 import KIM1, VIC20NTSC, VIC20PAL
-from machines.z80 import CPC464, CPC6128, CPC664, MasterSystem2, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
+from machines.z80 import CPC464, CPC6128, CPC664, GameGear, MasterSystem2, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
 from video import get_display_profile
 
 
@@ -135,6 +135,16 @@ def _build_mastersystem2(roms: dict[str, bytes], display_profile: str) -> Master
     )
 
 
+def _build_gamegear(roms: dict[str, bytes], display_profile: str) -> GameGear:
+    if "main" not in roms and "bios" not in roms:
+        raise FileNotFoundError("gamegear requiere `main` o `bios`")
+    return GameGear(
+        roms.get("main"),
+        bios_data=roms.get("bios"),
+        display_profile=display_profile,
+    )
+
+
 MACHINE_SPECS: dict[str, MachineSpec] = {
     "spectrum16k": MachineSpec(
         machine_id="spectrum16k",
@@ -247,6 +257,25 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 slot_id="main",
                 description="Cartucho principal de Master System II",
                 filenames=("mastersystem2.sms", "mastersystem.sms", "game.sms", "cart.sms"),
+                required=False,
+            ),
+        ),
+    ),
+    "gamegear": MachineSpec(
+        machine_id="gamegear",
+        display_name="Sega Game Gear",
+        factory=_build_gamegear,
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="bios",
+                description="BIOS interna de Game Gear",
+                filenames=("gamegear_bios.gg", "bios.gg", "gg_bios.gg"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="main",
+                description="Cartucho principal de Game Gear",
+                filenames=("gamegear.gg", "game.gg", "cart.gg"),
                 required=False,
             ),
         ),
@@ -694,7 +723,7 @@ def parse_cli_rom_specs(machine_id: str, rom_specs: list[str] | None) -> dict[st
             rom_map[slot_id] = Path(path_str)
             continue
 
-        if machine_id == "mastersystem2":
+        if machine_id in {"mastersystem2", "gamegear"}:
             path = Path(raw_spec)
             lower_name = path.name.lower()
             rom_map["bios" if "bios" in lower_name else "main"] = path

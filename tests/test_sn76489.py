@@ -8,7 +8,7 @@ from chipsets import SN76489, SN76489Reference
 def test_sn76489_renders_non_silent_tone():
     chip = SN76489(clock_hz=3_579_545, sample_rate=8_000)
 
-    chip.write(0x80 | 0x00 | 0x01)
+    chip.write(0x80 | 0x00 | 0x10)
     chip.write(0x00)
     chip.write(0x90 | 0x00)
 
@@ -61,6 +61,57 @@ def test_sn76489_silent_volume_produces_silence():
     samples = chip.render_samples(128)
 
     assert all(sample == 0 for sample in samples)
+
+
+def test_sn76489_period_one_can_be_used_as_volume_dac():
+    chip = SN76489(clock_hz=3_579_545, sample_rate=44_100)
+
+    chip.write(0x80 | 0x01)
+    chip.write(0x00)
+    chip.write(0x90 | 0x04)
+
+    samples = chip.render_samples(64)
+
+    assert len(set(samples)) == 1
+    assert samples[0] > 0
+
+
+def test_sn76489_stereo_control_downmixes_game_gear_channels():
+    both = SN76489(clock_hz=3_579_545, sample_rate=44_100)
+    right_only = SN76489(clock_hz=3_579_545, sample_rate=44_100)
+    muted = SN76489(clock_hz=3_579_545, sample_rate=44_100)
+
+    for chip in (both, right_only, muted):
+        chip.write(0x80 | 0x01)
+        chip.write(0x00)
+        chip.write(0x90 | 0x00)
+
+    both.write_stereo_control(0x11)
+    right_only.write_stereo_control(0x01)
+    muted.write_stereo_control(0x00)
+
+    both_sample = both.render_samples(1)[0]
+    right_sample = right_only.render_samples(1)[0]
+    muted_sample = muted.render_samples(1)[0]
+
+    assert both.read_stereo_control() == 0x11
+    assert right_sample == both_sample // 2
+    assert muted_sample == 0
+
+
+def test_sn76489_renders_interleaved_stereo_samples():
+    chip = SN76489(clock_hz=3_579_545, sample_rate=44_100)
+
+    chip.write(0x80 | 0x01)
+    chip.write(0x00)
+    chip.write(0x90 | 0x00)
+    chip.write_stereo_control(0x10)
+
+    samples = chip.render_stereo_samples(4)
+
+    assert len(samples) == 8
+    assert all(samples[index] > 0 for index in range(0, len(samples), 2))
+    assert all(samples[index] == 0 for index in range(1, len(samples), 2))
 
 
 def test_sn76489_white_noise_is_non_silent():

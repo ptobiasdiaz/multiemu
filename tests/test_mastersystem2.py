@@ -1123,6 +1123,17 @@ def test_mastersystem2_writes_psg_and_produces_audio_samples():
     assert any(sample != 0 for sample in machine.audio_samples)
 
 
+def test_mastersystem2_psg_audio_flush_keeps_subsample_writes():
+    machine = MasterSystem2(_make_test_rom(), audio_sample_rate=44_100)
+    machine._begin_frame()
+
+    machine.frame_tstates = 16
+    machine._port_write(0x7F, 0x90 | 0x00)
+
+    assert machine.psg.sample_rate == 44_100 * machine.PSG_OVERSAMPLE
+    assert machine._audio_rendered_samples > 0
+
+
 def test_mastersystem2_audio_sample_count_tracks_exact_frame_rate():
     machine = MasterSystem2(_make_test_rom(), audio_sample_rate=44_100)
 

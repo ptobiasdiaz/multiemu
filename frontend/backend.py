@@ -87,6 +87,14 @@ class LocalMachineBackend:
         return int(getattr(self.machine, "input_joystick_count", 0))
 
     @property
+    def audio_sample_rate(self):
+        return int(getattr(self.machine, "audio_sample_rate", 44100))
+
+    @property
+    def audio_channels(self):
+        return max(1, int(getattr(self.machine, "audio_channels", 1)))
+
+    @property
     def target_fps(self):
         target = getattr(self.machine, "TARGET_FPS", None)
         if target is not None:

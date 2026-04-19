@@ -183,7 +183,7 @@ class SMSVDP(SMSVDPReference):
         self.first_control = None
         self.data_latch = value
         if self.code == 0x03:
-            self.cram[self.address & 0x1F] = value
+            self.cram[self.address & (self.CRAM_SIZE - 1)] = value
         else:
             self.vram[self.address] = value
         self.read_buffer = value
@@ -207,10 +207,22 @@ class SMSVDP(SMSVDPReference):
 
     def _cram_color(self, int index, object cram=None) -> tuple[int, int, int]:
         cdef object cram_data = self.cram if cram is None else cram
-        cdef int value = cram_data[index & 0x1F]
-        cdef int r = (value & 0x03) * 85
-        cdef int g = ((value >> 2) & 0x03) * 85
-        cdef int b = ((value >> 4) & 0x03) * 85
+        cdef int value
+        cdef int r
+        cdef int g
+        cdef int b
+        cdef int addr
+        if self.is_game_gear:
+            addr = (index & 0x1F) * 2
+            value = cram_data[addr] | (cram_data[(addr + 1) & 0x3F] << 8)
+            r = (value & 0x000F) * 17
+            g = ((value >> 4) & 0x000F) * 17
+            b = ((value >> 8) & 0x000F) * 17
+            return (r, g, b)
+        value = cram_data[index & 0x1F]
+        r = (value & 0x03) * 85
+        g = ((value >> 2) & 0x03) * 85
+        b = ((value >> 4) & 0x03) * 85
         return (r, g, b)
 
     def _tile_color_index(self, int tile, int row, int column, object vram=None) -> int:

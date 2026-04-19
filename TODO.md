@@ -96,9 +96,31 @@ Pendiente:
   clases de dispositivo reales, no solo como wrappers de debug.
 - [ ] Medir rendimiento tras la cythonización antes de tocar más código caliente.
 
+## Game Gear
+
+Estado actual:
+
+- `gamegear` existe como máquina visible basada en la línea SMS2.
+- Reutiliza Z80, mapper base, VDP y `SN76489`.
+- Expone resolución visible `160x144` mediante recorte del framebuffer SMS2.
+- Usa CRAM/paleta Game Gear de `12` bits.
+- Tiene keymap propio, botones `1`/`2` y botón `START`.
+- Implementa los puertos básicos `0x00-0x06`, incluyendo registro estéreo PSG.
+- Emite audio estéreo real a través del contrato `audio_channels`.
+- Participa en `F12`/`--state` y tests de roundtrip.
+- Se ha probado con una batería inicial de ROMs reales `.gg`.
+
+Pendiente:
+
+- [ ] Seguir probando compatibilidad con más ROMs reales `.gg`.
+- [ ] Añadir BIOS Game Gear si aparece software que la necesite.
+- [ ] Implementar link/serial port real si se quiere soportar cable link.
+- [ ] Decidir si el VDP debe parametrizar explícitamente modo SMS/GG en vez de
+  usar recorte desde el framebuffer base.
+- [ ] Afinar diferencias finas de timing VDP/PSG frente a hardware real.
+
 ## Nuevas maquinas de 8 bits
 
-- [ ] `Game Gear`
 - [ ] `MSX`
 - [ ] `MSX-2`
 - [ ] `ColecoVision`
@@ -108,7 +130,7 @@ Pendiente:
 
 ## Orden recomendado
 
-1. Probar mas ROMs reales de `mastersystem2` para detectar huecos de VDP/mapper.
+1. Probar mas ROMs reales de `gamegear` y `mastersystem2` para detectar huecos de VDP/mapper.
 2. Medir rendimiento real del CPC tras la nueva arquitectura de video.
 3. Decidir si el siguiente paso prioritario es mas fidelidad de video o perifericos pendientes.
 4. Seguir afinando `AY38912`.

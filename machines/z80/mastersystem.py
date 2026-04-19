@@ -12,6 +12,7 @@ from frontend.input_events import (
     JOYSTICK_FIRE_2,
     JOYSTICK_LEFT,
     JOYSTICK_RIGHT,
+    JOYSTICK_START,
     JOYSTICK_UP,
 )
 from machines.base import BaseMachine
@@ -113,12 +114,17 @@ class MasterSystem2(BaseMachine):
     CPU_CLOCK_HZ = 3_579_545
     AUDIO_FRAMES_PER_SECOND = CPU_CLOCK_HZ / TSTATES_PER_FRAME
     TARGET_FPS = AUDIO_FRAMES_PER_SECOND
+    PSG_OVERSAMPLE = 8
+    AUDIO_CHANNELS = 1
     input_keymap_name = "mastersystem2"
     input_gamepad_map_name = "mastersystem2"
     input_joystick_count = 1
 
     SCREEN_WIDTH = 256
     SCREEN_HEIGHT = 192
+    VDP_FRAME_WIDTH = 256
+    VDP_FRAME_HEIGHT = 192
+    is_game_gear = False
 
     PAGE_SIZE = 0x4000
     RAM_SIZE = 0x2000
@@ -160,6 +166,8 @@ class MasterSystem2(BaseMachine):
 
         self.frame_width = self.SCREEN_WIDTH
         self.frame_height = self.SCREEN_HEIGHT
+        self.audio_output_sample_rate = int(audio_sample_rate)
+        self.audio_internal_sample_rate = int(audio_sample_rate) * self.PSG_OVERSAMPLE
         self.audio_samples = array("h")
         self.samples_per_frame = int(round(audio_sample_rate / self.AUDIO_FRAMES_PER_SECOND))
         self._audio_samples_per_frame_exact = float(audio_sample_rate) / self.AUDIO_FRAMES_PER_SECOND
@@ -167,6 +175,7 @@ class MasterSystem2(BaseMachine):
         self._frame_audio = array("h")
         self._audio_rendered_samples = 0
         self._current_frame_sample_target = self.samples_per_frame
+        self._current_frame_internal_sample_target = self.samples_per_frame * self.PSG_OVERSAMPLE
         self._pad1_state = 0xFF
         self.mapper_control = 0x00
         self.memory_control = 0x00
@@ -189,7 +198,7 @@ class MasterSystem2(BaseMachine):
         self._refresh_visible_banks()
 
         self.vdp = SMSVDP(self)
-        self.psg = SN76489(sample_rate=audio_sample_rate)
+        self.psg = SN76489(sample_rate=self.audio_internal_sample_rate)
         self._ram_debug_device = MasterSystemRAMDebugDevice(self)
         self._mapper_debug_device = MasterSystemMapperDebugDevice(self)
         self._cartridge_debug_device = MasterSystemCartridgeDebugDevice(self)
@@ -437,9 +446,10 @@ class MasterSystem2(BaseMachine):
         self._frame_audio = array("h")
         self._audio_rendered_samples = 0
         self._current_frame_sample_target = self.samples_per_frame
+        self._current_frame_internal_sample_target = self.samples_per_frame * self.PSG_OVERSAMPLE
         self.psg.reset()
         self.vdp.reset()
-        self.framebuffer_rgb24 = self.vdp.framebuffer_rgb24
+        self.framebuffer_rgb24 = self._visible_framebuffer(self.vdp.framebuffer_rgb24)
 
     def _is_ram_address(self, addr: int) -> bool:
         return 0xC000 <= addr <= 0xFFFF
@@ -467,6 +477,9 @@ class MasterSystem2(BaseMachine):
         target = self._audio_samples_per_frame_exact + self._audio_sample_fraction
         self._current_frame_sample_target = int(target)
         self._audio_sample_fraction = target - self._current_frame_sample_target
+        self._current_frame_internal_sample_target = (
+            self._current_frame_sample_target * self.PSG_OVERSAMPLE
+        )
         self._frame_audio = array("h")
         self._audio_rendered_samples = 0
         self.vdp.begin_frame()
@@ -474,8 +487,11 @@ class MasterSystem2(BaseMachine):
     def _finish_frame(self) -> None:
         self._flush_audio_until(self.TSTATES_PER_FRAME)
         self.vdp.end_frame()
-        self.framebuffer_rgb24 = self.vdp.framebuffer_rgb24
-        self.audio_samples = array("h", self._frame_audio)
+        self.framebuffer_rgb24 = self._visible_framebuffer(self.vdp.framebuffer_rgb24)
+        self.audio_samples = self._downsample_audio_frame(
+            self._frame_audio,
+            self._current_frame_sample_target,
+        )
         self.audio_ring.write(self.audio_samples)
         self.frame_counter += 1
 
@@ -490,8 +506,11 @@ class MasterSystem2(BaseMachine):
         return self.tstates
 
     def render_frame(self):
-        self.framebuffer_rgb24 = self.vdp.render_frame()
+        self.framebuffer_rgb24 = self._visible_framebuffer(self.vdp.render_frame())
         return self.framebuffer_rgb24
+
+    def _visible_framebuffer(self, packed: bytes) -> bytes:
+        return packed
 
     def _run_devices_until(self, tstates: int):
         self.vdp.run_until(tstates)
@@ -499,12 +518,40 @@ class MasterSystem2(BaseMachine):
  
     def _flush_audio_until(self, tstates: int) -> None:
         target_samples = (
-            max(0, min(self.TSTATES_PER_FRAME, tstates)) * self._current_frame_sample_target
+            max(0, min(self.TSTATES_PER_FRAME, tstates)) * self._current_frame_internal_sample_target
         ) // self.TSTATES_PER_FRAME
         delta_samples = target_samples - self._audio_rendered_samples
         if delta_samples > 0:
-            self._frame_audio.extend(self.psg.render_samples(delta_samples))
+            if self.audio_channels == 2:
+                self._frame_audio.extend(self.psg.render_stereo_samples(delta_samples))
+            else:
+                self._frame_audio.extend(self.psg.render_samples(delta_samples))
             self._audio_rendered_samples = target_samples
+
+    def _downsample_audio_frame(self, samples: array, output_count: int) -> array:
+        output_count = int(output_count)
+        channels = self.audio_channels
+        out = array("h")
+        if output_count <= 0:
+            return out
+        if not samples:
+            out.extend([0] * (output_count * channels))
+            return out
+
+        step = self.PSG_OVERSAMPLE
+        expected = output_count * step * channels
+        if len(samples) < expected:
+            samples = array("h", samples)
+            samples.extend([0] * (expected - len(samples)))
+
+        frame_stride = step * channels
+        for offset in range(0, expected, frame_stride):
+            for channel in range(channels):
+                total = 0
+                for sample_offset in range(offset + channel, offset + frame_stride, channels):
+                    total += samples[sample_offset]
+                out.append(int(total / step))
+        return out
 
     def clear_input_state(self):
         self._pad1_state = 0xFF
@@ -580,6 +627,7 @@ class MasterSystem2(BaseMachine):
                 JOYSTICK_RIGHT: (0, 3),
                 JOYSTICK_FIRE: (1, 0),
                 JOYSTICK_FIRE_2: (1, 1),
+                JOYSTICK_START: (1, 2),
             }
             control = mapping.get(int(event.control_b))
             if control is None:
@@ -685,7 +733,114 @@ class MasterSystem2(BaseMachine):
             self.ram[:] = values
         if "vdp" in state:
             self.vdp.write_state(state["vdp"])
-            self.framebuffer_rgb24 = self.vdp.framebuffer_rgb24
+            self.framebuffer_rgb24 = self._visible_framebuffer(self.vdp.framebuffer_rgb24)
         if "psg" in state:
             self.psg.write_state(state["psg"])
         self._refresh_visible_banks()
+
+
+class GameGear(MasterSystem2):
+    """Sega Game Gear machine built on the SMS-compatible core."""
+
+    SCREEN_WIDTH = 160
+    SCREEN_HEIGHT = 144
+    VISIBLE_X = 48
+    VISIBLE_Y = 24
+    is_game_gear = True
+    AUDIO_CHANNELS = 2
+    input_keymap_name = "gamegear"
+    input_gamepad_map_name = "gamegear"
+
+    def __init__(
+        self,
+        rom_data: bytes | None = None,
+        *,
+        bios_data: bytes | None = None,
+        built_in_data: bytes | None = None,
+        display_profile: str = "default",
+        audio_sample_rate: int = 44100,
+    ):
+        super().__init__(
+            rom_data,
+            bios_data=bios_data,
+            built_in_data=built_in_data,
+            display_profile=display_profile,
+            audio_sample_rate=audio_sample_rate,
+        )
+        self.machine_id = "gamegear"
+        self.display_name = "Sega Game Gear"
+        self._start_pressed = False
+        self._gg_io_registers = bytearray(6)
+        self.frame_width = self.SCREEN_WIDTH
+        self.frame_height = self.SCREEN_HEIGHT
+        self.framebuffer_rgb24 = self._visible_framebuffer(self.vdp.framebuffer_rgb24)
+
+    def _visible_framebuffer(self, packed: bytes) -> bytes:
+        width = self.VDP_FRAME_WIDTH
+        x0 = self.VISIBLE_X
+        y0 = self.VISIBLE_Y
+        row_bytes = width * 3
+        visible_row_bytes = self.SCREEN_WIDTH * 3
+        out = bytearray(self.SCREEN_WIDTH * self.SCREEN_HEIGHT * 3)
+        for row in range(self.SCREEN_HEIGHT):
+            src = ((y0 + row) * row_bytes) + (x0 * 3)
+            dst = row * visible_row_bytes
+            out[dst:dst + visible_row_bytes] = packed[src:src + visible_row_bytes]
+        return bytes(out)
+
+    def reset(self):
+        super().reset()
+        self._start_pressed = False
+        self._gg_io_registers[:] = b"\x00" * len(self._gg_io_registers)
+        self.framebuffer_rgb24 = self._visible_framebuffer(self.vdp.framebuffer_rgb24)
+
+    def _port_read(self, port: int) -> int:
+        port &= 0xFF
+        if port == 0x00:
+            # Game Gear exposes START on bit 7, active low. The lower bits are
+            # region/compatibility lines and stay high in this scaffold.
+            return 0x7F if self._start_pressed else 0xFF
+        if 0x01 <= port <= 0x05:
+            return self._gg_io_registers[port]
+        if port == 0x06:
+            return self.psg.read_stereo_control()
+        return super()._port_read(port)
+
+    def _port_write(self, port: int, value: int) -> None:
+        port &= 0xFF
+        value &= 0xFF
+        if 0x00 <= port <= 0x05:
+            self._gg_io_registers[port] = value
+            return
+        if port == 0x06:
+            self._flush_audio_until(self.frame_tstates)
+            self.psg.write_stereo_control(value)
+            return
+        super()._port_write(port, value)
+
+    def clear_input_state(self):
+        super().clear_input_state()
+        self._start_pressed = False
+
+    def _set_pad_control(self, group: int, bit: int, active: bool) -> None:
+        if group == 1 and bit == 2:
+            self._start_pressed = bool(active)
+            return
+        super()._set_pad_control(group, bit, active)
+
+    def read_state(self) -> dict:
+        state = super().read_state()
+        state["start_pressed"] = self._start_pressed
+        state["gg_io_registers"] = list(self._gg_io_registers)
+        return state
+
+    def write_state(self, state: dict) -> None:
+        super().write_state(state)
+        if "start_pressed" in state:
+            self._start_pressed = bool(state["start_pressed"])
+        if "gg_io_registers" in state:
+            values = bytes(int(v) & 0xFF for v in state["gg_io_registers"])
+            if len(values) != 6:
+                raise ValueError("gg_io_registers debe tener 6 entradas")
+            self._gg_io_registers[:] = values
+        self.framebuffer_rgb24 = self._visible_framebuffer(self.vdp.framebuffer_rgb24)

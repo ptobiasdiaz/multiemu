@@ -2,6 +2,61 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.9
+
+Versión centrada en abrir `gamegear` como nueva máquina visible, reutilizando
+la línea SMS2 pero cerrando las diferencias prácticas de pantalla, paleta,
+puertos y audio estéreo.
+
+### Incluye
+
+- Nueva máquina visible `gamegear`.
+- Soporte de cartuchos `.gg` como slot `main`, con heurística CLI de forma
+  corta equivalente a SMS2.
+- VDP compartido con SMS2 adaptado a Game Gear:
+  - framebuffer visible `160x144`
+  - recorte desde el área SMS-compatible
+  - CRAM Game Gear de `64` bytes
+  - paleta RGB de `12` bits
+- Keymap propio de Game Gear:
+  - cruceta
+  - botones `1` y `2`
+  - botón `START`
+- Puertos específicos básicos de Game Gear:
+  - `0x00` para `START` activo bajo
+  - `0x01-0x05` como registros de link/serial retenidos
+  - `0x06` como registro estéreo del PSG
+- Audio estéreo real por máquina:
+  - `BaseMachine` expone `audio_channels`
+  - frontends pygame local y TCP respetan el número de canales de la máquina
+  - Game Gear emite muestras intercaladas `L,R`
+  - máquinas mono existentes siguen usando un canal
+- `SN76489` ampliado:
+  - registro estéreo Game Gear
+  - render mono para SMS2
+  - render estéreo intercalado para Game Gear
+  - soporte práctico de periodo `0/1` como salida fija para samples/DAC por
+    volumen usados por juegos reales
+  - eliminación del filtrado interno que suavizaba en exceso efectos rápidos
+- Mejoras de temporización de audio SMS/GG mediante oversampling interno del
+  PSG y downsample final por frame.
+- `F12`/`--state` preserva estado Game Gear, incluyendo `START`, registros IO
+  básicos y estéreo PSG.
+
+### Testing
+
+- Nuevos tests para:
+  - registro/CLI de `gamegear`
+  - keymap y joystick `START`
+  - recorte visible `160x144`
+  - CRAM/paleta Game Gear de `12` bits
+  - puertos `0x00-0x06`
+  - audio estéreo intercalado Game Gear
+  - separación entre SMS2 mono y Game Gear estéreo
+  - `SN76489` estéreo frente a referencia Python
+  - roundtrip de estado de `gamegear`
+  - frontends local/TCP con número de canales por máquina
+
 ## 0.2.8
 
 Versión centrada en abrir `mastersystem2`, madurar su VDP/PSG como chips

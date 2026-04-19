@@ -12,6 +12,8 @@ class SMSVDPReference:
 
     def __init__(self, machine):
         self.machine = machine
+        self.is_game_gear = bool(getattr(machine, "is_game_gear", False))
+        self.CRAM_SIZE = 0x40 if self.is_game_gear else 0x20
         self.vram = bytearray(self.VRAM_SIZE)
         self.cram = bytearray(self.CRAM_SIZE)
         self.registers = bytearray(16)
@@ -209,7 +211,7 @@ class SMSVDPReference:
         self.first_control = None
         self.data_latch = value
         if self.code == 0x03:
-            self.cram[self.address & 0x1F] = value
+            self.cram[self.address & (self.CRAM_SIZE - 1)] = value
         else:
             self.vram[self.address] = value
         self.read_buffer = value
@@ -232,6 +234,13 @@ class SMSVDPReference:
 
     def _cram_color(self, index: int, cram=None) -> tuple[int, int, int]:
         cram_data = self.cram if cram is None else cram
+        if self.is_game_gear:
+            addr = (index & 0x1F) * 2
+            value = cram_data[addr] | (cram_data[(addr + 1) & 0x3F] << 8)
+            r = (value & 0x000F) * 17
+            g = ((value >> 4) & 0x000F) * 17
+            b = ((value >> 8) & 0x000F) * 17
+            return (r, g, b)
         value = cram_data[index & 0x1F]
         r = (value & 0x03) * 85
         g = ((value >> 2) & 0x03) * 85

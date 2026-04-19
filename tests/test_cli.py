@@ -55,6 +55,17 @@ def test_machine_registry_exposes_mastersystem2():
     assert "cart.sms" in spec.rom_slots[1].filenames
 
 
+def test_machine_registry_exposes_gamegear():
+    spec = get_machine_spec("gamegear")
+
+    assert spec.machine_id == "gamegear"
+    assert spec.display_name == "Sega Game Gear"
+    assert spec.rom_slots[0].slot_id == "bios"
+    assert "bios.gg" in spec.rom_slots[0].filenames
+    assert spec.rom_slots[1].slot_id == "main"
+    assert "cart.gg" in spec.rom_slots[1].filenames
+
+
 def test_parse_cli_rom_specs_accepts_short_form_for_mastersystem2():
     roms = parse_cli_rom_specs("mastersystem2", ["sonic.sms"])
 
@@ -65,6 +76,12 @@ def test_parse_cli_rom_specs_infers_bios_slot_for_mastersystem2_bios_name():
     roms = parse_cli_rom_specs("mastersystem2", ["akbios.sms"])
 
     assert roms == {"bios": Path("akbios.sms")}
+
+
+def test_parse_cli_rom_specs_accepts_short_form_for_gamegear():
+    roms = parse_cli_rom_specs("gamegear", ["sonic.gg"])
+
+    assert roms == {"main": Path("sonic.gg")}
 
 
 def test_resolve_machine_rom_paths_prefers_default_main_rom_when_snapshot_is_explicit(monkeypatch, tmp_path):

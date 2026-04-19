@@ -1,0 +1,26 @@
+{
+  "id": "gamegear",
+  "keys": {
+    "K_UP": [0, 0],
+    "K_DOWN": [0, 1],
+    "K_LEFT": [0, 2],
+    "K_RIGHT": [0, 3],
+    "K_z": [1, 0],
+    "K_x": [1, 1],
+    "K_LCTRL": [1, 0],
+    "K_LALT": [1, 1],
+    "K_SPACE": [1, 0],
+    "K_RETURN": [1, 2]
+  },
+  "combos": [],
+  "unicode_combos": {},
+  "gamepad": {
+    "button_south": "JOYSTICK_FIRE",
+    "button_east": "JOYSTICK_FIRE_2",
+    "button_start": "JOYSTICK_START",
+    "dpad_right": "JOYSTICK_RIGHT",
+    "dpad_left": "JOYSTICK_LEFT",
+    "dpad_down": "JOYSTICK_DOWN",
+    "dpad_up": "JOYSTICK_UP"
+  }
+}

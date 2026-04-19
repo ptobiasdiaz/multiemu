@@ -35,6 +35,8 @@ class BaseMachine(ABC):
     def __init__(self, *, bus: Bus, cpu: CPU, audio_sample_rate: int = 44100):
         self.bus = bus
         self.cpu = cpu
+        self.audio_sample_rate = int(audio_sample_rate)
+        self.audio_channels = max(1, int(getattr(self, "AUDIO_CHANNELS", 1)))
 
         self.tstates = 0
         self.frame_counter = 0
@@ -42,7 +44,7 @@ class BaseMachine(ABC):
 
         self.framebuffer_rgb24 = None
         self.audio_samples = array("h")
-        self.audio_ring = AudioRingBuffer(audio_sample_rate // 2)
+        self.audio_ring = AudioRingBuffer((self.audio_sample_rate * self.audio_channels) // 2)
 
     def reset(self):
         self.cpu.reset()

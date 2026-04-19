@@ -63,6 +63,7 @@ class TcpPygameClient:
         self.win_height = 0
         self.fps_limit = 50
         self.audio_sample_rate = 44100
+        self.audio_channels = 1
         self.audio_chunk_size = 512
         self.audio_play_chunk_size = 2048
 
@@ -114,7 +115,7 @@ class TcpPygameClient:
             pygame.mixer.pre_init(
                 frequency=self.audio_sample_rate,
                 size=-16,
-                channels=1,
+                channels=self.audio_channels,
                 buffer=self.audio_play_chunk_size,
             )
             pygame.init()
@@ -178,6 +179,7 @@ class TcpPygameClient:
         if fps_value is not None:
             self.fps_limit = int(fps_value)
         self.audio_sample_rate = int(audio.get("sample_rate", self.audio_sample_rate))
+        self.audio_channels = max(1, int(audio.get("channels", self.audio_channels)))
         self.audio_chunk_size = int(audio.get("chunk_samples", self.audio_chunk_size))
         self.audio_play_chunk_size = max(2048, self.audio_chunk_size)
         frontend = welcome.get("frontend", {})
@@ -455,7 +457,7 @@ class TcpPygameClient:
             return
 
         self.audio_byte_buffer.extend(audio_bytes)
-        chunk_bytes = self.audio_play_chunk_size * 2
+        chunk_bytes = self.audio_play_chunk_size * self.audio_channels * 2
 
         # Match the local frontend: feed the mixer longer, stable chunks rather
         # than a stream of tiny sounds that tends to produce clicks.

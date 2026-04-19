@@ -250,7 +250,7 @@ class TcpFrontend(RemoteFrontendSession):
                 },
                 "audio": {
                     "sample_rate": self.audio_sample_rate,
-                    "channels": 1,
+                    "channels": self.audio_channels,
                     "format": "s16le",
                     "chunk_samples": self.audio_chunk_size,
                 },
@@ -345,14 +345,18 @@ class TcpFrontend(RemoteFrontendSession):
                 self._trim_pending_audio(session)
 
     def _trim_pending_audio(self, session: ClientSession):
-        max_bytes = (self.audio_sample_rate * 2 * self.MAX_PENDING_AUDIO_MS) // 1000
+        max_bytes = (
+            self.audio_sample_rate * self.audio_channels * 2 * self.MAX_PENDING_AUDIO_MS
+        ) // 1000
         if len(session.pending_audio) <= max_bytes:
             return
 
         excess = len(session.pending_audio) - max_bytes
-        # Keep sample alignment when trimming old audio to reduce clicks.
-        if excess & 1:
-            excess += 1
+        # Keep frame alignment when trimming old audio to reduce clicks.
+        frame_bytes = self.audio_channels * 2
+        remainder = excess % frame_bytes
+        if remainder:
+            excess += frame_bytes - remainder
         del session.pending_audio[:excess]
 
     def _serialize_stream_packet(self, session: ClientSession) -> bytes | None:

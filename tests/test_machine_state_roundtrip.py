@@ -27,6 +27,8 @@ def _roms_for(machine_id: str, tmp_path: Path) -> dict[str, str]:
         return {"main": _write(tmp_path / f"{machine_id}.rom", bytes([0x00]) * size)}
     if machine_id == "mastersystem2":
         return {"main": _write(tmp_path / "cart.sms", bytes([0x00]) * 0x8000)}
+    if machine_id == "gamegear":
+        return {"main": _write(tmp_path / "cart.gg", bytes([0x00]) * 0x8000)}
     if machine_id.startswith("cpc"):
         return {
             "os": _write(tmp_path / f"{machine_id}_os.rom", bytes([0x00]) * 0x4000),
@@ -61,6 +63,10 @@ def _mutate(machine) -> None:
     elif machine.machine_id == "mastersystem2":
         machine.poke(0xC000, 0x5A)
         machine._set_pad_control(1, 0, True)
+    elif machine.machine_id == "gamegear":
+        machine.poke(0xC000, 0x5A)
+        machine._set_pad_control(1, 0, True)
+        machine._set_pad_control(1, 2, True)
     elif machine.machine_id.startswith("cpc"):
         machine.poke(0x1234, 0x5A)
         machine.lower_rom_enabled = False
@@ -92,6 +98,10 @@ def _assert_restored(machine) -> None:
     elif machine.machine_id == "mastersystem2":
         assert machine.peek(0xC000) == 0x5A
         assert machine._pad1_state & 0x10 == 0
+    elif machine.machine_id == "gamegear":
+        assert machine.peek(0xC000) == 0x5A
+        assert machine._pad1_state & 0x10 == 0
+        assert machine._port_read(0x00) & 0x80 == 0
     elif machine.machine_id.startswith("cpc"):
         assert machine.ram.peek(0x1234) == 0x5A
         assert machine.lower_rom_enabled is False
@@ -122,6 +132,7 @@ def _assert_restored(machine) -> None:
         "spectrum128k",
         "spectrumplus2",
         "mastersystem2",
+        "gamegear",
         "cpc464",
         "cpc664",
         "cpc6128",

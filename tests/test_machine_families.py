@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from machines import BaseMachine, CGB, DMG, GameBoyMachineBase, M6502MachineBase, VIC20NTSC, VIC20PAL
-from machines.z80 import CPC6128, CPC664, MasterSystem2, Spectrum128K, Spectrum48K, SpectrumPlus2
+from machines.z80 import CPC6128, CPC664, GameGear, MasterSystem2, Spectrum128K, Spectrum48K, SpectrumPlus2
 
 
 def _make_gameboy_rom() -> bytes:
@@ -52,6 +52,17 @@ def test_mastersystem2_uses_base_machine_family():
 
     assert isinstance(machine, BaseMachine)
     assert machine.machine_id == "mastersystem2"
+
+
+def test_gamegear_uses_master_system_family_scaffold():
+    machine = GameGear(bytes(range(256)) * 256)
+
+    assert isinstance(machine, MasterSystem2)
+    assert isinstance(machine, BaseMachine)
+    assert machine.machine_id == "gamegear"
+    assert machine.input_keymap_name == "gamegear"
+    assert machine.frame_width == 160
+    assert machine.frame_height == 144
 
 
 def test_gameboy_family_uses_gameboy_base():
