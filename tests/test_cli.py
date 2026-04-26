@@ -66,6 +66,17 @@ def test_machine_registry_exposes_gamegear():
     assert "cart.gg" in spec.rom_slots[1].filenames
 
 
+def test_machine_registry_exposes_colecovision():
+    spec = get_machine_spec("colecovision")
+
+    assert spec.machine_id == "colecovision"
+    assert spec.display_name == "ColecoVision"
+    assert spec.rom_slots[0].slot_id == "bios"
+    assert "coleco.rom" in spec.rom_slots[0].filenames
+    assert spec.rom_slots[1].slot_id == "main"
+    assert "cart.col" in spec.rom_slots[1].filenames
+
+
 def test_parse_cli_rom_specs_accepts_short_form_for_mastersystem2():
     roms = parse_cli_rom_specs("mastersystem2", ["sonic.sms"])
 
@@ -82,6 +93,12 @@ def test_parse_cli_rom_specs_accepts_short_form_for_gamegear():
     roms = parse_cli_rom_specs("gamegear", ["sonic.gg"])
 
     assert roms == {"main": Path("sonic.gg")}
+
+
+def test_parse_cli_rom_specs_accepts_short_form_for_colecovision():
+    roms = parse_cli_rom_specs("colecovision", ["donkey.col"])
+
+    assert roms == {"main": Path("donkey.col")}
 
 
 def test_resolve_machine_rom_paths_prefers_default_main_rom_when_snapshot_is_explicit(monkeypatch, tmp_path):
@@ -124,12 +141,14 @@ def test_machine_registry_exposes_cpc664():
     spec = get_machine_spec("cpc664")
     assert spec.display_name == "Amstrad CPC 664 (experimental)"
     assert spec.rom_slots[0].slot_id == "os"
+    assert any(slot.slot_id == "tape" for slot in spec.rom_slots)
 
 
 def test_machine_registry_exposes_cpc6128():
     spec = get_machine_spec("cpc6128")
     assert spec.display_name == "Amstrad CPC 6128 (experimental)"
     assert spec.rom_slots[0].slot_id == "os"
+    assert any(slot.slot_id == "tape" for slot in spec.rom_slots)
 
 
 def test_machine_registry_exposes_vic20pal():
@@ -306,24 +325,32 @@ def test_parse_cli_rom_specs_accepts_named_slots_for_multi_rom_machine():
 
 
 def test_parse_cli_rom_specs_accepts_named_slots_for_cpc664():
-    roms = parse_cli_rom_specs("cpc664", ["os=OS_664.ROM", "basic=BASIC_1.1.ROM", "expansion=cart.rom", "disk=demo.dsk"])
+    roms = parse_cli_rom_specs(
+        "cpc664",
+        ["os=OS_664.ROM", "basic=BASIC_1.1.ROM", "expansion=cart.rom", "tape=demo.cdt", "disk=demo.dsk"],
+    )
 
     assert roms == {
         "os": Path("OS_664.ROM"),
         "basic": Path("BASIC_1.1.ROM"),
         "expansion": Path("cart.rom"),
+        "tape": Path("demo.cdt"),
         "disk": Path("demo.dsk"),
     }
 
 
 def test_parse_cli_rom_specs_accepts_named_slots_for_cpc6128():
-    roms = parse_cli_rom_specs("cpc6128", ["os=OS_6128.ROM", "basic=BASIC_1.1.ROM", "amsdos=AMSDOS.ROM", "expansion=cart.rom"])
+    roms = parse_cli_rom_specs(
+        "cpc6128",
+        ["os=OS_6128.ROM", "basic=BASIC_1.1.ROM", "amsdos=AMSDOS.ROM", "expansion=cart.rom", "tape=demo.cdt"],
+    )
 
     assert roms == {
         "os": Path("OS_6128.ROM"),
         "basic": Path("BASIC_1.1.ROM"),
         "amsdos": Path("AMSDOS.ROM"),
         "expansion": Path("cart.rom"),
+        "tape": Path("demo.cdt"),
     }
 
 

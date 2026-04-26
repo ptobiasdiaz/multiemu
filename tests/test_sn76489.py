@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from statistics import mean
 
-from chipsets import SN76489, SN76489Reference
+from chipsets import SN76489
+from tests.fallbacks.sn76489_reference import SN76489Reference
 
 
 def test_sn76489_renders_non_silent_tone():

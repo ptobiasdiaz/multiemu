@@ -123,10 +123,21 @@ Pendiente:
 
 - [ ] `MSX`
 - [ ] `MSX-2`
-- [ ] `ColecoVision`
 - [ ] `Vectrex`
 - [ ] `Videopac G4000`
 - [ ] `Atari 2600`
+- [ ] `Atari Lynx`
+- [ ] `NES`
+- [ ] `Commodore 64`
+- [ ] `Commodore 128`
+
+## Nuevas maquinas de 16 bits
+
+- [ ] `Amiga 500`
+- [ ] `Atari ST`
+- [ ] `Snes`
+- [ ] `Megadrive`
+- [ ] `PC AT`
 
 ## Orden recomendado
 
@@ -135,3 +146,22 @@ Pendiente:
 3. Decidir si el siguiente paso prioritario es mas fidelidad de video o perifericos pendientes.
 4. Seguir afinando `AY38912`.
 5. Revisar si el siguiente frente en CPC debe ser audio/fidelidad o teclado/eventos.
+
+## ColecoVision
+
+Estado actual:
+
+- `colecovision` existe como máquina visible.
+- BIOS + cartucho funcionales con juegos reales ya jugables.
+- `TMS9918A` y `SN76489` funcionan con `save/load state` y debug.
+- El keypad y los dos botones del mando tienen keymap usable en teclado host.
+- La música y timing básico de juegos reales ya están razonablemente afinados.
+
+Pendiente:
+
+- [ ] Seguir probando compatibilidad con más cartuchos reales.
+- [ ] Afinar fidelidad fina de `TMS9918A`:
+  prioridades raras, flags límite y timings menos comunes.
+- [ ] Afinar fidelidad fina del `SN76489` en Coleco frente a hardware real.
+- [ ] Revisar si conviene modelar los mandos Coleco como dispositivo separado.
+- [ ] Medir rendimiento real tras la cythonización del `TMS9918A`.

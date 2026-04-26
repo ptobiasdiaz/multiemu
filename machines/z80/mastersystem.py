@@ -4,7 +4,7 @@ from array import array
 from hashlib import sha256
 
 from cpu.z80 import MemoryDevice, PythonPortHandler, ROMBlock, Z80Bus, Z80Core
-from chipsets import SMSVDP, SN76489
+from chipsets import SN76489, Sega8VDP
 from frontend.input_events import (
     InputEvent,
     JOYSTICK_DOWN,
@@ -197,7 +197,7 @@ class MasterSystem2(BaseMachine):
         self.frame_page_2 = self._default_page_2()
         self._refresh_visible_banks()
 
-        self.vdp = SMSVDP(self)
+        self.vdp = Sega8VDP(self)
         self.psg = SN76489(sample_rate=self.audio_internal_sample_rate)
         self._ram_debug_device = MasterSystemRAMDebugDevice(self)
         self._mapper_debug_device = MasterSystemMapperDebugDevice(self)

@@ -24,8 +24,12 @@ cdef class Z80Core:
     cdef bint iff2
     cdef uint8_t im
     cdef bint ei_pending
+    cdef public int m1_wait_tstates
+    cdef int _m1_wait_accum
+    cdef int _pending_async_tstates
 
     cdef uint8_t fetch8(self)
+    cdef uint8_t fetch_opcode8(self)
     cdef uint16_t fetch16(self)
 
     cdef uint16_t get_BC(self)
@@ -102,3 +106,4 @@ cdef class Z80Core:
     cpdef bint is_halted(self)
     cpdef bint interrupts_enabled(self)
     cpdef interrupt(self)
+    cpdef nmi(self)

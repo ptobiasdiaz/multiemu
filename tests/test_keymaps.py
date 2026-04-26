@@ -305,6 +305,23 @@ def test_gamegear_keyboard_maps_start_to_return():
     assert controls == ((1, 2),)
 
 
+def test_colecovision_keyboard_maps_start_to_return():
+    maps = load_pygame_input_maps("colecovision")
+
+    class _Return:
+        key = pygame.K_RETURN
+        mod = 0
+
+    controls = resolve_pygame_key_controls(
+        maps.keymap,
+        maps.combo_keymap,
+        maps.unicode_combo_keymap,
+        _Return(),
+    )
+
+    assert controls == ((0, 6),)
+
+
 def test_kim1_keymap_keeps_hex_digits_and_commands_distinct():
     assert KIM1_PYGAME_KEYMAP[pygame.K_KP0] == (0, 6)
     assert KIM1_PYGAME_KEYMAP[pygame.K_KP7] == (1, 6)

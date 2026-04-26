@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from chipsets.sms_vdp_reference import SMSVDPReference
+from tests.fallbacks.sega8_vdp_reference import Sega8VDPReference
 
 
-class SMSVDP(SMSVDPReference):
-    """Pure Python SMS VDP fallback kept outside the runtime package."""
+class Sega8VDP(Sega8VDPReference):
+    """Pure Python Sega 8-bit VDP fallback kept outside the runtime package."""
 
     def _render_frame_from_state(self, vram, cram, registers, line_r0=None, line_scroll_x=None, line_scroll_y=None) -> bytes:
         palette_rgb = [self._cram_color(index, cram) for index in range(0x20)]
@@ -102,3 +102,7 @@ class SMSVDP(SMSVDPReference):
     def render_frame(self) -> bytes:
         self.framebuffer_rgb24 = self._render_frame_from_state(self.vram, self.cram, self.registers)
         return self.framebuffer_rgb24
+
+
+SMSVDP = Sega8VDP
+SMSVDPReference = Sega8VDPReference

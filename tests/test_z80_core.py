@@ -103,6 +103,46 @@ def test_z80_ei_delays_interrupt_acceptance_until_after_next_instruction():
     assert cpu.snapshot()["PC"] == 0x0038
 
 
+def test_z80_nmi_adds_timing_penalty_to_next_step():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0x0066, bytes([0x00]))  # NOP at NMI vector
+
+    cpu.nmi()
+
+    assert cpu.snapshot()["PC"] == 0x0066
+    assert cpu.step() == 15
+
+
+def test_z80_im1_interrupt_adds_timing_penalty_to_next_step():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0x0038, bytes([0x00]))  # NOP at IM1 vector
+    cpu.write_state({"iff1": True, "iff2": True, "im": 1})
+
+    cpu.interrupt()
+
+    assert cpu.snapshot()["PC"] == 0x0038
+    assert cpu.step() == 17
+
+
+def test_z80_io_wait_states_are_charged_on_same_step():
+    bus = Z80Bus()
+    bus.wait_io_tstates = 1
+    cpu = Z80Core(bus)
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0xDB, 0x34]))  # IN A,(34h)
+    bus.set_port_handler(0x34, PythonPortHandler(read_cb=lambda port: 0x5A))
+
+    assert cpu.step() == 12
+    assert cpu.snapshot()["A"] == 0x5A
+
+
 def test_z80_rrd_rotates_a_and_memory_nibbles():
     bus = Z80Bus()
     cpu = Z80Core(bus)
@@ -164,6 +204,30 @@ def test_z80_plain_nop_still_executes():
     assert cpu.snapshot()["PC"] == 0x0001
 
 
+def test_z80_m1_wait_state_is_added_to_opcode_fetch():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    cpu.m1_wait_tstates = 1
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0x00]))
+
+    assert cpu.step() == 5
+    assert cpu.snapshot()["PC"] == 0x0001
+
+
+def test_z80_m1_wait_state_applies_to_prefix_fetches_too():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    cpu.m1_wait_tstates = 1
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0xED, 0x44]))  # NEG
+
+    assert cpu.step() == 10
+    assert cpu.snapshot()["A"] == 0x00
+
+
 def test_z80_memory_read_state_write_state_roundtrip():
     block = RAMBlock(0x20)
     block.load(0, bytes(range(0x20)))
@@ -188,6 +252,21 @@ def test_z80_run_cycles_keeps_counting_clock_while_halted():
     assert cpu.snapshot()["halted"] is True
 
 
+def test_z80_halt_applies_m1_wait_and_refreshes_r():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    cpu.m1_wait_tstates = 1
+    ram = RAMBlock(0x1000)
+    bus.map_block(0x0000, ram)
+    ram.load(0, bytes([0x76]))  # HALT
+
+    assert cpu.step() == 5
+    halted_r = cpu.read_state()["R"]
+
+    assert cpu.step() == 5
+    assert cpu.read_state()["R"] == ((halted_r & 0x80) | ((halted_r + 1) & 0x7F))
+
+
 def test_z80_fetch_preserves_high_bit_of_r_register():
     bus = Z80Bus()
     cpu = Z80Core(bus)
@@ -196,7 +275,7 @@ def test_z80_fetch_preserves_high_bit_of_r_register():
     ram.load(0, bytes([0x00, 0x00, 0x76]))  # NOP, NOP, HALT
 
     cpu.write_state({"R": 0x80})
-    cpu.run_cycles(20)
+    cpu.run_cycles(12)
 
     assert cpu.read_state()["R"] == 0x83
 
@@ -423,3 +502,24 @@ def test_z80_ed_ed_is_logged_nop_and_continues(caplog):
     assert snap["A"] == 0x34
     assert snap["halted"] is True
     assert "Undocumented Z80 ED opcode ED at 0002 treated as NOP" in caplog.text
+
+
+def test_z80_nmi_jumps_to_0066_and_preserves_iff2():
+    bus = Z80Bus()
+    cpu = Z80Core(bus)
+    cpu.write_state({
+        "PC": 0x1234,
+        "SP": 0x2000,
+        "iff1": True,
+        "iff2": False,
+        "halted": True,
+    })
+
+    cpu.nmi()
+    snap = cpu.read_state()
+
+    assert snap["PC"] == 0x0066
+    assert snap["SP"] == 0x1FFE
+    assert snap["iff1"] is False
+    assert snap["iff2"] is True
+    assert snap["halted"] is False

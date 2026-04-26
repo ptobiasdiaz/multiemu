@@ -2,6 +2,47 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.10
+
+Versión centrada en abrir `colecovision` como nueva máquina visible, cerrar un
+primer bloque jugable sobre BIOS/cartucho reales y mantener la línea de
+hardware trazable con estados, debug y referencia Python en tests.
+
+### Incluye
+
+- Nueva máquina visible `colecovision`.
+- Soporte de BIOS ColecoVision + cartuchos `.col/.bin/.rom` en slots `bios` y
+  `main`.
+- Nuevo `TMS9918A`:
+  - implementación Python inicial para ganar fidelidad y tests
+  - backend Cython posterior manteniendo el mismo contrato público
+  - modos `graphics1`, `graphics2`, `text` y `multicolor`
+  - sprites, colisión, overflow y vblank latched para uso por juegos reales
+- Integración de `SN76489` en ColecoVision con ajustes prácticos de timing:
+  - waits de PSG
+  - waits de bus/ROM baja
+  - ajuste de `HALT`, `NMI` e interrupciones Z80 que afectan a música real
+- Keymap propio de ColecoVision:
+  - cruceta
+  - botones izquierdo/derecho
+  - keypad `0-9`, `*` y `#`
+  - aliases prácticos de teclado host para `*` y `#`
+- `F12`/`--state` y dispositivos debug también para `colecovision`.
+- Limpieza interna de referencias Python:
+  - las clases `*Reference` pasan a `tests/fallbacks/`
+  - `chipsets/` mantiene sólo runtime/fallback de producción
+- Instalación de keymaps por defecto en `share/multiemu/keymaps`.
+
+### Testing
+
+- Nuevos tests para:
+  - registro/CLI de `colecovision`
+  - `TMS9918A` frente a referencia Python
+  - keypad/joystick de ColecoVision
+  - roundtrip de estado de `colecovision`
+  - temporización Z80 relevante para juegos Coleco
+  - separación entre runtime y referencias Python de test
+
 ## 0.2.9
 
 Versión centrada en abrir `gamegear` como nueva máquina visible, reutilizando

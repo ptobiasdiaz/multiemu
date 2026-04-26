@@ -29,6 +29,11 @@ def _roms_for(machine_id: str, tmp_path: Path) -> dict[str, str]:
         return {"main": _write(tmp_path / "cart.sms", bytes([0x00]) * 0x8000)}
     if machine_id == "gamegear":
         return {"main": _write(tmp_path / "cart.gg", bytes([0x00]) * 0x8000)}
+    if machine_id == "colecovision":
+        return {
+            "bios": _write(tmp_path / "coleco.rom", bytes([0x00]) * 0x2000),
+            "main": _write(tmp_path / "cart.col", bytes([0x00]) * 0x8000),
+        }
     if machine_id.startswith("cpc"):
         return {
             "os": _write(tmp_path / f"{machine_id}_os.rom", bytes([0x00]) * 0x4000),
@@ -67,6 +72,10 @@ def _mutate(machine) -> None:
         machine.poke(0xC000, 0x5A)
         machine._set_pad_control(1, 0, True)
         machine._set_pad_control(1, 2, True)
+    elif machine.machine_id == "colecovision":
+        machine.poke(0x6000, 0x5A)
+        machine._set_pad_control(1, 0, True)
+        machine._set_pad_control(1, 6, True)
     elif machine.machine_id.startswith("cpc"):
         machine.poke(0x1234, 0x5A)
         machine.lower_rom_enabled = False
@@ -102,6 +111,10 @@ def _assert_restored(machine) -> None:
         assert machine.peek(0xC000) == 0x5A
         assert machine._pad1_state & 0x10 == 0
         assert machine._port_read(0x00) & 0x80 == 0
+    elif machine.machine_id == "colecovision":
+        assert machine.peek(0x6000) == 0x5A
+        assert machine._pad1_state & 0x01 == 0
+        assert machine._pad1_state & 0x40 == 0
     elif machine.machine_id.startswith("cpc"):
         assert machine.ram.peek(0x1234) == 0x5A
         assert machine.lower_rom_enabled is False
@@ -133,6 +146,7 @@ def _assert_restored(machine) -> None:
         "spectrumplus2",
         "mastersystem2",
         "gamegear",
+        "colecovision",
         "cpc464",
         "cpc664",
         "cpc6128",

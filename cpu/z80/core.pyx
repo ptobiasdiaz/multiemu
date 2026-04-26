@@ -31,9 +31,11 @@ cdef inline uint8_t block_io_flags(uint8_t b_after):
 
 
 cdef class Z80Core:
-
     def __init__(self, bus):
         self.bus = bus
+        self.m1_wait_tstates = 0
+        self._m1_wait_accum = 0
+        self._pending_async_tstates = 0
         self.reset()
 
     cpdef reset(self):
@@ -60,6 +62,8 @@ cdef class Z80Core:
         self.iff2 = False
         self.im = 0
         self.ei_pending = False
+        self._m1_wait_accum = 0
+        self._pending_async_tstates = 0
 
     cpdef interrupt(self):
         cdef uint16_t addr
@@ -76,17 +80,33 @@ cdef class Z80Core:
         if self.im == 0 or self.im == 1:
             self.push16(self.PC)
             self.PC = 0x0038
+            self._pending_async_tstates += 13
         elif self.im == 2:
             addr = <uint16_t>(((self.I << 8) | 0xFF) & 0xFFFF)
             lo = self.bus.mem_read(addr)
             hi = self.bus.mem_read(<uint16_t>((addr + 1) & 0xFFFF))
             self.push16(self.PC)
             self.PC = <uint16_t>(lo | (hi << 8))
+            self._pending_async_tstates += 19
+
+    cpdef nmi(self):
+        self.halted = False
+        self.push16(self.PC)
+        self.PC = 0x0066
+        self.iff2 = self.iff1
+        self.iff1 = False
+        self._pending_async_tstates += 11
 
     cdef uint8_t fetch8(self):
         cdef uint8_t v = self.bus.mem_read(self.PC)
         self.PC = <uint16_t>((self.PC + 1) & 0xFFFF)
         self.R = <uint8_t>((self.R & 0x80) | ((self.R + 1) & 0x7F))
+        return v
+
+    cdef uint8_t fetch_opcode8(self):
+        cdef uint8_t v = self.fetch8()
+        if self.m1_wait_tstates > 0:
+            self._m1_wait_accum += self.m1_wait_tstates
         return v
 
     cdef uint16_t fetch16(self):
@@ -499,7 +519,7 @@ cdef class Z80Core:
         return (self.F & FLAG_S) != 0
 
     cdef int exec_cb(self):
-        cdef uint8_t op = self.fetch8()
+        cdef uint8_t op = self.fetch_opcode8()
         cdef uint8_t group = op >> 6
         cdef uint8_t y = (op >> 3) & 0x07
         cdef uint8_t z = op & 0x07
@@ -604,7 +624,7 @@ cdef class Z80Core:
                 self.A = v; return 8
 
     cdef int exec_ed(self):
-        cdef uint8_t op = self.fetch8()
+        cdef uint8_t op = self.fetch_opcode8()
         cdef uint16_t bc, de, hl, nn, tmp16
         cdef uint8_t val, old_c
         cdef int r
@@ -1215,7 +1235,7 @@ cdef class Z80Core:
 
     cdef int exec_index_cb(self, bint use_iy):
         cdef int8_t d = <int8_t>self.fetch8()
-        cdef uint8_t op = self.fetch8()
+        cdef uint8_t op = self.fetch_opcode8()
         cdef uint8_t group = op >> 6
         cdef uint8_t y = (op >> 3) & 0x07
         cdef uint8_t z = op & 0x07
@@ -1316,7 +1336,7 @@ cdef class Z80Core:
         idx = self.IY if use_iy else self.IX
 
         if (not use_iy and op == 0xDD) or (use_iy and op == 0xFD):
-            return self.exec_index(self.fetch8(), use_iy)
+            return self.exec_index(self.fetch_opcode8(), use_iy)
 
         if op == 0xCB:
             return self.exec_index_cb(use_iy)
@@ -1595,10 +1615,10 @@ cdef class Z80Core:
             return self.exec_main(op)
 
     cdef int exec_dd(self):
-        return self.exec_index(self.fetch8(), False)
+        return self.exec_index(self.fetch_opcode8(), False)
 
     cdef int exec_fd(self):
-        return self.exec_index(self.fetch8(), True)
+        return self.exec_index(self.fetch_opcode8(), True)
 
     cdef int exec_main(self, uint8_t op):
         cdef uint16_t addr
@@ -2294,18 +2314,26 @@ cdef class Z80Core:
         cdef uint8_t op
         cdef int cycles
         cdef bint clear_ei_pending
+        cdef int async_penalty = self._pending_async_tstates
+        cdef int bus_penalty = self.bus.consume_wait_tstates()
+        self._pending_async_tstates = 0
 
         if self.halted:
-            return 4
+            self.R = <uint8_t>((self.R & 0x80) | ((self.R + 1) & 0x7F))
+            if self.m1_wait_tstates > 0:
+                return 4 + self.m1_wait_tstates + async_penalty + bus_penalty
+            return 4 + async_penalty + bus_penalty
 
         clear_ei_pending = self.ei_pending
-        op = self.fetch8()
+        self._m1_wait_accum = 0
+        op = self.fetch_opcode8()
         cycles = self.exec_main(op)
+        bus_penalty += self.bus.consume_wait_tstates()
 
         if clear_ei_pending:
             self.ei_pending = False
 
-        return cycles
+        return cycles + self._m1_wait_accum + async_penalty + bus_penalty
 
     cpdef int run_cycles(self, int cycles):
         cdef int used = 0
@@ -2379,6 +2407,7 @@ cdef class Z80Core:
             "iff2": bool(self.iff2),
             "im": self.im,
             "ei_pending": bool(self.ei_pending),
+            "pending_async_tstates": self._pending_async_tstates,
         }
 
     cpdef void write_state(self, dict state):
@@ -2436,3 +2465,5 @@ cdef class Z80Core:
             self.im = state["im"] & 0x03
         if "ei_pending" in state:
             self.ei_pending = bool(state["ei_pending"])
+        if "pending_async_tstates" in state:
+            self._pending_async_tstates = int(state["pending_async_tstates"])

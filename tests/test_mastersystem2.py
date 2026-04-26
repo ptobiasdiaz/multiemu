@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from chipsets import SMSVDPReference
+from tests.fallbacks.sega8_vdp_reference import Sega8VDPReference
 from machines.z80 import MasterSystem2
 from multiemu.debug_session import DebugSession
 from frontend.input_events import InputEvent, JOYSTICK_FIRE, JOYSTICK_FIRE_2, JOYSTICK_RIGHT
@@ -711,7 +711,7 @@ def test_mastersystem2_vdp_triggers_line_interrupt_when_enabled():
             self.cpu = _CPU()
 
     machine = _Machine()
-    vdp = SMSVDPReference(machine)
+    vdp = Sega8VDPReference(machine)
     vdp.registers[0] = 0x10
     vdp.registers[10] = 0x00
     vdp.begin_frame()
@@ -736,7 +736,7 @@ def test_mastersystem2_vdp_reloads_line_interrupt_counter():
             self.cpu = _CPU()
 
     machine = _Machine()
-    vdp = SMSVDPReference(machine)
+    vdp = Sega8VDPReference(machine)
     vdp.registers[0] = 0x10
     vdp.registers[10] = 0x01
     vdp.begin_frame()
@@ -761,7 +761,7 @@ def test_mastersystem2_vdp_line_counter_continues_past_visible_area_without_extr
             self.cpu = _CPU()
 
     machine = _Machine()
-    vdp = SMSVDPReference(machine)
+    vdp = Sega8VDPReference(machine)
     vdp.registers[0] = 0x10
     vdp.registers[10] = 0x00
     vdp.begin_frame()
@@ -1254,7 +1254,7 @@ def _build_reference_equivalence_fixture() -> MasterSystem2:
 
 
 def _assert_vdp_matches_reference(machine: MasterSystem2) -> None:
-    reference = SMSVDPReference(machine)
+    reference = Sega8VDPReference(machine)
     reference.write_state(machine.vdp.read_state())
     assert machine.vdp.render_frame() == reference.render_frame()
     assert machine.vdp.status == reference.status

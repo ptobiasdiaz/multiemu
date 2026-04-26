@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "multiemu"
-version = "0.2.8"
+version = "0.2.10"
 description = "Work-in-progress retro machine emulator in Python and Cython"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -25,6 +25,24 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Cython",
+]
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.data-files]
+"share/multiemu/keymaps" = [
+    "keymaps/cpc.json",
+    "keymaps/colecovision.json",
+    "keymaps/gameboy.json",
+    "keymaps/gamegear.json",
+    "keymaps/kim1.json",
+    "keymaps/mastersystem2.json",
+    "keymaps/spectrum.json",
+    "keymaps/spectrum128k.json",
+    "keymaps/spectrum48k.json",
+    "keymaps/vic20.json",
+    "keymaps/README.md",
 ]
 
 [project.scripts]

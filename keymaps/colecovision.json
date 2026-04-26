@@ -1,0 +1,41 @@
+{
+  "id": "colecovision",
+  "keys": {
+    "K_UP": [0, 0],
+    "K_DOWN": [0, 1],
+    "K_LEFT": [0, 2],
+    "K_RIGHT": [0, 3],
+    "K_z": [0, 4],
+    "K_x": [0, 5],
+    "K_RETURN": [0, 6],
+    "K_1": [1, 1],
+    "K_2": [1, 2],
+    "K_3": [1, 3],
+    "K_4": [1, 4],
+    "K_5": [1, 5],
+    "K_6": [1, 6],
+    "K_7": [1, 7],
+    "K_8": [1, 8],
+    "K_9": [1, 9],
+    "K_0": [1, 0],
+    "K_MINUS": [1, 10],
+    "K_BACKSPACE": [1, 10],
+    "K_EQUALS": [1, 11],
+    "K_BACKQUOTE": [1, 11],
+    "K_TAB": [1, 11],
+    "K_LCTRL": [0, 4],
+    "K_LALT": [0, 5],
+    "K_SPACE": [0, 4]
+  },
+  "combos": [],
+  "unicode_combos": {},
+  "gamepad": {
+    "button_south": "JOYSTICK_FIRE",
+    "button_east": "JOYSTICK_FIRE_2",
+    "button_start": "JOYSTICK_START",
+    "dpad_right": "JOYSTICK_RIGHT",
+    "dpad_left": "JOYSTICK_LEFT",
+    "dpad_down": "JOYSTICK_DOWN",
+    "dpad_up": "JOYSTICK_UP"
+  }
+}

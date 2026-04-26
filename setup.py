@@ -35,15 +35,34 @@ extensions = [
     Extension("chipsets.cpc_ppi", ["chipsets/cpc_ppi.pyx"]),
     Extension("chipsets.cpc_render", ["chipsets/cpc_render.pyx"]),
     Extension("chipsets.cpc_video", ["chipsets/cpc_video.pyx"]),
-    Extension("chipsets.sms_vdp", ["chipsets/sms_vdp.pyx"]),
+    Extension("chipsets.sega8_vdp", ["chipsets/sega8_vdp.pyx"]),
     Extension("chipsets.sn76489", ["chipsets/sn76489.pyx"]),
+    Extension("chipsets.tms9918a", ["chipsets/tms9918a.pyx"]),
 ]
 
 setup(
     name="multiemu",
-    version="0.2.8",
+    version="0.2.10",
     description="Work-in-progress retro machine emulator in Python and Cython",
     packages=find_packages(),
+    data_files=[
+        (
+            "share/multiemu/keymaps",
+            [
+                "keymaps/cpc.json",
+                "keymaps/colecovision.json",
+                "keymaps/gameboy.json",
+                "keymaps/gamegear.json",
+                "keymaps/kim1.json",
+                "keymaps/mastersystem2.json",
+                "keymaps/spectrum.json",
+                "keymaps/spectrum128k.json",
+                "keymaps/spectrum48k.json",
+                "keymaps/vic20.json",
+                "keymaps/README.md",
+            ],
+        ),
+    ],
     entry_points={
         "console_scripts": [
             "multiemu=multiemu.cli:main",

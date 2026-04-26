@@ -15,7 +15,7 @@ import warnings
 
 from machines.gameboy import CGB, DMG
 from machines.m6502 import KIM1, VIC20NTSC, VIC20PAL
-from machines.z80 import CPC464, CPC6128, CPC664, GameGear, MasterSystem2, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
+from machines.z80 import ColecoVision, CPC464, CPC6128, CPC664, GameGear, MasterSystem2, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
 from video import get_display_profile
 
 
@@ -141,6 +141,16 @@ def _build_gamegear(roms: dict[str, bytes], display_profile: str) -> GameGear:
     return GameGear(
         roms.get("main"),
         bios_data=roms.get("bios"),
+        display_profile=display_profile,
+    )
+
+
+def _build_colecovision(roms: dict[str, bytes], display_profile: str) -> ColecoVision:
+    if "bios" not in roms:
+        raise FileNotFoundError("colecovision requiere `bios`")
+    return ColecoVision(
+        roms.get("main"),
+        bios_data=roms["bios"],
         display_profile=display_profile,
     )
 
@@ -280,6 +290,24 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
             ),
         ),
     ),
+    "colecovision": MachineSpec(
+        machine_id="colecovision",
+        display_name="ColecoVision",
+        factory=_build_colecovision,
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="bios",
+                description="BIOS interna de ColecoVision",
+                filenames=("coleco.rom", "bios.col", "colecovision.rom"),
+            ),
+            RomSlotSpec(
+                slot_id="main",
+                description="Cartucho principal de ColecoVision",
+                filenames=("game.col", "cart.col", "colecovision.col"),
+                required=False,
+            ),
+        ),
+    ),
     "cpc464": MachineSpec(
         machine_id="cpc464",
         display_name="Amstrad CPC 464 (experimental)",
@@ -357,6 +385,12 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 required=False,
             ),
             RomSlotSpec(
+                slot_id="tape",
+                description="Imagen de cassette CDT/TZX para CPC664",
+                filenames=("program.cdt", "tape.cdt"),
+                required=False,
+            ),
+            RomSlotSpec(
                 slot_id="disk",
                 description="Imagen DSK para CPC664",
                 filenames=("disk.dsk", "program.dsk"),
@@ -390,6 +424,12 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
                 slot_id="expansion",
                 description="ROM alta de expansión/cartucho CPC",
                 filenames=(),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="tape",
+                description="Imagen de cassette CDT/TZX para CPC6128",
+                filenames=("program.cdt", "tape.cdt"),
                 required=False,
             ),
             RomSlotSpec(
@@ -723,7 +763,7 @@ def parse_cli_rom_specs(machine_id: str, rom_specs: list[str] | None) -> dict[st
             rom_map[slot_id] = Path(path_str)
             continue
 
-        if machine_id in {"mastersystem2", "gamegear"}:
+        if machine_id in {"mastersystem2", "gamegear", "colecovision"}:
             path = Path(raw_spec)
             lower_name = path.name.lower()
             rom_map["bios" if "bios" in lower_name else "main"] = path

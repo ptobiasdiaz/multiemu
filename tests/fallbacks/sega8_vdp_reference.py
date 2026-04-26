@@ -3,7 +3,7 @@ from __future__ import annotations
 from multiemu.state_codec import read_state_fields, write_state_fields
 
 
-class SMSVDPReference:
+class Sega8VDPReference:
     FRAME_WIDTH = 256
     FRAME_HEIGHT = 192
     VRAM_SIZE = 0x4000
@@ -444,7 +444,7 @@ class SMSVDPReference:
                 "_frame_interrupt_pending",
             ),
             byte_fields=("vram", "cram", "registers"),
-            meta={"type": "SMSVDPReference"},
+            meta={"type": "Sega8VDPReference"},
         ) | {
             "first_control": self.first_control,
             "render_vram": None if self._render_vram is None else list(self._render_vram),
@@ -510,3 +510,6 @@ class SMSVDPReference:
             values = state["line_scroll_y"]
             self._line_scroll_y[:] = bytes(int(v) & 0xFF for v in values[: self.FRAME_HEIGHT]).ljust(self.FRAME_HEIGHT, b"\x00")
         self.framebuffer_rgb24 = self.render_frame()
+
+
+SMSVDPReference = Sega8VDPReference

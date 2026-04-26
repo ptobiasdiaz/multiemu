@@ -1,17 +1,17 @@
 from __future__ import annotations
 # cython: cdivision=False
 
-from .sms_vdp_reference import SMSVDPReference
+from .sega8_vdp_fallback import Sega8VDPFallback
 
 
 cdef int FRAME_WIDTH = 256
 cdef int FRAME_HEIGHT = 192
 
 
-class SMSVDP(SMSVDPReference):
-    """Cython-backed SMS VDP.
+class Sega8VDP(Sega8VDPFallback):
+    """Cython-backed Sega 8-bit VDP.
 
-    Keep this logic aligned with ``chipsets/sms_vdp.py``. The Python
+    Keep this logic aligned with ``tests/sega8_vdp.py``. The Python
     implementation stays as the easy-to-read production fallback, while this
     module is the drop-in path for native builds.
     """
@@ -509,7 +509,7 @@ class SMSVDP(SMSVDPReference):
 
     def read_state(self) -> dict:
         return {
-            "__meta__": {"type": "SMSVDP"},
+            "__meta__": {"type": "Sega8VDP"},
             "status": self.status,
             "address": self.address,
             "code": self.code,
@@ -604,3 +604,6 @@ class SMSVDP(SMSVDPReference):
             values = state["line_scroll_y"]
             self._line_scroll_y[:] = bytes(int(v) & 0xFF for v in values[:FRAME_HEIGHT]).ljust(FRAME_HEIGHT, b"\x00")
         self.framebuffer_rgb24 = self.render_frame()
+
+
+SMSVDP = Sega8VDP

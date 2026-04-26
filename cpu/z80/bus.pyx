@@ -30,6 +30,9 @@ cdef class Z80Bus:
         self.page_blocks = [None] * PAGE_COUNT
         self.page_devices = [None] * PAGE_COUNT
         self.port_handlers = [None] * 256
+        self.wait_low_mem_tstates = 0
+        self.wait_io_tstates = 0
+        self.pending_wait_tstates = 0
 
         for i in range(PAGE_COUNT):
             self.page_ptrs[i] = NULL
@@ -130,6 +133,9 @@ cdef class Z80Bus:
         cdef uint8_t* ptr = self.page_ptrs[page]
         cdef MemoryDevice dev
 
+        if addr < 0x8000 and self.wait_low_mem_tstates > 0:
+            self.pending_wait_tstates += self.wait_low_mem_tstates
+
         if ptr != NULL:
             return ptr[addr & PAGE_MASK]
 
@@ -144,6 +150,9 @@ cdef class Z80Bus:
         cdef uint8_t* ptr = self.page_ptrs[page]
         cdef MemoryDevice dev
 
+        if addr < 0x8000 and self.wait_low_mem_tstates > 0:
+            self.pending_wait_tstates += self.wait_low_mem_tstates
+
         if ptr != NULL:
             if self.page_writable[page]:
                 ptr[addr & PAGE_MASK] = value
@@ -155,11 +164,20 @@ cdef class Z80Bus:
 
     cdef uint8_t io_read(self, uint16_t port):
         cdef PortHandler handler = <PortHandler>self.port_handlers[port & 0xFF]
+        if self.wait_io_tstates > 0:
+            self.pending_wait_tstates += self.wait_io_tstates
         return handler.read(port)
 
     cdef void io_write(self, uint16_t port, uint8_t value):
         cdef PortHandler handler = <PortHandler>self.port_handlers[port & 0xFF]
+        if self.wait_io_tstates > 0:
+            self.pending_wait_tstates += self.wait_io_tstates
         handler.write(port, value)
+
+    cdef int consume_wait_tstates(self):
+        cdef int value = self.pending_wait_tstates
+        self.pending_wait_tstates = 0
+        return value
 
     def read_state(self) -> dict:
         state = read_state_fields(self, meta={"type": "Z80Bus"})

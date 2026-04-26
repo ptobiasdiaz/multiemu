@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from chipsets.sn76489_reference import SN76489Reference
+from tests.fallbacks.sn76489_reference import SN76489Reference
 
 
 class SN76489(SN76489Reference):
