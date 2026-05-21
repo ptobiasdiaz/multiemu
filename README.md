@@ -9,11 +9,11 @@ La intención del proyecto es separar con claridad:
 - frontends locales y remotos
 - transporte y presentación en el CLI
 
-El repositorio ya incluye soporte para máquinas ZX Spectrum, Amstrad CPC 464,
-Nintendo Game Boy y una primera variante de Game Boy Color, además de
-scaffolds iniciales para Amstrad CPC 664/6128, MOS KIM-1 y Commodore VIC-20. La
-estructura sigue pensada para crecer hacia más máquinas y más frontends sin
-mezclar toda la lógica en un único punto de entrada.
+El repositorio ya incluye soporte para máquinas ZX Spectrum, Amstrad CPC,
+Nintendo Game Boy, Game Boy Color, Sega Master System II, Sega Game Gear,
+ColecoVision, MOS KIM-1 y Commodore VIC-20. La estructura sigue pensada para
+crecer hacia más máquinas y más frontends sin mezclar toda la lógica en un
+único punto de entrada.
 
 ## Estado actual
 
@@ -23,6 +23,9 @@ Máquinas soportadas hoy:
 - `spectrum48k`
 - `spectrum128k`
 - `spectrumplus2`
+- `mastersystem2` (experimental)
+- `gamegear` (experimental)
+- `colecovision` (experimental)
 - `cpc464` (experimental)
 - `cpc664` (experimental)
 - `cpc6128` (experimental)
@@ -53,9 +56,12 @@ El frontend también puede cargar un keymap externo con:
 | `spectrum48k` | usable | sí | beeper básico | sí | sí, hasta 2 | cinta `TZX/TAP` | ROM principal | base más madura del proyecto |
 | `spectrum128k` | experimental avanzada | sí | beeper + AY básico | sí | sí, hasta 2 | cinta `TZX/TAP`, snapshot `.z80` | ROM principal, snapshot `.z80` | paging `0x7FFD`, RAM `128K` y keymap específico |
 | `spectrumplus2` | experimental | sí | beeper + AY básico | sí | sí, hasta 2 | cinta `TZX/TAP`, snapshot `.z80` | ROM principal, snapshot `.z80` | hoy reutiliza el perfil hardware base del `128K` con ROM/identidad `+2` |
+| `mastersystem2` | experimental avanzada | sí | sí | pad del host | sí, 2 pads | n/a | BIOS opcional, cartuchos `.sms`, save/load state | BIOS built-in y juegos reales ya validados |
+| `gamegear` | experimental avanzada | sí, `160x144` | sí, estéreo | pad del host | pad del host | n/a | BIOS opcional, cartuchos `.gg`, save/load state | CRAM `12` bits y registro estéreo PSG |
+| `colecovision` | experimental avanzada | sí | sí | keypad + mando | sí, 2 botones + keypad | n/a | BIOS + cartuchos `.bin/.rom`, save/load state | base funcional con `TMS9918A` y `SN76489` |
 | `cpc464` | experimental | sí | AY básico | sí | sí, 1 | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | timings y fidelidad aún incompletos |
-| `cpc664` | experimental | sí | AY básico | sí | sí, 1 | disco `DSK` | ROM OS/BASIC/AMSDOS | reutiliza el scaffold CPC actual con ROMs 664 |
-| `cpc6128` | experimental | sí | AY básico | sí | sí, 1 | disco `DSK` | ROM OS/BASIC/AMSDOS/expansion | RAM bancaria `128K` y scaffold 6128 inicial |
+| `cpc664` | experimental | sí | AY básico | sí | sí, 1 | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | reutiliza la base CPC actual con ROMs 664 |
+| `cpc6128` | experimental | sí | AY básico | sí | sí, 1 | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS/expansion | RAM bancaria `128K` y scaffold 6128 inicial |
 | `gameboy` | experimental | sí | sí | sí | pad del host | n/a | cartuchos `.gb`, mappers principales | buena base, no aún cobertura total del catálogo |
 | `gameboycolor` / `gbc` | experimental | sí, con color | sí, aún algo lento | sí | pad del host | n/a | cartuchos `.gb`/`.gbc`, VRAM DMA, palettes CGB | doble velocidad y rendimiento aún por madurar |
 | `kim1` | usable/experimental | display monitor | n/a | keypad/TTY | n/a | n/a | ROMs `6530` | monitor funcional |
@@ -67,6 +73,7 @@ Notas rápidas:
 - `tcp` se usa hoy con `serve/connect`, no como `run --frontend tcp`.
 - el modo debug remoto usa un runtime separado para no penalizar el loop normal.
 - `vic20ntsc` y `vic20pal` arrancan ROMs y varios cartuchos reales, pero aún no tienen fidelidad completa de `VIC-I` ni audio cerrado.
+- la disciplina interna del proyecto está resumida en [PROJECT_HARNESS.md](/home/tobias/dev/multiemu/PROJECT_HARNESS.md).
 
 ## Debug remoto
 
@@ -152,13 +159,24 @@ Slots y nombres esperados por defecto:
 - `cpc664`
   - `os` -> `OS_664.ROM`, `OS_664_BASIC_1.1.ROM`, `cpc664_os.rom`, `cpc664.rom`
   - `basic` -> `BASIC_1.1.ROM`, `BASIC_664.ROM`, `BASIC.ROM`, `cpc664_basic.rom`
+  - `tape` -> `program.cdt`, `tape.cdt`
   - `disk` -> `disk.dsk`, `program.dsk`
 - `cpc6128`
   - `os` -> `OS_6128.ROM`, `OS_6128_BASIC_1.1.ROM`, `cpc6128_os.rom`, `cpc6128.rom`
   - `basic` -> `BASIC_1.1.ROM`, `BASIC_6128.ROM`, `BASIC.ROM`, `cpc6128_basic.rom`
   - `amsdos` -> `AMSDOS.ROM`, `amsdos.rom`
+  - `tape` -> `program.cdt`, `tape.cdt`
   - `disk` -> `disk.dsk`, `program.dsk`
   - `expansion` -> `expansion.rom`, `cart.rom`
+- `mastersystem2`
+  - `bios` -> `bios.sms`, `akbios.sms`, `mastersystem2_bios.sms`
+  - `main` -> `mastersystem2.sms`, `mastersystem.sms`, `game.sms`, `cart.sms`
+- `gamegear`
+  - `bios` -> `gamegear_bios.gg`, `bios.gg`, `gg_bios.gg`
+  - `main` -> `gamegear.gg`, `game.gg`, `cart.gg`
+- `colecovision`
+  - `bios` -> `coleco.rom`, `bios.col`, `colecovision.rom`
+  - `main` -> `game.col`, `cart.col`, `colecovision.col`
 - `gameboy`
   - `main` -> `gameboy.gb`, `cart.gb`
 - `gameboycolor`
@@ -191,10 +209,30 @@ multiemu run spectrum128k --rom main=zx128k.rom --rom snapshot=juego.z80
 multiemu run cpc464 --rom os=OS_464.ROM --rom basic=BASIC_1.0.ROM
 multiemu run cpc664 --rom os=cpc664.rom
 multiemu run cpc6128 --rom os=cpc6128.rom
+multiemu run mastersystem2 --rom main=game.sms
+multiemu run gamegear --rom main=game.gg
+multiemu run colecovision --rom bios=coleco.rom --rom main=game.bin
 multiemu run gameboy --rom game.gb
 multiemu run gameboycolor --rom game.gbc
 multiemu run kim1 --rom lower=6530-002.bin --rom upper=6530-003.bin
 multiemu run vic20ntsc --rom basic=basic.bin --rom kernal=kernal.bin --rom char=char.bin
+```
+
+### Estado JSON vs snapshots nativos
+
+`multiemu` distingue dos cosas:
+
+- `--state fichero.json`
+  carga un dump JSON generado por MultiEmu, por ejemplo con `F12`
+- `--rom snapshot=fichero.sna|fichero.z80`
+  carga un snapshot nativo de la máquina cuando esa arquitectura lo soporta
+
+Ejemplos:
+
+```bash
+multiemu run spectrum48k --rom main=48.rom --rom snapshot=juego.sna
+multiemu run spectrumplus2 --rom main=zx128k_2plus_es.rom --rom snapshot=juego.z80
+multiemu run mastersystem2 --state dump_sms2.json --rom main=game.sms
 ```
 
 ## Keymaps
@@ -337,13 +375,34 @@ Ejemplo para Game Boy Color:
 multiemu run gameboycolor --frontend pygame --rom game.gbc
 ```
 
+Ejemplo para Master System II:
+
+```bash
+multiemu run mastersystem2 --frontend pygame --rom main=game.sms
+```
+
+Ejemplo para Game Gear:
+
+```bash
+multiemu run gamegear --frontend pygame --rom main=game.gg
+```
+
+Ejemplo para ColecoVision:
+
+```bash
+multiemu run colecovision --frontend pygame --rom bios=coleco.rom --rom main=game.bin
+```
+
 ## Joysticks y gamepads
 
 El frontend `pygame` ya puede mapear mandos del host a las máquinas que
 exponen joystick/pad:
 
 - `Spectrum`: hasta `2` joysticks
+- `Master System II` / `Game Gear`: gamepads del host como pads de consola
+- `ColecoVision`: dirección + botones del host; keypad mediante teclado
 - `CPC464` / `CPC664`: `1` joystick
+- `CPC6128`: `1` joystick
 - `VIC-20`: `1` joystick
 - `Game Boy` / `Game Boy Color`: el gamepad del host se traduce al `joypad`
   de la consola
@@ -471,6 +530,10 @@ La lógica del CLI está separada en:
 - `multiemu/machine_registry.py`
 - `multiemu/runtime_registry.py`
 - `multiemu/remote_runtime.py`
+
+Las reglas de arquitectura y disciplina interna del proyecto están resumidas en:
+
+- [PROJECT_HARNESS.md](/home/tobias/dev/multiemu/PROJECT_HARNESS.md)
 
 Esto permite añadir nuevas máquinas, transportes o frontends con menos
 acoplamiento que si todo viviera dentro de scripts sueltos.
