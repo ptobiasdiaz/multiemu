@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Readable Python reference for TMS9918A equivalence tests."""
+
 
 class TMS9918AReference:
     FRAME_WIDTH = 256

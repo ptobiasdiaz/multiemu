@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from array import array
-from hashlib import sha256
 
-from cpu.z80 import MemoryDevice, PythonPortHandler, ROMBlock, Z80Bus, Z80Core
+from cpu.z80 import MemoryDevice, ROMBlock, Z80Bus, Z80Core
 from chipsets import SN76489, Sega8VDP
 from frontend.input_events import (
     InputEvent,
@@ -16,7 +15,17 @@ from frontend.input_events import (
     JOYSTICK_UP,
 )
 from machines.base import BaseMachine
+from machines.common import (
+    ByteArrayMemoryDebugDevice,
+    blob_state_fields,
+    build_debug_devices,
+    restore_byte_array_state,
+    rom_sha256,
+    split_rom_banks,
+    validate_state_blobs,
+)
 from machines.frame_runner import SteppedFrameRunner
+from machines.z80.common import install_uniform_port_handlers
 
 
 class MasterSystemMemoryMap(MemoryDevice):
@@ -30,25 +39,6 @@ class MasterSystemMemoryMap(MemoryDevice):
 
     def write(self, addr, value):
         self.machine.poke(addr, value)
-
-
-class MasterSystemRAMDebugDevice:
-    def __init__(self, machine: "MasterSystem2"):
-        self.machine = machine
-
-    def read_state(self) -> dict:
-        return {
-            "__meta__": {"type": "MasterSystemRAM", "size": self.machine.RAM_SIZE},
-            "data": list(self.machine.ram),
-        }
-
-    def write_state(self, state: dict) -> None:
-        if "data" not in state:
-            return
-        values = bytes(int(v) & 0xFF for v in state["data"])
-        if len(values) != self.machine.RAM_SIZE:
-            raise ValueError(f"RAM de Master System II debe medir {self.machine.RAM_SIZE} bytes")
-        self.machine.ram[:] = values
 
 
 class MasterSystemMapperDebugDevice:
@@ -92,9 +82,9 @@ class MasterSystemCartridgeDebugDevice:
             "cart_size": len(self.machine.cart_data),
             "bios_size": len(self.machine.bios_data),
             "built_in_size": len(self.machine.built_in_data),
-            "cart_sha256": self.machine._rom_sha256(self.machine.cart_data),
-            "bios_sha256": self.machine._rom_sha256(self.machine.bios_data),
-            "built_in_sha256": self.machine._rom_sha256(self.machine.built_in_data),
+            "cart_sha256": rom_sha256(self.machine.cart_data),
+            "bios_sha256": rom_sha256(self.machine.bios_data),
+            "built_in_sha256": rom_sha256(self.machine.built_in_data),
         }
 
 
@@ -157,9 +147,9 @@ class MasterSystem2(BaseMachine):
             self.built_in_data = self.bios_data[0x8000:]
             self.bios_data = self.bios_data[:0x8000]
 
-        self.cart_banks = self._split_rom_banks(self.cart_data)
-        self.bios_banks = self._split_rom_banks(self.bios_data)
-        self.built_in_banks = self._split_rom_banks(self.built_in_data)
+        self.cart_banks = split_rom_banks(self.cart_data, self.PAGE_SIZE)
+        self.bios_banks = split_rom_banks(self.bios_data, self.PAGE_SIZE)
+        self.built_in_banks = split_rom_banks(self.built_in_data, self.PAGE_SIZE)
         self._open_bus_bank = bytes([0xFF]) * self.PAGE_SIZE
         self.active_rom_source = "bios" if bios_data is not None else "cart"
         self.ram = bytearray(self.RAM_SIZE)
@@ -199,7 +189,12 @@ class MasterSystem2(BaseMachine):
 
         self.vdp = Sega8VDP(self)
         self.psg = SN76489(sample_rate=self.audio_internal_sample_rate)
-        self._ram_debug_device = MasterSystemRAMDebugDevice(self)
+        self._ram_debug_device = ByteArrayMemoryDebugDevice(
+            self,
+            attr_name="ram",
+            size=self.RAM_SIZE,
+            meta_type="MasterSystemRAM",
+        )
         self._mapper_debug_device = MasterSystemMapperDebugDevice(self)
         self._cartridge_debug_device = MasterSystemCartridgeDebugDevice(self)
         self.framebuffer_rgb24 = self.vdp.framebuffer_rgb24
@@ -209,46 +204,20 @@ class MasterSystem2(BaseMachine):
         self.bus.map_block(0x4000, self._rom_window_1)
         self.bus.map_block(0x8000, self._rom_window_2)
         self.bus.map_device(0xC000, 0x4000, self.memory_map)
-        for port_low in range(256):
-            self.bus.set_port_handler(port_low, PythonPortHandler(self._port_read, self._port_write))
+        install_uniform_port_handlers(self.bus, self._port_read, self._port_write)
 
         self._frame_runner = SteppedFrameRunner(self.TSTATES_PER_FRAME)
 
-    @staticmethod
-    def _split_rom_banks(rom_data: bytes) -> list[bytes]:
-        if not rom_data:
-            return [bytes([0xFF]) * MasterSystem2.PAGE_SIZE]
-
-        banks: list[bytes] = []
-        for offset in range(0, len(rom_data), MasterSystem2.PAGE_SIZE):
-            bank = rom_data[offset:offset + MasterSystem2.PAGE_SIZE]
-            if len(bank) < MasterSystem2.PAGE_SIZE:
-                bank = bank + bytes([0xFF]) * (MasterSystem2.PAGE_SIZE - len(bank))
-            banks.append(bank)
-        return banks or [bytes([0xFF]) * MasterSystem2.PAGE_SIZE]
-
-    @staticmethod
-    def _rom_sha256(data: bytes) -> str | None:
-        if not data:
-            return None
-        return sha256(data).hexdigest()
-
     def _validate_state_rom(self, state: dict) -> None:
-        expected = {
-            "cart": (len(self.cart_data), self._rom_sha256(self.cart_data)),
-            "bios": (len(self.bios_data), self._rom_sha256(self.bios_data)),
-            "built_in": (len(self.built_in_data), self._rom_sha256(self.built_in_data)),
-        }
-        for prefix, (actual_size, actual_hash) in expected.items():
-            size_key = f"{prefix}_size"
-            hash_key = f"{prefix}_sha256"
-            if size_key in state and int(state[size_key]) != actual_size:
-                raise ValueError(
-                    f"snapshot SMS2 incompatible: {prefix} size "
-                    f"{state[size_key]} != {actual_size}"
-                )
-            if hash_key in state and state[hash_key] != actual_hash:
-                raise ValueError(f"snapshot SMS2 incompatible: {prefix} SHA256 distinto")
+        validate_state_blobs(
+            state,
+            context="SMS2",
+            blobs={
+                "cart": self.cart_data,
+                "bios": self.bios_data,
+                "built_in": self.built_in_data,
+            },
+        )
 
     def _normalize_bank(self, bank: int) -> int:
         banks = self._active_banks()
@@ -655,13 +624,17 @@ class MasterSystem2(BaseMachine):
         return snap
 
     def debug_devices(self) -> list[dict]:
-        return super().debug_devices() + [
-            self._debug_device("cartridge", self._cartridge_debug_device, "memory", label="Cartridge/BIOS ROM", writable=False),
-            self._debug_device("mapper", self._mapper_debug_device, "memory", label="Sega mapper"),
-            self._debug_device("ram", self._ram_debug_device, "memory", label="System RAM"),
-            self._debug_device("vdp", self.vdp, "chip", label="VDP"),
-            self._debug_device("psg", self.psg, "chip", label="PSG"),
-        ]
+        return build_debug_devices(
+            self,
+            super().debug_devices(),
+            [
+                ("cartridge", self._cartridge_debug_device, "memory", "Cartridge/BIOS ROM", False),
+                ("mapper", self._mapper_debug_device, "memory", "Sega mapper", None),
+                ("ram", self._ram_debug_device, "memory", "System RAM", None),
+                ("vdp", self.vdp, "chip", "VDP", None),
+                ("psg", self.psg, "chip", "PSG", None),
+            ],
+        )
 
     def read_state(self) -> dict:
         state = super().read_state()
@@ -681,15 +654,18 @@ class MasterSystem2(BaseMachine):
             "port_df_value": self.port_df_value,
             "pad1_state": self._pad1_state,
             "ram": list(self.ram),
-            "cart_size": len(self.cart_data),
-            "bios_size": len(self.bios_data),
-            "built_in_size": len(self.built_in_data),
-            "cart_sha256": self._rom_sha256(self.cart_data),
-            "bios_sha256": self._rom_sha256(self.bios_data),
-            "built_in_sha256": self._rom_sha256(self.built_in_data),
             "vdp": self.vdp.read_state(),
             "psg": self.psg.read_state(),
         }
+        state.update(
+            blob_state_fields(
+                {
+                    "cart": self.cart_data,
+                    "bios": self.bios_data,
+                    "built_in": self.built_in_data,
+                }
+            )
+        )
         return state
 
     def write_state(self, state: dict) -> None:
@@ -727,10 +703,7 @@ class MasterSystem2(BaseMachine):
         if "pad1_state" in state:
             self._pad1_state = int(state["pad1_state"]) & 0xFF
         if "ram" in state:
-            values = bytes(int(v) & 0xFF for v in state["ram"])
-            if len(values) != self.RAM_SIZE:
-                raise ValueError(f"RAM de Master System II debe medir {self.RAM_SIZE} bytes")
-            self.ram[:] = values
+            restore_byte_array_state(self.ram, state["ram"], label="RAM de Master System II")
         if "vdp" in state:
             self.vdp.write_state(state["vdp"])
             self.framebuffer_rgb24 = self._visible_framebuffer(self.vdp.framebuffer_rgb24)

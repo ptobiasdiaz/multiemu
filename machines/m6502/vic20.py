@@ -4,6 +4,9 @@ from array import array
 
 from chipsets.via6522 import VIA6522
 from chipsets.vic6560 import VIC6560
+from devices import ByteRAM as _ByteRAM
+from devices import NibbleRAM as _NibbleRAM
+from devices import OpenBus as _OpenBus
 
 try:
     from chipsets.vic6560_render import draw_char_cell_scanline_rgb24 as _draw_char_cell_scanline_rgb24_render
@@ -26,11 +29,9 @@ from frontend.input_events import (
     JOYSTICK_RIGHT,
     JOYSTICK_UP,
 )
+from machines.common import build_debug_devices, restore_fixed_length_list
 from machines.frame_runner import ScanlineFrameRunner
 from machines.m6502.base import M6502MachineBase
-from machines.m6502.vic20_io import ColorRAM as _ColorRAM
-from machines.m6502.vic20_io import IoRam as _IoRam
-from machines.m6502.vic20_io import OpenBus as _OpenBus
 
 
 class VIC20(M6502MachineBase):
@@ -107,9 +108,9 @@ class VIC20(M6502MachineBase):
 
         self.low_ram = RAMBlock(self.LOW_RAM_SIZE)
         self.main_ram = RAMBlock(self.MAIN_RAM_SIZE)
-        self.color_ram = _ColorRAM()
-        self.io2_ram = _IoRam() if io2_ram_enabled else None
-        self.io3_ram = _IoRam() if io3_ram_enabled else None
+        self.color_ram = _NibbleRAM()
+        self.io2_ram = _ByteRAM() if io2_ram_enabled else None
+        self.io3_ram = _ByteRAM() if io3_ram_enabled else None
         self.vic = VIC6560(
             sample_rate=audio_sample_rate,
             cycles_per_second=self.TSTATES_PER_FRAME * self.FRAMES_PER_SECOND,
@@ -300,17 +301,21 @@ class VIC20(M6502MachineBase):
         return snap
 
     def debug_devices(self) -> list[dict]:
-        devices = super().debug_devices() + [
-            self._debug_device("low_ram", self.low_ram, "memory", label="Low RAM"),
-            self._debug_device("main_ram", self.main_ram, "memory", label="Main RAM"),
-            self._debug_device("color_ram", self.color_ram, "memory", label="Color RAM"),
-            self._debug_device("char_rom", self.char_rom, "memory", label="Character ROM"),
-            self._debug_device("basic_rom", self.basic_rom, "memory", label="BASIC ROM"),
-            self._debug_device("kernal_rom", self.kernal_rom, "memory", label="KERNAL ROM"),
-            self._debug_device("vic", self.vic, "chip", label="VIC-I"),
-            self._debug_device("via1", self.via1, "chip", label="VIA #1"),
-            self._debug_device("via2", self.via2, "chip", label="VIA #2"),
-        ]
+        devices = build_debug_devices(
+            self,
+            super().debug_devices(),
+            [
+                ("low_ram", self.low_ram, "memory", "Low RAM", None),
+                ("main_ram", self.main_ram, "memory", "Main RAM", None),
+                ("color_ram", self.color_ram, "memory", "Color RAM", None),
+                ("char_rom", self.char_rom, "memory", "Character ROM", None),
+                ("basic_rom", self.basic_rom, "memory", "BASIC ROM", None),
+                ("kernal_rom", self.kernal_rom, "memory", "KERNAL ROM", None),
+                ("vic", self.vic, "chip", "VIC-I", None),
+                ("via1", self.via1, "chip", "VIA #1", None),
+                ("via2", self.via2, "chip", "VIA #2", None),
+            ],
+        )
         if self.io2_ram is not None:
             devices.append(self._debug_device("io2_ram", self.io2_ram, "memory", label="IO2 RAM"))
         if self.io3_ram is not None:
@@ -356,8 +361,12 @@ class VIC20(M6502MachineBase):
         if "vic_bus_last_high" in state:
             self._vic_bus_last_high = int(state["vic_bus_last_high"]) & 0x0F
         if "key_matrix" in state:
-            self.key_matrix = [int(v) & 0xFF for v in state["key_matrix"][:8]]
-            self.key_matrix += [0x00] * (8 - len(self.key_matrix))
+            self.key_matrix = restore_fixed_length_list(
+                state["key_matrix"],
+                length=8,
+                mask=0xFF,
+                fill=0x00,
+            )
         if "joystick_state" in state:
             self.joystick_state = int(state["joystick_state"]) & 0x3F
         if "low_ram" in state:

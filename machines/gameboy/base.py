@@ -5,6 +5,7 @@ from __future__ import annotations
 from cpu.lr35902 import LR35902Bus, LR35902Core
 from frontend.input_events import InputEvent
 from machines.base import BaseMachine
+from machines.common import build_debug_devices
 from machines.frame_runner import SteppedFrameRunner
 
 from devices.gameboy import (
@@ -202,16 +203,20 @@ class GameBoyMachineBase(BaseMachine):
         return snap
 
     def debug_devices(self) -> list[dict]:
-        return super().debug_devices() + [
-            self._debug_device("cartridge", self.cartridge, "memory", label="Cartridge"),
-            self._debug_device("interrupts", self.interrupts, "device", label="Interrupt controller"),
-            self._debug_device("joypad", self.joypad, "device", label="Joypad"),
-            self._debug_device("serial", self.serial, "device", label="Serial"),
-            self._debug_device("timer", self.timer, "device", label="Timer"),
-            self._debug_device("ppu", self.ppu, "chip", label="PPU"),
-            self._debug_device("apu", self.apu, "chip", label="APU"),
-            self._debug_device("dma", self.dma, "device", label="DMA"),
-        ]
+        return build_debug_devices(
+            self,
+            super().debug_devices(),
+            [
+                ("cartridge", self.cartridge, "memory", "Cartridge", None),
+                ("interrupts", self.interrupts, "device", "Interrupt controller", None),
+                ("joypad", self.joypad, "device", "Joypad", None),
+                ("serial", self.serial, "device", "Serial", None),
+                ("timer", self.timer, "device", "Timer", None),
+                ("ppu", self.ppu, "chip", "PPU", None),
+                ("apu", self.apu, "chip", "APU", None),
+                ("dma", self.dma, "device", "DMA", None),
+            ],
+        )
 
     def read_state(self) -> dict:
         state = super().read_state()

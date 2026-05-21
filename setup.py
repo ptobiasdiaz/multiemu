@@ -20,7 +20,7 @@ extensions = [
     Extension("devices.gameboy.interrupts", ["devices/gameboy/interrupts.pyx"]),
     Extension("devices.gameboy.dma", ["devices/gameboy/dma.pyx"]),
     Extension("machines.frame_runner", ["machines/frame_runner.pyx"]),
-    Extension("machines.m6502.vic20_io", ["machines/m6502/vic20_io.pyx"]),
+    Extension("devices.mapped_memory", ["devices/mapped_memory.pyx"]),
     Extension("cpu.z80.memory", ["cpu/z80/memory.pyx"]),
     Extension("cpu.z80.io", ["cpu/z80/io.pyx"]),
     Extension("cpu.z80.bus", ["cpu/z80/bus.pyx"]),

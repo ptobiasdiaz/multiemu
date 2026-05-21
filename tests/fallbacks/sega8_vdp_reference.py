@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Readable Python reference for Sega 8-bit VDP equivalence tests."""
+
 from multiemu.state_codec import read_state_fields, write_state_fields
 
 
@@ -511,5 +513,6 @@ class Sega8VDPReference:
             self._line_scroll_y[:] = bytes(int(v) & 0xFF for v in values[: self.FRAME_HEIGHT]).ljust(self.FRAME_HEIGHT, b"\x00")
         self.framebuffer_rgb24 = self.render_frame()
 
-
+# Compatibility alias for older tests/imports. New code should use
+# ``Sega8VDPReference``.
 SMSVDPReference = Sega8VDPReference

@@ -12,7 +12,7 @@ import os
 from array import array
 
 from chipsets import AY38912, CPCGateArray, CPCVideo, HD6845, Intel8255
-from cpu.z80 import MemoryDevice, PythonPortHandler, RAMBlock, ROMBlock, Z80Bus, Z80Core
+from cpu.z80 import MemoryDevice, RAMBlock, ROMBlock, Z80Bus, Z80Core
 from devices import CPCDiskImage, CPCFDC, CPCCassetteTape
 from frontend.input_events import (
     InputEvent,
@@ -24,7 +24,9 @@ from frontend.input_events import (
     JOYSTICK_UP,
 )
 from machines.base import BaseMachine
+from machines.common import build_debug_devices, restore_fixed_length_list
 from machines.frame_runner import ScanlineFrameRunner
+from machines.z80.common import install_uniform_port_handlers
 from multiemu.state_codec import write_state_fields
 from video import get_display_profile
 
@@ -225,11 +227,7 @@ class CPC464(BaseMachine):
         # The CPC I/O space is only partially decoded. Using the same handler
         # for all low-byte values keeps the current bus abstraction workable
         # while still letting the callback inspect the full 16-bit port.
-        for port_low in range(256):
-            self.bus.set_port_handler(
-                port_low,
-                PythonPortHandler(self._port_read, self._port_write),
-            )
+        install_uniform_port_handlers(self.bus, self._port_read, self._port_write)
 
         self.framebuffer_rgb24 = self.video.framebuffer_rgb24
         self._frame_runner = ScanlineFrameRunner(self.SCANLINES_PER_FRAME, self.TSTATES_PER_LINE)
@@ -480,18 +478,22 @@ class CPC464(BaseMachine):
         return snap
 
     def debug_devices(self) -> list[dict]:
-        devices = super().debug_devices() + [
-            self._debug_device("memory_map", self.memory_map, "device", label="Memory map"),
-            self._debug_device("lower_rom", self.lower_rom, "memory", label="Lower ROM"),
-            self._debug_device("upper_rom", self.upper_rom, "memory", label="Upper ROM"),
-            self._debug_device("ram", self.ram, "memory", label="RAM"),
-            self._debug_device("gate_array", self.gate_array, "chip", label="Gate Array"),
-            self._debug_device("crtc", self.crtc, "chip", label="CRTC"),
-            self._debug_device("ppi", self.ppi, "chip", label="PPI"),
-            self._debug_device("video", self.video, "device", label="Video"),
-            self._debug_device("psg", self.psg, "chip", label="PSG"),
-            self._debug_device("fdc", self.fdc, "device", label="FDC"),
-        ]
+        devices = build_debug_devices(
+            self,
+            super().debug_devices(),
+            [
+                ("memory_map", self.memory_map, "device", "Memory map", None),
+                ("lower_rom", self.lower_rom, "memory", "Lower ROM", None),
+                ("upper_rom", self.upper_rom, "memory", "Upper ROM", None),
+                ("ram", self.ram, "memory", "RAM", None),
+                ("gate_array", self.gate_array, "chip", "Gate Array", None),
+                ("crtc", self.crtc, "chip", "CRTC", None),
+                ("ppi", self.ppi, "chip", "PPI", None),
+                ("video", self.video, "device", "Video", None),
+                ("psg", self.psg, "chip", "PSG", None),
+                ("fdc", self.fdc, "device", "FDC", None),
+            ],
+        )
         if self.cassette is not None:
             devices.append(self._debug_device("cassette", self.cassette, "device", label="Cassette"))
         if self.disk is not None:
@@ -544,8 +546,12 @@ class CPC464(BaseMachine):
         if "selected_upper_rom_bank" in state:
             self.selected_upper_rom_bank = int(state["selected_upper_rom_bank"]) & 0xFF
         if "keyboard_lines" in state:
-            self.keyboard_lines = [int(v) & 0xFF for v in state["keyboard_lines"][: self.KEYBOARD_LINES]]
-            self.keyboard_lines += [0xFF] * (self.KEYBOARD_LINES - len(self.keyboard_lines))
+            self.keyboard_lines = restore_fixed_length_list(
+                state["keyboard_lines"],
+                length=self.KEYBOARD_LINES,
+                mask=0xFF,
+                fill=0xFF,
+            )
         if "joystick_state" in state:
             self.joystick_state = int(state["joystick_state"]) & 0x3F
         if "last_keyboard_line_read" in state:

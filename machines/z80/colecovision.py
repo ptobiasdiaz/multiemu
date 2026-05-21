@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from array import array
-from hashlib import sha256
 
-from cpu.z80 import MemoryDevice, PythonPortHandler, ROMBlock, Z80Bus, Z80Core
+from cpu.z80 import MemoryDevice, ROMBlock, Z80Bus, Z80Core
 from chipsets import SN76489, TMS9918A
 from frontend.input_events import (
     InputEvent,
@@ -16,7 +15,17 @@ from frontend.input_events import (
     JOYSTICK_UP,
 )
 from machines.base import BaseMachine
+from machines.common import (
+    ByteArrayMemoryDebugDevice,
+    ReadOnlyBlobDebugDevice,
+    blob_state_fields,
+    build_debug_devices,
+    pad_rom,
+    restore_byte_array_state,
+    validate_state_blobs,
+)
 from machines.frame_runner import SteppedFrameRunner
+from machines.z80.common import install_uniform_port_handlers
 
 
 class ColecoVisionRAM(MemoryDevice):
@@ -30,38 +39,6 @@ class ColecoVisionRAM(MemoryDevice):
 
     def write(self, addr, value):
         self.machine.ram[addr & 0x03FF] = value & 0xFF
-
-
-class ColecoVisionMemoryDebugDevice:
-    def __init__(self, machine: "ColecoVision", kind: str):
-        self.machine = machine
-        self.kind = kind
-
-    def read_state(self) -> dict:
-        if self.kind == "ram":
-            return {
-                "__meta__": {"type": "ColecoVisionRAM", "size": len(self.machine.ram)},
-                "data": list(self.machine.ram),
-            }
-        if self.kind == "bios":
-            return {
-                "__meta__": {"type": "ColecoVisionBIOS", "writable": False},
-                "size": len(self.machine.bios_data),
-                "sha256": self.machine._rom_sha256(self.machine.bios_data),
-            }
-        return {
-            "__meta__": {"type": "ColecoVisionCartridge", "writable": False},
-            "size": len(self.machine.cart_data),
-            "sha256": self.machine._rom_sha256(self.machine.cart_data),
-        }
-
-    def write_state(self, state: dict) -> None:
-        if self.kind != "ram" or "data" not in state:
-            return
-        values = bytes(int(v) & 0xFF for v in state["data"])
-        if len(values) != self.machine.RAM_SIZE:
-            raise ValueError(f"RAM de ColecoVision debe medir {self.machine.RAM_SIZE} bytes")
-        self.machine.ram[:] = values
 
 
 class ColecoVision(BaseMachine):
@@ -90,6 +67,14 @@ class ColecoVision(BaseMachine):
     input_joystick_count = 1
     vdp_vblank_uses_nmi = True
 
+    @property
+    def _pad1_state(self) -> int:
+        return self._joystick_state
+
+    @_pad1_state.setter
+    def _pad1_state(self, value: int) -> None:
+        self._joystick_state = int(value) & 0xFF
+
     def __init__(
         self,
         cart_data: bytes | None = None,
@@ -114,8 +99,8 @@ class ColecoVision(BaseMachine):
         self.display_name = "ColecoVision"
         self.display_profile_name = display_profile
 
-        self.bios_data = self._pad_rom(bytes(bios_data), self.BIOS_SIZE)
-        self.cart_data = self._pad_rom(bytes(cart_data or b""), self.CART_SIZE)
+        self.bios_data = pad_rom(bytes(bios_data), self.BIOS_SIZE)
+        self.cart_data = pad_rom(bytes(cart_data or b""), self.CART_SIZE)
         self.ram = bytearray(self.RAM_SIZE)
 
         self.frame_width = self.SCREEN_WIDTH
@@ -141,9 +126,22 @@ class ColecoVision(BaseMachine):
             sample_rate=self.audio_internal_sample_rate,
         )
         self.vdp = TMS9918A(self)
-        self._bios_debug_device = ColecoVisionMemoryDebugDevice(self, "bios")
-        self._cart_debug_device = ColecoVisionMemoryDebugDevice(self, "cart")
-        self._ram_debug_device = ColecoVisionMemoryDebugDevice(self, "ram")
+        self._bios_debug_device = ReadOnlyBlobDebugDevice(
+            self,
+            attr_name="bios_data",
+            meta_type="ColecoVisionBIOS",
+        )
+        self._cart_debug_device = ReadOnlyBlobDebugDevice(
+            self,
+            attr_name="cart_data",
+            meta_type="ColecoVisionCartridge",
+        )
+        self._ram_debug_device = ByteArrayMemoryDebugDevice(
+            self,
+            attr_name="ram",
+            size=self.RAM_SIZE,
+            meta_type="ColecoVisionRAM",
+        )
         self.framebuffer_rgb24 = self.vdp.framebuffer_rgb24
 
         self._bios = ROMBlock(self.BIOS_SIZE)
@@ -155,22 +153,9 @@ class ColecoVision(BaseMachine):
         self.bus.map_block(0x0000, self._bios)
         self.bus.map_device(0x6000, 0x2000, self._ram_map)
         self.bus.map_block(0x8000, self._cart)
-        for port_low in range(256):
-            self.bus.set_port_handler(port_low, PythonPortHandler(self._port_read, self._port_write))
+        install_uniform_port_handlers(self.bus, self._port_read, self._port_write)
 
         self._frame_runner = SteppedFrameRunner(self.TSTATES_PER_FRAME)
-
-    @staticmethod
-    def _pad_rom(data: bytes, size: int) -> bytes:
-        if len(data) >= size:
-            return data[:size]
-        return data + bytes([0xFF]) * (size - len(data))
-
-    @staticmethod
-    def _rom_sha256(data: bytes) -> str | None:
-        if not data:
-            return None
-        return sha256(data).hexdigest()
 
     def _begin_frame(self) -> None:
         self.frame_tstates = 0
@@ -422,13 +407,17 @@ class ColecoVision(BaseMachine):
         return snap
 
     def debug_devices(self) -> list[dict]:
-        return super().debug_devices() + [
-            self._debug_device("bios", self._bios_debug_device, "memory", label="BIOS ROM", writable=False),
-            self._debug_device("cartridge", self._cart_debug_device, "memory", label="Cartridge ROM", writable=False),
-            self._debug_device("ram", self._ram_debug_device, "memory", label="System RAM"),
-            self._debug_device("vdp", self.vdp, "chip", label="TMS9918A"),
-            self._debug_device("psg", self.psg, "chip", label="PSG"),
-        ]
+        return build_debug_devices(
+            self,
+            super().debug_devices(),
+            [
+                ("bios", self._bios_debug_device, "memory", "BIOS ROM", False),
+                ("cartridge", self._cart_debug_device, "memory", "Cartridge ROM", False),
+                ("ram", self._ram_debug_device, "memory", "System RAM", None),
+                ("vdp", self.vdp, "chip", "TMS9918A", None),
+                ("psg", self.psg, "chip", "PSG", None),
+            ],
+        )
 
     def read_state(self) -> dict:
         state = super().read_state()
@@ -437,10 +426,6 @@ class ColecoVision(BaseMachine):
                 "type": type(self).__name__,
                 "module": type(self).__module__,
             },
-            "bios_size": len(self.bios_data),
-            "bios_sha256": self._rom_sha256(self.bios_data),
-            "cart_size": len(self.cart_data),
-            "cart_sha256": self._rom_sha256(self.cart_data),
             "ram": list(self.ram),
             "joystick_state": self._joystick_state,
             "keypad_code": self._keypad_code,
@@ -449,23 +434,21 @@ class ColecoVision(BaseMachine):
             "vdp": self.vdp.read_state(),
             "psg": self.psg.read_state(),
         }
+        state.update(blob_state_fields({"bios": self.bios_data, "cart": self.cart_data}))
         return state
 
     def write_state(self, state: dict) -> None:
         super().write_state(state)
-        if "bios_size" in state and int(state["bios_size"]) != len(self.bios_data):
-            raise ValueError("snapshot ColecoVision incompatible: BIOS size distinto")
-        if "bios_sha256" in state and state["bios_sha256"] != self._rom_sha256(self.bios_data):
-            raise ValueError("snapshot ColecoVision incompatible: BIOS SHA256 distinto")
-        if "cart_size" in state and int(state["cart_size"]) != len(self.cart_data):
-            raise ValueError("snapshot ColecoVision incompatible: cart size distinto")
-        if "cart_sha256" in state and state["cart_sha256"] != self._rom_sha256(self.cart_data):
-            raise ValueError("snapshot ColecoVision incompatible: cart SHA256 distinto")
+        validate_state_blobs(
+            state,
+            context="ColecoVision",
+            blobs={
+                "bios": self.bios_data,
+                "cart": self.cart_data,
+            },
+        )
         if "ram" in state:
-            values = bytes(int(v) & 0xFF for v in state["ram"])
-            if len(values) != self.RAM_SIZE:
-                raise ValueError(f"RAM de ColecoVision debe medir {self.RAM_SIZE} bytes")
-            self.ram[:] = values
+            restore_byte_array_state(self.ram, state["ram"], label="RAM de ColecoVision")
         if "joystick_state" in state:
             self._joystick_state = int(state["joystick_state"]) & 0xFF
         if "keypad_code" in state:

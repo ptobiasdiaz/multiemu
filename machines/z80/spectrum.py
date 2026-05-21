@@ -15,6 +15,7 @@ from frontend.input_events import (
     JOYSTICK_UP,
 )
 from machines.base import BaseMachine
+from machines.common import build_debug_devices, restore_fixed_length_list
 from machines.frame_runner import SteppedFrameRunner
 from machines.z80.spectrum_snapshot import apply_z80_snapshot
 from video import get_display_profile
@@ -296,8 +297,12 @@ class SpectrumBase(BaseMachine):
         if "last_out_fe" in state:
             self.last_out_fe = int(state["last_out_fe"]) & 0xFF
         if "keyboard_rows" in state:
-            self.keyboard_rows = [int(v) & 0x1F for v in state["keyboard_rows"][:8]]
-            self.keyboard_rows += [0x1F] * (8 - len(self.keyboard_rows))
+            self.keyboard_rows = restore_fixed_length_list(
+                state["keyboard_rows"],
+                length=8,
+                mask=0x1F,
+                fill=0x1F,
+            )
         if "tape_tstates" in state:
             self._tape_tstates = int(state["tape_tstates"])
         if "ram" in state:
@@ -310,11 +315,15 @@ class SpectrumBase(BaseMachine):
         self.audio_samples = self.ula.get_frame_samples()
 
     def debug_devices(self) -> list[dict]:
-        devices = super().debug_devices() + [
-            self._debug_device("rom", self.rom, "memory", label="ROM"),
-            self._debug_device("ram", self.ram, "memory", label="RAM"),
-            self._debug_device("ula", self.ula, "chip", label="ULA"),
-        ]
+        devices = build_debug_devices(
+            self,
+            super().debug_devices(),
+            [
+                ("rom", self.rom, "memory", "ROM", None),
+                ("ram", self.ram, "memory", "RAM", None),
+                ("ula", self.ula, "chip", "ULA", None),
+            ],
+        )
         if self.cassette is not None:
             devices.append(self._debug_device("cassette", self.cassette, "device", label="Cassette"))
         return devices
@@ -600,8 +609,12 @@ class Spectrum128K(SpectrumBase):
         if "paging_locked" in state:
             self.paging_locked = bool(state["paging_locked"])
         if "keyboard_rows" in state:
-            self.keyboard_rows = [int(v) & 0x1F for v in state["keyboard_rows"][:8]]
-            self.keyboard_rows += [0x1F] * (8 - len(self.keyboard_rows))
+            self.keyboard_rows = restore_fixed_length_list(
+                state["keyboard_rows"],
+                length=8,
+                mask=0x1F,
+                fill=0x1F,
+            )
         if "tape_tstates" in state:
             self._tape_tstates = int(state["tape_tstates"])
         if "ram_banks" in state:
@@ -619,15 +632,19 @@ class Spectrum128K(SpectrumBase):
         self.audio_samples = self._mix_audio_frame()
 
     def debug_devices(self) -> list[dict]:
-        devices = super().debug_devices() + [
-            self._debug_device("rom0", self.rom_banks[0], "memory", label="ROM 0"),
-            self._debug_device("rom1", self.rom_banks[1], "memory", label="ROM 1"),
-            self._debug_device("ram_bank_5", self.ram_banks[5], "memory", label="RAM Bank 5"),
-            self._debug_device("ram_bank_2", self.ram_banks[2], "memory", label="RAM Bank 2"),
-            self._debug_device("ram_bank_paged", self.ram_banks[self.paged_ram_bank], "memory", label="Paged RAM"),
-            self._debug_device("ula", self.ula, "chip", label="ULA"),
-            self._debug_device("ay", self.psg, "chip", label="AY-3-8912"),
-        ]
+        devices = build_debug_devices(
+            self,
+            super().debug_devices(),
+            [
+                ("rom0", self.rom_banks[0], "memory", "ROM 0", None),
+                ("rom1", self.rom_banks[1], "memory", "ROM 1", None),
+                ("ram_bank_5", self.ram_banks[5], "memory", "RAM Bank 5", None),
+                ("ram_bank_2", self.ram_banks[2], "memory", "RAM Bank 2", None),
+                ("ram_bank_paged", self.ram_banks[self.paged_ram_bank], "memory", "Paged RAM", None),
+                ("ula", self.ula, "chip", "ULA", None),
+                ("ay", self.psg, "chip", "AY-3-8912", None),
+            ],
+        )
         if self.cassette is not None:
             devices.append(self._debug_device("cassette", self.cassette, "device", label="Cassette"))
         return devices

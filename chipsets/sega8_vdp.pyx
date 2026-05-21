@@ -1,20 +1,58 @@
 from __future__ import annotations
 # cython: cdivision=False
 
-from .sega8_vdp_fallback import Sega8VDPFallback
-
-
 cdef int FRAME_WIDTH = 256
 cdef int FRAME_HEIGHT = 192
 
 
-class Sega8VDP(Sega8VDPFallback):
+class Sega8VDP:
     """Cython-backed Sega 8-bit VDP.
 
-    Keep this logic aligned with ``tests/sega8_vdp.py``. The Python
-    implementation stays as the easy-to-read production fallback, while this
-    module is the drop-in path for native builds.
+    Keep this logic aligned with ``tests/fallbacks/sega8_vdp_reference.py``. The Python
+    reference stays as the readable oracle for tests, while this module is the
+    production implementation for native builds.
     """
+
+    FRAME_WIDTH = 256
+    FRAME_HEIGHT = 192
+    VRAM_SIZE = 0x4000
+    CRAM_SIZE = 0x20
+    TOTAL_SCANLINES = 262
+
+    def __init__(self, machine):
+        self.machine = machine
+        self.is_game_gear = bool(getattr(machine, "is_game_gear", False))
+        self.CRAM_SIZE = 0x40 if self.is_game_gear else 0x20
+        self.vram = bytearray(self.VRAM_SIZE)
+        self.cram = bytearray(self.CRAM_SIZE)
+        self.registers = bytearray(16)
+        self.status = 0x00
+        self.address = 0x0000
+        self.code = 0
+        self.read_buffer = 0x00
+        self.first_control = None
+        self.data_latch = 0x00
+        self.latched_h_counter = 0x00
+        self.framebuffer_rgb24 = bytes(FRAME_WIDTH * FRAME_HEIGHT * 3)
+        self.interrupt_fired = False
+        self._line_interrupt_pending = False
+        self._frame_interrupt_pending = False
+        self.last_tstates = 0
+        self._line_irq_counter = 0
+        self._scanline_index = 0
+        self._next_scanline_tstate = 0
+        self._render_vram = None
+        self._render_cram = None
+        self._render_registers = None
+        self._render_line_r0 = None
+        self._render_line_scroll_x = None
+        self._render_line_scroll_y = None
+        self._scanline_tstates = 1
+        self.VBLANK_TSTATE = 0
+        self._line_r0 = bytearray(FRAME_HEIGHT)
+        self._line_scroll_x = bytearray(FRAME_HEIGHT)
+        self._line_scroll_y = bytearray(FRAME_HEIGHT)
+        self._refresh_timing_constants()
 
     def reset(self) -> None:
         self.vram[:] = b"\x00" * self.VRAM_SIZE
@@ -605,5 +643,5 @@ class Sega8VDP(Sega8VDPFallback):
             self._line_scroll_y[:] = bytes(int(v) & 0xFF for v in values[:FRAME_HEIGHT]).ljust(FRAME_HEIGHT, b"\x00")
         self.framebuffer_rgb24 = self.render_frame()
 
-
+# Compatibility alias for legacy imports. New code should use ``Sega8VDP``.
 SMSVDP = Sega8VDP

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Readable Python reference for SN76489 equivalence tests."""
+
 from array import array
 from multiemu.state_codec import read_state_fields, write_state_fields
 

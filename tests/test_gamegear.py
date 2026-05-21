@@ -23,7 +23,7 @@ def test_gamegear_initializes_as_160x144_machine():
     assert len(machine.framebuffer_rgb24) == 160 * 144 * 3
 
 
-def test_gamegear_visible_framebuffer_is_cropped_from_sms_vdp_frame():
+def test_gamegear_visible_framebuffer_is_cropped_from_sega8_vdp_frame():
     machine = GameGear(_make_test_rom())
     full = bytearray(machine.VDP_FRAME_WIDTH * machine.VDP_FRAME_HEIGHT * 3)
     src = ((machine.VISIBLE_Y * machine.VDP_FRAME_WIDTH) + machine.VISIBLE_X) * 3

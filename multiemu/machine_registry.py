@@ -39,6 +39,35 @@ class MachineSpec:
     rom_slots: tuple[RomSlotSpec, ...] = ()
 
 
+SPECTRUM_TAPE_SLOT = RomSlotSpec(
+    slot_id="tape",
+    description="Imagen de cinta TZX/TAP para Spectrum",
+    filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
+    required=False,
+)
+
+SPECTRUM_TAPE_PLUS2_SLOT = RomSlotSpec(
+    slot_id="tape",
+    description="Imagen de cinta TZX/TAP para Spectrum +2",
+    filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
+    required=False,
+)
+
+CPC_EXPANSION_SLOT = RomSlotSpec(
+    slot_id="expansion",
+    description="ROM alta de expansión/cartucho CPC",
+    filenames=(),
+    required=False,
+)
+
+VIC20_BLK_SLOT_FILENAMES = {
+    "blk1": ("vic20_blk1.bin", "vic20-blk1.bin"),
+    "blk2": ("vic20_blk2.bin", "vic20-blk2.bin"),
+    "blk3": ("vic20_blk3.bin", "vic20-blk3.bin"),
+    "blk5": ("vic20_blk5.bin", "vic20-blk5.bin"),
+}
+
+
 def _split_cpc_system_roms(roms: dict[str, bytes]) -> tuple[bytes, bytes | None]:
     """Accept CPC OS ROMs as either 16K OS or combined 32K OS+BASIC images."""
 
@@ -52,77 +81,60 @@ def _split_cpc_system_roms(roms: dict[str, bytes]) -> tuple[bytes, bytes | None]
     return os_rom, basic_rom
 
 
-def _build_cpc464(roms: dict[str, bytes], display_profile: str) -> CPC464:
+def _build_cpc_machine(machine_type: type[CPC464] | type[CPC664] | type[CPC6128], roms: dict[str, bytes], display_profile: str) -> object:
     os_rom, basic_rom = _split_cpc_system_roms(roms)
-    return CPC464(
+    return machine_type(
         os_rom,
         basic_rom_data=basic_rom,
         amsdos_rom_data=roms.get("amsdos"),
         expansion_rom_data=roms.get("expansion"),
-        tape_data=roms.get("tape"),
         disk_data=roms.get("disk"),
         display_profile=display_profile,
+        tape_data=roms.get("tape"),
     )
+
+
+def _build_spectrum_machine(
+    machine_type: type[Spectrum16K] | type[Spectrum48K] | type[Spectrum128K] | type[SpectrumPlus2],
+    roms: dict[str, bytes],
+    display_profile: str,
+    *,
+    default_rom_size: int,
+) -> object:
+    return machine_type(
+        roms.get("main", bytes([0x00]) * default_rom_size),
+        tape_data=roms.get("tape"),
+        snapshot_data=roms.get("snapshot"),
+        display_profile=display_profile,
+    )
+
+
+def _build_cpc464(roms: dict[str, bytes], display_profile: str) -> CPC464:
+    return _build_cpc_machine(CPC464, roms, display_profile)
 
 
 def _build_cpc664(roms: dict[str, bytes], display_profile: str) -> CPC664:
-    os_rom, basic_rom = _split_cpc_system_roms(roms)
-    return CPC664(
-        os_rom,
-        basic_rom_data=basic_rom,
-        amsdos_rom_data=roms.get("amsdos"),
-        expansion_rom_data=roms.get("expansion"),
-        disk_data=roms.get("disk"),
-        display_profile=display_profile,
-    )
+    return _build_cpc_machine(CPC664, roms, display_profile)
 
 
 def _build_cpc6128(roms: dict[str, bytes], display_profile: str) -> CPC6128:
-    os_rom, basic_rom = _split_cpc_system_roms(roms)
-    return CPC6128(
-        os_rom,
-        basic_rom_data=basic_rom,
-        amsdos_rom_data=roms.get("amsdos"),
-        expansion_rom_data=roms.get("expansion"),
-        disk_data=roms.get("disk"),
-        display_profile=display_profile,
-    )
+    return _build_cpc_machine(CPC6128, roms, display_profile)
 
 
 def _build_spectrum16k(roms: dict[str, bytes], display_profile: str) -> Spectrum16K:
-    return Spectrum16K(
-        roms.get("main", bytes([0x00]) * 0x4000),
-        tape_data=roms.get("tape"),
-        snapshot_data=roms.get("snapshot"),
-        display_profile=display_profile,
-    )
+    return _build_spectrum_machine(Spectrum16K, roms, display_profile, default_rom_size=0x4000)
 
 
 def _build_spectrum48k(roms: dict[str, bytes], display_profile: str) -> Spectrum48K:
-    return Spectrum48K(
-        roms.get("main", bytes([0x00]) * 0x4000),
-        tape_data=roms.get("tape"),
-        snapshot_data=roms.get("snapshot"),
-        display_profile=display_profile,
-    )
+    return _build_spectrum_machine(Spectrum48K, roms, display_profile, default_rom_size=0x4000)
 
 
 def _build_spectrum128k(roms: dict[str, bytes], display_profile: str) -> Spectrum128K:
-    return Spectrum128K(
-        roms.get("main", bytes([0x00]) * 0x8000),
-        tape_data=roms.get("tape"),
-        snapshot_data=roms.get("snapshot"),
-        display_profile=display_profile,
-    )
+    return _build_spectrum_machine(Spectrum128K, roms, display_profile, default_rom_size=0x8000)
 
 
 def _build_spectrumplus2(roms: dict[str, bytes], display_profile: str) -> SpectrumPlus2:
-    return SpectrumPlus2(
-        roms.get("main", bytes([0x00]) * 0x8000),
-        tape_data=roms.get("tape"),
-        snapshot_data=roms.get("snapshot"),
-        display_profile=display_profile,
-    )
+    return _build_spectrum_machine(SpectrumPlus2, roms, display_profile, default_rom_size=0x8000)
 
 
 def _build_mastersystem2(roms: dict[str, bytes], display_profile: str) -> MasterSystem2:
@@ -155,101 +167,200 @@ def _build_colecovision(roms: dict[str, bytes], display_profile: str) -> ColecoV
     )
 
 
+def _build_dmg(roms: dict[str, bytes], display_profile: str) -> DMG:
+    del display_profile
+    return DMG(roms["main"])
+
+
+def _build_cgb(roms: dict[str, bytes], display_profile: str) -> CGB:
+    del display_profile
+    return CGB(roms["main"])
+
+
+def _build_kim1(roms: dict[str, bytes], display_profile: str) -> KIM1:
+    del display_profile
+    return KIM1(roms["lower"], roms["upper"])
+
+
+def _build_vic20(
+    machine_type: type[VIC20NTSC] | type[VIC20PAL],
+    roms: dict[str, bytes],
+    display_profile: str,
+) -> object:
+    del display_profile
+    return machine_type(
+        roms["basic"],
+        roms["kernal"],
+        roms["char"],
+        blk1_rom_data=roms.get("blk1"),
+        blk2_rom_data=roms.get("blk2"),
+        blk3_rom_data=roms.get("blk3"),
+        blk5_rom_data=roms.get("blk5"),
+        io2_ram_enabled="__io2ram__" in roms,
+        io3_ram_enabled="__io2ram__" in roms,
+    )
+
+
+def _build_vic20ntsc(roms: dict[str, bytes], display_profile: str) -> VIC20NTSC:
+    return _build_vic20(VIC20NTSC, roms, display_profile)
+
+
+def _build_vic20pal(roms: dict[str, bytes], display_profile: str) -> VIC20PAL:
+    return _build_vic20(VIC20PAL, roms, display_profile)
+
+
+def _make_spectrum_slots(main_description: str, main_filenames: tuple[str, ...], snapshot_description: str, *, plus2_tape: bool = False) -> tuple[RomSlotSpec, ...]:
+    return (
+        RomSlotSpec(
+            slot_id="main",
+            description=main_description,
+            filenames=main_filenames,
+        ),
+        SPECTRUM_TAPE_PLUS2_SLOT if plus2_tape else SPECTRUM_TAPE_SLOT,
+        RomSlotSpec(
+            slot_id="snapshot",
+            description=snapshot_description,
+            filenames=(),
+            required=False,
+        ),
+    )
+
+
+def _make_cpc_slots(
+    *,
+    model: str,
+    os_description: str,
+    os_filenames: tuple[str, ...],
+    basic_description: str,
+    basic_filenames: tuple[str, ...],
+    amsdos_description: str,
+    amsdos_filenames: tuple[str, ...],
+) -> tuple[RomSlotSpec, ...]:
+    return (
+        RomSlotSpec(
+            slot_id="os",
+            description=os_description,
+            filenames=os_filenames,
+        ),
+        RomSlotSpec(
+            slot_id="basic",
+            description=basic_description,
+            filenames=basic_filenames,
+            required=False,
+        ),
+        RomSlotSpec(
+            slot_id="amsdos",
+            description=amsdos_description,
+            filenames=amsdos_filenames,
+            required=False,
+        ),
+        CPC_EXPANSION_SLOT,
+        RomSlotSpec(
+            slot_id="tape",
+            description=f"Imagen de cassette CDT/TZX para {model}",
+            filenames=("program.cdt", "tape.cdt"),
+            required=False,
+        ),
+        RomSlotSpec(
+            slot_id="disk",
+            description=f"Imagen DSK para {model}",
+            filenames=("disk.dsk", "program.dsk"),
+            required=False,
+        ),
+    )
+
+
+def _make_vic20_slots(*, variant_label: str = "") -> tuple[RomSlotSpec, ...]:
+    label = f" {variant_label}" if variant_label else ""
+    return (
+        RomSlotSpec(
+            slot_id="basic",
+            description=f"ROM BASIC del VIC-20{label}",
+            filenames=("BASIC.901486-01.bin", "basic.901486-01.bin", "vic20_basic.bin", "vic20-basic.bin"),
+        ),
+        RomSlotSpec(
+            slot_id="kernal",
+            description=f"ROM KERNAL del VIC-20{label}",
+            filenames=("KERNAL.901486-07.bin", "kernal.901486-07.bin", "vic20_kernal.bin", "vic20-kernal.bin"),
+        ),
+        RomSlotSpec(
+            slot_id="char",
+            description=f"ROM de caracteres del VIC-20{label}",
+            filenames=("CHAR.901460-03.bin", "characters.901460-03.bin", "vic20_char.bin", "vic20-char.bin"),
+        ),
+        RomSlotSpec(
+            slot_id="blk1",
+            description=f"ROM opcional de expansión BLK1 del VIC-20{label}",
+            filenames=VIC20_BLK_SLOT_FILENAMES["blk1"],
+            required=False,
+        ),
+        RomSlotSpec(
+            slot_id="blk2",
+            description=f"ROM opcional de expansión BLK2 del VIC-20{label}",
+            filenames=VIC20_BLK_SLOT_FILENAMES["blk2"],
+            required=False,
+        ),
+        RomSlotSpec(
+            slot_id="blk3",
+            description=f"ROM opcional de expansión BLK3 del VIC-20{label}",
+            filenames=VIC20_BLK_SLOT_FILENAMES["blk3"],
+            required=False,
+        ),
+        RomSlotSpec(
+            slot_id="blk5",
+            description=f"ROM opcional de expansión BLK5 del VIC-20{label}",
+            filenames=VIC20_BLK_SLOT_FILENAMES["blk5"],
+            required=False,
+        ),
+        RomSlotSpec(
+            slot_id="cart",
+            description=f"Cartucho VIC-20{label} en formato PRG para un único bloque",
+            filenames=(),
+            required=False,
+        ),
+    )
+
+
 MACHINE_SPECS: dict[str, MachineSpec] = {
     "spectrum16k": MachineSpec(
         machine_id="spectrum16k",
         display_name="ZX Spectrum 16K",
         factory=_build_spectrum16k,
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="main",
-                description="ROM principal del Spectrum 16K",
-                filenames=("spec16k.rom",),
-            ),
-            RomSlotSpec(
-                slot_id="tape",
-                description="Imagen de cinta TZX/TAP para Spectrum",
-                filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="snapshot",
-                description="Snapshot .z80 para Spectrum",
-                filenames=(),
-                required=False,
-            ),
+        rom_slots=_make_spectrum_slots(
+            "ROM principal del Spectrum 16K",
+            ("spec16k.rom",),
+            "Snapshot .z80 para Spectrum",
         ),
     ),
     "spectrum48k": MachineSpec(
         machine_id="spectrum48k",
         display_name="ZX Spectrum 48K",
         factory=_build_spectrum48k,
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="main",
-                description="ROM principal del Spectrum 48K",
-                filenames=("spec48k.rom",),
-            ),
-            RomSlotSpec(
-                slot_id="tape",
-                description="Imagen de cinta TZX/TAP para Spectrum",
-                filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="snapshot",
-                description="Snapshot .z80 para Spectrum",
-                filenames=(),
-                required=False,
-            ),
+        rom_slots=_make_spectrum_slots(
+            "ROM principal del Spectrum 48K",
+            ("spec48k.rom",),
+            "Snapshot .z80 para Spectrum",
         ),
     ),
     "spectrum128k": MachineSpec(
         machine_id="spectrum128k",
         display_name="ZX Spectrum 128K",
         factory=_build_spectrum128k,
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="main",
-                description="ROM principal del Spectrum 128K",
-                filenames=("spec128k.rom", "spectrum128k.rom"),
-            ),
-            RomSlotSpec(
-                slot_id="tape",
-                description="Imagen de cinta TZX/TAP para Spectrum",
-                filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="snapshot",
-                description="Snapshot .z80 para Spectrum 128K",
-                filenames=(),
-                required=False,
-            ),
+        rom_slots=_make_spectrum_slots(
+            "ROM principal del Spectrum 128K",
+            ("spec128k.rom", "spectrum128k.rom"),
+            "Snapshot .z80 para Spectrum 128K",
         ),
     ),
     "spectrumplus2": MachineSpec(
         machine_id="spectrumplus2",
         display_name="ZX Spectrum +2",
         factory=_build_spectrumplus2,
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="main",
-                description="ROM principal del Spectrum +2",
-                filenames=("plus2.rom", "specplus2.rom", "spectrumplus2.rom", "zx128k_2plus_es.rom"),
-            ),
-            RomSlotSpec(
-                slot_id="tape",
-                description="Imagen de cinta TZX/TAP para Spectrum +2",
-                filenames=("program.tzx", "tape.tzx", "program.tap", "tape.tap"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="snapshot",
-                description="Snapshot .z80 para Spectrum +2",
-                filenames=(),
-                required=False,
-            ),
+        rom_slots=_make_spectrum_slots(
+            "ROM principal del Spectrum +2",
+            ("plus2.rom", "specplus2.rom", "spectrumplus2.rom", "zx128k_2plus_es.rom"),
+            "Snapshot .z80 para Spectrum +2",
+            plus2_tape=True,
         ),
     ),
     "mastersystem2": MachineSpec(
@@ -312,138 +423,48 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
         machine_id="cpc464",
         display_name="Amstrad CPC 464 (experimental)",
         factory=_build_cpc464,
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="os",
-                description="ROM baja del sistema CPC464",
-                filenames=("OS_464.ROM", "OS_464_BASIC_1.0.ROM", "OS_464_BASIC_1.1.ROM", "cpc464.rom"),
-            ),
-            RomSlotSpec(
-                slot_id="basic",
-                description="ROM alta de BASIC del CPC464",
-                filenames=(
-                    "BASIC_1.0.ROM",
-                    "BASIC_1.1.ROM",
-                    "BASIC_464.ROM",
-                    "BASIC.ROM",
-                    "cpc464.rom",
-                ),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="amsdos",
-                description="ROM AMSDOS/expansión de disco para CPC",
-                filenames=("AMSDOS.ROM", "amsdos.rom"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="expansion",
-                description="ROM alta de expansión/cartucho CPC",
-                filenames=(),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="tape",
-                description="Imagen de cassette CDT/TZX para CPC464",
-                filenames=("program.cdt", "tape.cdt"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="disk",
-                description="Imagen DSK para CPC",
-                filenames=("disk.dsk", "program.dsk"),
-                required=False,
-            ),
+        rom_slots=_make_cpc_slots(
+            model="CPC464",
+            os_description="ROM baja del sistema CPC464",
+            os_filenames=("OS_464.ROM", "OS_464_BASIC_1.0.ROM", "OS_464_BASIC_1.1.ROM", "cpc464.rom"),
+            basic_description="ROM alta de BASIC del CPC464",
+            basic_filenames=("BASIC_1.0.ROM", "BASIC_1.1.ROM", "BASIC_464.ROM", "BASIC.ROM", "cpc464.rom"),
+            amsdos_description="ROM AMSDOS/expansión de disco para CPC",
+            amsdos_filenames=("AMSDOS.ROM", "amsdos.rom"),
         ),
     ),
     "cpc664": MachineSpec(
         machine_id="cpc664",
         display_name="Amstrad CPC 664 (experimental)",
         factory=_build_cpc664,
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="os",
-                description="ROM baja del sistema CPC664",
-                filenames=("OS_664.ROM", "OS_664_BASIC_1.1.ROM", "cpc664_os.rom", "cpc664.rom"),
-            ),
-            RomSlotSpec(
-                slot_id="basic",
-                description="ROM alta de BASIC del CPC664",
-                filenames=("BASIC_1.1.ROM", "BASIC_664.ROM", "BASIC.ROM", "cpc664_basic.rom"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="amsdos",
-                description="ROM AMSDOS del CPC664",
-                filenames=("AMSDOS.ROM", "amsdos.rom"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="expansion",
-                description="ROM alta de expansión/cartucho CPC",
-                filenames=(),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="tape",
-                description="Imagen de cassette CDT/TZX para CPC664",
-                filenames=("program.cdt", "tape.cdt"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="disk",
-                description="Imagen DSK para CPC664",
-                filenames=("disk.dsk", "program.dsk"),
-                required=False,
-            ),
+        rom_slots=_make_cpc_slots(
+            model="CPC664",
+            os_description="ROM baja del sistema CPC664",
+            os_filenames=("OS_664.ROM", "OS_664_BASIC_1.1.ROM", "cpc664_os.rom", "cpc664.rom"),
+            basic_description="ROM alta de BASIC del CPC664",
+            basic_filenames=("BASIC_1.1.ROM", "BASIC_664.ROM", "BASIC.ROM", "cpc664_basic.rom"),
+            amsdos_description="ROM AMSDOS del CPC664",
+            amsdos_filenames=("AMSDOS.ROM", "amsdos.rom"),
         ),
     ),
     "cpc6128": MachineSpec(
         machine_id="cpc6128",
         display_name="Amstrad CPC 6128 (experimental)",
         factory=_build_cpc6128,
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="os",
-                description="ROM baja del sistema CPC6128",
-                filenames=("OS_6128.ROM", "OS_6128_BASIC_1.1.ROM", "cpc6128_os.rom", "cpc6128.rom"),
-            ),
-            RomSlotSpec(
-                slot_id="basic",
-                description="ROM alta de BASIC del CPC6128",
-                filenames=("BASIC_1.1.ROM", "BASIC_6128.ROM", "BASIC.ROM", "cpc6128_basic.rom"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="amsdos",
-                description="ROM AMSDOS del CPC6128",
-                filenames=("AMSDOS.ROM", "amsdos.rom", "cpc6128_amsdos.rom"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="expansion",
-                description="ROM alta de expansión/cartucho CPC",
-                filenames=(),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="tape",
-                description="Imagen de cassette CDT/TZX para CPC6128",
-                filenames=("program.cdt", "tape.cdt"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="disk",
-                description="Imagen DSK para CPC6128",
-                filenames=("disk.dsk", "program.dsk"),
-                required=False,
-            ),
+        rom_slots=_make_cpc_slots(
+            model="CPC6128",
+            os_description="ROM baja del sistema CPC6128",
+            os_filenames=("OS_6128.ROM", "OS_6128_BASIC_1.1.ROM", "cpc6128_os.rom", "cpc6128.rom"),
+            basic_description="ROM alta de BASIC del CPC6128",
+            basic_filenames=("BASIC_1.1.ROM", "BASIC_6128.ROM", "BASIC.ROM", "cpc6128_basic.rom"),
+            amsdos_description="ROM AMSDOS del CPC6128",
+            amsdos_filenames=("AMSDOS.ROM", "amsdos.rom", "cpc6128_amsdos.rom"),
         ),
     ),
     "gameboy": MachineSpec(
         machine_id="gameboy",
         display_name="Nintendo Game Boy (early scaffold)",
-        factory=lambda roms, display_profile: DMG(roms["main"]),
+        factory=_build_dmg,
         rom_slots=(
             RomSlotSpec(
                 slot_id="main",
@@ -455,7 +476,7 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
     "gameboycolor": MachineSpec(
         machine_id="gameboycolor",
         display_name="Nintendo Game Boy Color (early scaffold)",
-        factory=lambda roms, display_profile: CGB(roms["main"]),
+        factory=_build_cgb,
         rom_slots=(
             RomSlotSpec(
                 slot_id="main",
@@ -467,7 +488,7 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
     "gbc": MachineSpec(
         machine_id="gbc",
         display_name="Nintendo Game Boy Color (alias de gameboycolor)",
-        factory=lambda roms, display_profile: CGB(roms["main"]),
+        factory=_build_cgb,
         rom_slots=(
             RomSlotSpec(
                 slot_id="main",
@@ -479,10 +500,7 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
     "kim1": MachineSpec(
         machine_id="kim1",
         display_name="MOS KIM-1 (early scaffold)",
-        factory=lambda roms, display_profile: KIM1(
-            roms["lower"],
-            roms["upper"],
-        ),
+        factory=_build_kim1,
         rom_slots=(
             RomSlotSpec(
                 slot_id="lower",
@@ -499,188 +517,20 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
     "vic20ntsc": MachineSpec(
         machine_id="vic20ntsc",
         display_name="Commodore VIC-20 NTSC (experimental)",
-        factory=lambda roms, display_profile: VIC20NTSC(
-            roms["basic"],
-            roms["kernal"],
-            roms["char"],
-            blk1_rom_data=roms.get("blk1"),
-            blk2_rom_data=roms.get("blk2"),
-            blk3_rom_data=roms.get("blk3"),
-            blk5_rom_data=roms.get("blk5"),
-            io2_ram_enabled="__io2ram__" in roms,
-            io3_ram_enabled="__io2ram__" in roms,
-        ),
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="basic",
-                description="ROM BASIC del VIC-20",
-                filenames=("BASIC.901486-01.bin", "basic.901486-01.bin", "vic20_basic.bin", "vic20-basic.bin"),
-            ),
-            RomSlotSpec(
-                slot_id="kernal",
-                description="ROM KERNAL del VIC-20",
-                filenames=("KERNAL.901486-07.bin", "kernal.901486-07.bin", "vic20_kernal.bin", "vic20-kernal.bin"),
-            ),
-            RomSlotSpec(
-                slot_id="char",
-                description="ROM de caracteres del VIC-20",
-                filenames=("CHAR.901460-03.bin", "characters.901460-03.bin", "vic20_char.bin", "vic20-char.bin"),
-            ),
-            RomSlotSpec(
-                slot_id="blk1",
-                description="ROM opcional de expansión BLK1 del VIC-20",
-                filenames=("vic20_blk1.bin", "vic20-blk1.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="blk2",
-                description="ROM opcional de expansión BLK2 del VIC-20",
-                filenames=("vic20_blk2.bin", "vic20-blk2.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="blk3",
-                description="ROM opcional de expansión BLK3 del VIC-20",
-                filenames=("vic20_blk3.bin", "vic20-blk3.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="blk5",
-                description="ROM opcional de expansión BLK5 del VIC-20",
-                filenames=("vic20_blk5.bin", "vic20-blk5.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="cart",
-                description="Cartucho VIC-20 en formato PRG para un único bloque",
-                filenames=(),
-                required=False,
-            ),
-        ),
+        factory=_build_vic20ntsc,
+        rom_slots=_make_vic20_slots(),
     ),
     "vic20pal": MachineSpec(
         machine_id="vic20pal",
         display_name="Commodore VIC-20 PAL (experimental)",
-        factory=lambda roms, display_profile: VIC20PAL(
-            roms["basic"],
-            roms["kernal"],
-            roms["char"],
-            blk1_rom_data=roms.get("blk1"),
-            blk2_rom_data=roms.get("blk2"),
-            blk3_rom_data=roms.get("blk3"),
-            blk5_rom_data=roms.get("blk5"),
-            io2_ram_enabled="__io2ram__" in roms,
-            io3_ram_enabled="__io2ram__" in roms,
-        ),
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="basic",
-                description="ROM BASIC del VIC-20",
-                filenames=("BASIC.901486-01.bin", "basic.901486-01.bin", "vic20_basic.bin", "vic20-basic.bin"),
-            ),
-            RomSlotSpec(
-                slot_id="kernal",
-                description="ROM KERNAL del VIC-20",
-                filenames=("KERNAL.901486-07.bin", "kernal.901486-07.bin", "vic20_kernal.bin", "vic20-kernal.bin"),
-            ),
-            RomSlotSpec(
-                slot_id="char",
-                description="ROM de caracteres del VIC-20",
-                filenames=("CHAR.901460-03.bin", "characters.901460-03.bin", "vic20_char.bin", "vic20-char.bin"),
-            ),
-            RomSlotSpec(
-                slot_id="blk1",
-                description="ROM opcional de expansión BLK1 del VIC-20",
-                filenames=("vic20_blk1.bin", "vic20-blk1.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="blk2",
-                description="ROM opcional de expansión BLK2 del VIC-20",
-                filenames=("vic20_blk2.bin", "vic20-blk2.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="blk3",
-                description="ROM opcional de expansión BLK3 del VIC-20",
-                filenames=("vic20_blk3.bin", "vic20-blk3.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="blk5",
-                description="ROM opcional de expansión BLK5 del VIC-20",
-                filenames=("vic20_blk5.bin", "vic20-blk5.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="cart",
-                description="Cartucho VIC-20 en formato PRG para un único bloque",
-                filenames=(),
-                required=False,
-            ),
-        ),
+        factory=_build_vic20pal,
+        rom_slots=_make_vic20_slots(),
     ),
     "vic20": MachineSpec(
         machine_id="vic20",
         display_name="Commodore VIC-20 (alias de vic20ntsc)",
-        factory=lambda roms, display_profile: VIC20NTSC(
-            roms["basic"],
-            roms["kernal"],
-            roms["char"],
-            blk1_rom_data=roms.get("blk1"),
-            blk2_rom_data=roms.get("blk2"),
-            blk3_rom_data=roms.get("blk3"),
-            blk5_rom_data=roms.get("blk5"),
-            io2_ram_enabled="__io2ram__" in roms,
-            io3_ram_enabled="__io2ram__" in roms,
-        ),
-        rom_slots=(
-            RomSlotSpec(
-                slot_id="basic",
-                description="ROM BASIC del VIC-20 NTSC",
-                filenames=("BASIC.901486-01.bin", "basic.901486-01.bin", "vic20_basic.bin", "vic20-basic.bin"),
-            ),
-            RomSlotSpec(
-                slot_id="kernal",
-                description="ROM KERNAL del VIC-20 NTSC",
-                filenames=("KERNAL.901486-07.bin", "kernal.901486-07.bin", "vic20_kernal.bin", "vic20-kernal.bin"),
-            ),
-            RomSlotSpec(
-                slot_id="char",
-                description="ROM de caracteres del VIC-20 NTSC",
-                filenames=("CHAR.901460-03.bin", "characters.901460-03.bin", "vic20_char.bin", "vic20-char.bin"),
-            ),
-            RomSlotSpec(
-                slot_id="blk1",
-                description="ROM opcional de expansión BLK1 del VIC-20 NTSC",
-                filenames=("vic20_blk1.bin", "vic20-blk1.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="blk2",
-                description="ROM opcional de expansión BLK2 del VIC-20 NTSC",
-                filenames=("vic20_blk2.bin", "vic20-blk2.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="blk3",
-                description="ROM opcional de expansión BLK3 del VIC-20 NTSC",
-                filenames=("vic20_blk3.bin", "vic20-blk3.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="blk5",
-                description="ROM opcional de expansión BLK5 del VIC-20 NTSC",
-                filenames=("vic20_blk5.bin", "vic20-blk5.bin"),
-                required=False,
-            ),
-            RomSlotSpec(
-                slot_id="cart",
-                description="Cartucho VIC-20 NTSC en formato PRG para un único bloque",
-                filenames=(),
-                required=False,
-            ),
-        ),
+        factory=_build_vic20ntsc,
+        rom_slots=_make_vic20_slots(variant_label="NTSC"),
     ),
 }
 
