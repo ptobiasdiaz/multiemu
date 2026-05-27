@@ -56,6 +56,14 @@ class CPCCassetteTape:
             return 0
         return self._level
 
+    @property
+    def position(self) -> int:
+        return self._pulse_index
+
+    @property
+    def total(self) -> int:
+        return len(self.pulses)
+
     def set_motor(self, enabled: bool) -> None:
         self.motor_on = bool(enabled)
 

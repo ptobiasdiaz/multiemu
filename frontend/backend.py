@@ -71,6 +71,27 @@ class LocalMachineBackend:
         return bool(cassette is not None and getattr(cassette, "playing", False))
 
     @property
+    def cassette_status(self):
+        machine_status = getattr(self.machine, "cassette_status", None)
+        if machine_status is not None:
+            return machine_status
+        cassette = getattr(self.machine, "cassette", None)
+        if cassette is None:
+            return None
+        total = max(1, int(getattr(cassette, "total", len(getattr(cassette, "pulses", [])))))
+        position = max(0, min(int(getattr(cassette, "position", getattr(cassette, "_pulse_index", 0))), total))
+        playing = bool(getattr(cassette, "playing", False))
+        motor_on = bool(getattr(cassette, "motor_on", True))
+        return {
+            "present": True,
+            "active": playing and motor_on,
+            "opened": motor_on,
+            "bytes_read": position,
+            "total_bytes": total,
+            "percent": int((position * 100) / total),
+        }
+
+    @property
     def cpc_tape_auto_turbo(self):
         return os.environ.get("MULTIEMU_CPC_TAPE_AUTO_TURBO", "0")
 
@@ -85,6 +106,14 @@ class LocalMachineBackend:
     @property
     def input_joystick_count(self):
         return int(getattr(self.machine, "input_joystick_count", 0))
+
+    @property
+    def input_tap_hold_frames(self):
+        return getattr(self.machine, "input_tap_hold_frames", None)
+
+    @property
+    def input_quick_tap_max_frames(self):
+        return getattr(self.machine, "input_quick_tap_max_frames", None)
 
     @property
     def audio_sample_rate(self):

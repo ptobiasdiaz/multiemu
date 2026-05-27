@@ -776,6 +776,23 @@ class CPC464(BaseMachine):
             return False
         return self.cassette.toggle_play_pause()
 
+    @property
+    def cassette_status(self) -> dict | None:
+        if self.cassette is None:
+            return None
+        total = max(1, int(getattr(self.cassette, "total", 0)))
+        position = max(0, min(int(getattr(self.cassette, "position", 0)), total))
+        playing = bool(getattr(self.cassette, "playing", False))
+        motor_on = bool(getattr(self.cassette, "motor_on", False))
+        return {
+            "present": True,
+            "active": playing and motor_on,
+            "opened": motor_on,
+            "bytes_read": position,
+            "total_bytes": total,
+            "percent": int((position * 100) / total),
+        }
+
     def _render_audio_frame(self) -> array:
         """Render one CPC frame worth of AY audio into the shared ring buffer."""
 

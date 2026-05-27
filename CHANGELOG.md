@@ -2,6 +2,47 @@
 
 Este fichero resume hitos visibles del proyecto por versión publicada.
 
+## 0.2.11
+
+Versión centrada en abrir `msx` como máquina visible experimental y consolidar
+mejoras compartidas del `TMS9918A`, entrada, cassette y audio.
+
+### Incluye
+
+- Nueva máquina visible `msx` / MSX1 experimental.
+- Soporte de BIOS, BASIC, cartuchos en `cart1/cart2` y cintas `.cas`.
+- Soporte inicial de mappers MSX MegaROM comunes:
+  - `linear`, `generic8`, `generic16`
+  - `ascii8`, `ascii16`
+  - `konami`, `konami_scc`
+  - `rtype`, `cross_blaim`, `harry_fox`, `holy_quran`, `zemina8`, `zemina16`
+- Base de datos local `romdb/msx_mappers.json` indexada por claves
+  `sha1:<hash>` para seleccionar mapper sin cabecera de ROM.
+- `--emu-ops cart1_mapper=...` y `cart2_mapper=...` para forzar mapper desde
+  CLI cuando haga falta.
+- Keymap MSX con teclado y joystick emulado desde teclado host.
+- Integración de cassette `.cas` mediante hooks BIOS `TAPION/TAPIN/TAPIOF` y
+  OSD de actividad de cinta compartido con frontends local/TCP.
+- `MSXMemoryMap` en Cython para reducir coste de acceso a memoria.
+- Integración AY/PSG de MSX con render progresivo, flush antes de escrituras y
+  sobremuestreo interno `x2`.
+- Mejoras de `TMS9918A` que benefician MSX y ColecoVision:
+  - prioridad y coordenada Y de sprites
+  - overflow/fifth-sprite status
+  - máscaras de tablas en Graphics II
+  - sincronización de vblank/status/IRQ al escribir el registro 1
+
+### Testing
+
+- Nuevos tests para:
+  - registro/CLI de `msx`
+  - mappers MSX y heurísticas/ROM DB SHA1
+  - cassette `.cas` y hooks BIOS
+  - teclado/joystick MSX
+  - roundtrip de estado de `msx`
+  - audio AY/PSG progresivo en MSX
+  - regresiones `TMS9918A` compartidas con ColecoVision
+
 ## 0.2.10
 
 Versión centrada en abrir `colecovision` como nueva máquina visible, cerrar un

@@ -58,6 +58,7 @@ for _name, _value in _PYGAME_MOD_NAME_TO_VALUE.items():
 class PygameInputMaps:
     keymap_name: str | None
     keymap: dict[int, tuple[int, int]]
+    joystick_keymap: dict[int, tuple[int, int]]
     combo_keymap: dict[tuple[int, int], tuple[tuple[int, int], ...]]
     unicode_combo_keymap: dict[str, tuple[tuple[int, int], ...]]
     gamepad_map: dict[str, object]
@@ -89,6 +90,8 @@ def _resolve_mod_constant(value) -> int:
 
 
 def _resolve_gamepad_value(value):
+    if isinstance(value, int):
+        return value
     if isinstance(value, str):
         try:
             return int(_JOYSTICK_NAME_TO_VALUE[value])
@@ -113,11 +116,13 @@ def _merge_payloads(base: dict, overlay: dict) -> dict:
     merged = {
         "id": overlay.get("id", base.get("id")),
         "keys": dict(base.get("keys", {})),
+        "joystick_keys": dict(base.get("joystick_keys", {})),
         "combos": list(base.get("combos", [])),
         "unicode_combos": dict(base.get("unicode_combos", {})),
         "gamepad": dict(base.get("gamepad", {})),
     }
     merged["keys"].update(overlay.get("keys", {}))
+    merged["joystick_keys"].update(overlay.get("joystick_keys", {}))
     merged["unicode_combos"].update(overlay.get("unicode_combos", {}))
     merged["gamepad"].update(overlay.get("gamepad", {}))
 
@@ -171,6 +176,10 @@ def _payload_to_maps(payload: dict) -> PygameInputMaps:
         _resolve_key_constant(key): _parse_control(control)
         for key, control in payload.get("keys", {}).items()
     }
+    joystick_keymap = {
+        _resolve_key_constant(key): (int(control[0]), int(_resolve_gamepad_value(control[1])))
+        for key, control in payload.get("joystick_keys", {}).items()
+    }
     combo_keymap = {
         (
             _resolve_key_constant(item["key"]),
@@ -189,12 +198,14 @@ def _payload_to_maps(payload: dict) -> PygameInputMaps:
     return PygameInputMaps(
         keymap_name=payload.get("id"),
         keymap=keymap,
+        joystick_keymap=joystick_keymap,
         combo_keymap=combo_keymap,
         unicode_combo_keymap=unicode_combo_keymap,
         gamepad_map=gamepad_map,
         keymap_spec=_serialize_maps(
             payload.get("id"),
             keymap,
+            joystick_keymap,
             combo_keymap,
             unicode_combo_keymap,
             gamepad_map,
@@ -210,6 +221,7 @@ def _load_builtin_maps(keymap_id: str) -> PygameInputMaps:
 def _serialize_maps(
     keymap_name: str | None,
     keymap: dict[int, tuple[int, int]],
+    joystick_keymap: dict[int, tuple[int, int]],
     combo_keymap: dict[tuple[int, int], tuple[tuple[int, int], ...]],
     unicode_combo_keymap: dict[str, tuple[tuple[int, int], ...]],
     gamepad_map: dict[str, object],
@@ -219,6 +231,13 @@ def _serialize_maps(
         "keys": {
             _PYGAME_KEY_VALUE_TO_NAME.get(key, str(key)): [control[0], control[1]]
             for key, control in sorted(keymap.items())
+        },
+        "joystick_keys": {
+            _PYGAME_KEY_VALUE_TO_NAME.get(key, str(key)): [
+                control[0],
+                _JOYSTICK_VALUE_TO_NAME.get(control[1], str(control[1])),
+            ]
+            for key, control in sorted(joystick_keymap.items())
         },
         "combos": [
             {
@@ -272,6 +291,7 @@ def load_pygame_input_maps(
         maps = PygameInputMaps(
             keymap_name=maps.keymap_name,
             keymap=maps.keymap,
+            joystick_keymap=maps.joystick_keymap,
             combo_keymap=maps.combo_keymap,
             unicode_combo_keymap=maps.unicode_combo_keymap,
             gamepad_map={},
@@ -285,12 +305,14 @@ def load_pygame_input_maps(
         return PygameInputMaps(
             keymap_name=maps.keymap_name,
             keymap=maps.keymap,
+            joystick_keymap=maps.joystick_keymap,
             combo_keymap=maps.combo_keymap,
             unicode_combo_keymap=maps.unicode_combo_keymap,
             gamepad_map=gamepad_maps,
             keymap_spec=_serialize_maps(
                 maps.keymap_name,
                 maps.keymap,
+                maps.joystick_keymap,
                 maps.combo_keymap,
                 maps.unicode_combo_keymap,
                 gamepad_maps,

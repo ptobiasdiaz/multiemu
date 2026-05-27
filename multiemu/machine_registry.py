@@ -15,7 +15,7 @@ import warnings
 
 from machines.gameboy import CGB, DMG
 from machines.m6502 import KIM1, VIC20NTSC, VIC20PAL
-from machines.z80 import ColecoVision, CPC464, CPC6128, CPC664, GameGear, MasterSystem2, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
+from machines.z80 import ColecoVision, CPC464, CPC6128, CPC664, GameGear, MasterSystem2, MSX1, Spectrum128K, Spectrum16K, Spectrum48K, SpectrumPlus2
 from video import get_display_profile
 
 
@@ -163,6 +163,22 @@ def _build_colecovision(roms: dict[str, bytes], display_profile: str) -> ColecoV
     return ColecoVision(
         roms.get("main"),
         bios_data=roms["bios"],
+        display_profile=display_profile,
+    )
+
+
+def _build_msx(roms: dict[str, bytes], display_profile: str, machine_options: dict[str, str] | None = None) -> MSX1:
+    if "bios" not in roms:
+        raise FileNotFoundError("msx requiere `bios`")
+    options = machine_options or {}
+    return MSX1(
+        roms["bios"],
+        basic_data=roms.get("basic"),
+        cart1_data=roms.get("cart1"),
+        cart2_data=roms.get("cart2"),
+        cart1_mapper=options.get("cart1_mapper"),
+        cart2_mapper=options.get("cart2_mapper"),
+        tape_data=roms.get("tape"),
         display_profile=display_profile,
     )
 
@@ -419,6 +435,42 @@ MACHINE_SPECS: dict[str, MachineSpec] = {
             ),
         ),
     ),
+    "msx": MachineSpec(
+        machine_id="msx",
+        display_name="MSX1 (experimental)",
+        factory=_build_msx,
+        rom_slots=(
+            RomSlotSpec(
+                slot_id="bios",
+                description="BIOS principal de MSX1",
+                filenames=("msx.rom", "bios.rom", "hitbit_msx1.rom"),
+            ),
+            RomSlotSpec(
+                slot_id="basic",
+                description="ROM MSX BASIC",
+                filenames=("basic.rom", "basic_msx1.rom", "msxbasic.rom"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="cart1",
+                description="Cartucho ROM principal MSX",
+                filenames=("cart.rom", "game.rom", "main.rom"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="cart2",
+                description="Segundo cartucho ROM MSX",
+                filenames=("cart2.rom", "sub.rom"),
+                required=False,
+            ),
+            RomSlotSpec(
+                slot_id="tape",
+                description="Imagen de cassette CAS para MSX",
+                filenames=("program.cas", "tape.cas"),
+                required=False,
+            ),
+        ),
+    ),
     "cpc464": MachineSpec(
         machine_id="cpc464",
         display_name="Amstrad CPC 464 (experimental)",
@@ -613,10 +665,20 @@ def parse_cli_rom_specs(machine_id: str, rom_specs: list[str] | None) -> dict[st
             rom_map[slot_id] = Path(path_str)
             continue
 
-        if machine_id in {"mastersystem2", "gamegear", "colecovision"}:
+        if machine_id in {"mastersystem2", "gamegear", "colecovision", "msx"}:
             path = Path(raw_spec)
             lower_name = path.name.lower()
-            rom_map["bios" if "bios" in lower_name else "main"] = path
+            if machine_id == "msx":
+                if path.suffix.lower() == ".cas":
+                    rom_map["tape"] = path
+                elif "basic" in lower_name:
+                    rom_map["basic"] = path
+                elif "bios" in lower_name or "msx1" in lower_name:
+                    rom_map["bios"] = path
+                else:
+                    rom_map["cart1"] = path
+            else:
+                rom_map["bios" if "bios" in lower_name else "main"] = path
             continue
 
         if not has_single_rom_slot(spec):
@@ -628,6 +690,44 @@ def parse_cli_rom_specs(machine_id: str, rom_specs: list[str] | None) -> dict[st
         rom_map[spec.rom_slots[0].slot_id] = Path(raw_spec)
 
     return rom_map
+
+
+def parse_cli_machine_options(option_specs: list[str] | None) -> dict[str, str]:
+    """Parse machine-specific CLI options from repeated key=value strings."""
+
+    options: dict[str, str] = {}
+    for raw_spec in option_specs or []:
+        if "=" not in raw_spec:
+            raise ValueError(f"opción de emulación inválida: {raw_spec!r}; se espera clave=valor")
+        key, value = raw_spec.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key or not value:
+            raise ValueError(f"opción de emulación inválida: {raw_spec!r}; se espera clave=valor")
+        options[key] = value
+    return options
+
+
+def _normalize_machine_options(machine_id: str, machine_options: dict[str, str] | None) -> dict[str, str]:
+    options = dict(machine_options or {})
+    if not options:
+        return {}
+    if machine_id == "msx":
+        if "mapper" in options:
+            if "cart1_mapper" in options and options["cart1_mapper"] != options["mapper"]:
+                raise ValueError("opciones MSX incompatibles: `mapper` y `cart1_mapper` tienen valores distintos")
+            options["cart1_mapper"] = options.pop("mapper")
+        supported = {"cart1_mapper", "cart2_mapper"}
+        unsupported = sorted(set(options) - supported)
+        if unsupported:
+            raise ValueError(
+                f"opciones de emulación no soportadas para 'msx': {', '.join(unsupported)}. "
+                f"Soportadas: {', '.join(sorted(supported | {'mapper'}))}"
+            )
+        return options
+
+    unsupported = ", ".join(sorted(options))
+    raise ValueError(f"opciones de emulación no soportadas para {machine_id!r}: {unsupported}")
 
 
 def _decode_vic20_cartridge_image(path: Path, cart_bytes: bytes) -> list[tuple[str, bytes]]:
@@ -809,6 +909,7 @@ def instantiate_machine(
     machine_id: str,
     *,
     roms: dict[str, str | Path] | None = None,
+    machine_options: dict[str, str] | None = None,
     display_profile: str = "default",
     state_dump: dict | None = None,
 ):
@@ -819,6 +920,7 @@ def instantiate_machine(
     """
 
     spec = get_machine_spec(machine_id)
+    normalized_machine_options = _normalize_machine_options(spec.machine_id, machine_options)
     if state_dump is not None:
         dump_machine_id = str(state_dump.get("machine_id", ""))
         if dump_machine_id and dump_machine_id != spec.machine_id:
@@ -878,7 +980,9 @@ def instantiate_machine(
             stacklevel=2,
         )
 
-    if spec.machine_id in {"vic20", "vic20ntsc", "vic20pal"}:
+    if spec.machine_id == "msx":
+        machine = _build_msx(rom_bytes, display_profile, normalized_machine_options)
+    elif spec.machine_id in {"vic20", "vic20ntsc", "vic20pal"}:
         if vic20_diag_io_ram:
             rom_bytes = rom_bytes | {"__io2ram__": b"\x01"}
         machine = spec.factory(rom_bytes, display_profile)

@@ -189,6 +189,22 @@ class SpectrumBase(BaseMachine):
             return False
         return self.cassette.toggle_play_pause()
 
+    @property
+    def cassette_status(self) -> dict | None:
+        if self.cassette is None:
+            return None
+        total = max(1, int(getattr(self.cassette, "total", 0)))
+        position = max(0, min(int(getattr(self.cassette, "position", 0)), total))
+        playing = bool(getattr(self.cassette, "playing", False))
+        return {
+            "present": True,
+            "active": playing,
+            "opened": playing,
+            "bytes_read": position,
+            "total_bytes": total,
+            "percent": int((position * 100) / total),
+        }
+
     def load_rom(self, data: bytes):
         self.rom.load_bytes(data)
 

@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "multiemu"
-version = "0.2.10"
+version = "0.2.11"
 description = "Work-in-progress retro machine emulator in Python and Cython"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -38,11 +38,15 @@ include-package-data = false
     "keymaps/gamegear.json",
     "keymaps/kim1.json",
     "keymaps/mastersystem2.json",
+    "keymaps/msx.json",
     "keymaps/spectrum.json",
     "keymaps/spectrum128k.json",
     "keymaps/spectrum48k.json",
     "keymaps/vic20.json",
     "keymaps/README.md",
+]
+"share/multiemu/romdb" = [
+    "romdb/msx_mappers.json",
 ]
 
 [project.scripts]

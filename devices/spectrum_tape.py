@@ -49,6 +49,14 @@ class SpectrumCassetteTape:
             return 0
         return self._level
 
+    @property
+    def position(self) -> int:
+        return self._pulse_index
+
+    @property
+    def total(self) -> int:
+        return len(self.pulses)
+
     def run_cycles(self, cycles: int) -> None:
         if cycles <= 0 or not self.playing or not self.pulses:
             return

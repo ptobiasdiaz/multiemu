@@ -11,6 +11,7 @@ from multiemu.machine_registry import (
     get_machine_spec,
     instantiate_machine,
     load_state_dump,
+    parse_cli_machine_options,
     parse_cli_rom_specs,
     resolve_machine_rom_paths,
 )
@@ -77,6 +78,21 @@ def test_machine_registry_exposes_colecovision():
     assert "cart.col" in spec.rom_slots[1].filenames
 
 
+def test_machine_registry_exposes_msx():
+    spec = get_machine_spec("msx")
+
+    assert spec.machine_id == "msx"
+    assert spec.display_name == "MSX1 (experimental)"
+    assert spec.rom_slots[0].slot_id == "bios"
+    assert "hitbit_msx1.rom" in spec.rom_slots[0].filenames
+    assert spec.rom_slots[1].slot_id == "basic"
+    assert "basic_msx1.rom" in spec.rom_slots[1].filenames
+    assert spec.rom_slots[2].slot_id == "cart1"
+    assert spec.rom_slots[3].slot_id == "cart2"
+    assert spec.rom_slots[4].slot_id == "tape"
+    assert "program.cas" in spec.rom_slots[4].filenames
+
+
 def test_parse_cli_rom_specs_accepts_short_form_for_mastersystem2():
     roms = parse_cli_rom_specs("mastersystem2", ["sonic.sms"])
 
@@ -99,6 +115,13 @@ def test_parse_cli_rom_specs_accepts_short_form_for_colecovision():
     roms = parse_cli_rom_specs("colecovision", ["donkey.col"])
 
     assert roms == {"main": Path("donkey.col")}
+
+
+def test_parse_cli_rom_specs_infers_msx_bios_or_basic_from_filename():
+    assert parse_cli_rom_specs("msx", ["hitbit_msx1.rom"]) == {"bios": Path("hitbit_msx1.rom")}
+    assert parse_cli_rom_specs("msx", ["basic_msx1.rom"]) == {"basic": Path("basic_msx1.rom")}
+    assert parse_cli_rom_specs("msx", ["metal_gear.rom"]) == {"cart1": Path("metal_gear.rom")}
+    assert parse_cli_rom_specs("msx", ["abadia_del_crimen_bload.cas"]) == {"tape": Path("abadia_del_crimen_bload.cas")}
 
 
 def test_resolve_machine_rom_paths_prefers_default_main_rom_when_snapshot_is_explicit(monkeypatch, tmp_path):
@@ -419,6 +442,8 @@ def test_parser_builds_run_command():
             "3",
             "--frontend",
             "pygame",
+            "--emu-ops",
+            "cart1_mapper=konami",
             "--display-profile",
             "full-border",
         ]
@@ -429,7 +454,23 @@ def test_parser_builds_run_command():
     assert args.rom == ["custom.rom"]
     assert args.scale == 3
     assert args.frontend == "pygame"
+    assert args.emu_ops == ["cart1_mapper=konami"]
     assert args.display_profile == "full-border"
+
+
+def test_parse_cli_machine_options_accepts_repeated_key_values():
+    options = parse_cli_machine_options(["cart1_mapper=konami", "cart2_mapper=ascii8"])
+
+    assert options == {"cart1_mapper": "konami", "cart2_mapper": "ascii8"}
+
+
+def test_parse_cli_machine_options_rejects_malformed_value():
+    try:
+        parse_cli_machine_options(["cart1_mapper"])
+    except ValueError as exc:
+        assert "clave=valor" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for malformed emu option")
 
 
 def test_parser_builds_connect_command_with_defaults():
@@ -493,6 +534,56 @@ def test_instantiate_machine_accepts_display_profile(tmp_path):
     )
 
     assert machine.display_profile_name == "full-border"
+
+
+def test_instantiate_msx_accepts_cart_mapper_override(tmp_path):
+    bios_path = tmp_path / "msx.rom"
+    cart_path = tmp_path / "game.rom"
+    bios_path.write_bytes(bytes([0xC3]) * 0x4000)
+    cart_path.write_bytes(b"".join(bytes([bank]) * 0x2000 for bank in range(8)))
+
+    machine = instantiate_machine(
+        "msx",
+        roms={"bios": bios_path, "cart1": cart_path},
+        machine_options={"cart1_mapper": "generic16"},
+    )
+
+    assert machine.cart1_mapper == machine.CART_MAPPER_GENERIC16
+    assert machine.peek(0x4000) == 0x00
+    assert machine.peek(0x6000) == 0x01
+    assert machine.peek(0x8000) == 0x02
+    assert machine.peek(0xA000) == 0x03
+
+
+def test_instantiate_msx_accepts_mapper_alias_for_cart1(tmp_path):
+    bios_path = tmp_path / "msx.rom"
+    cart_path = tmp_path / "game.rom"
+    bios_path.write_bytes(bytes([0xC3]) * 0x4000)
+    cart_path.write_bytes(b"".join(bytes([bank]) * 0x2000 for bank in range(8)))
+
+    machine = instantiate_machine(
+        "msx",
+        roms={"bios": bios_path, "cart1": cart_path},
+        machine_options={"mapper": "KonamiSCC"},
+    )
+
+    assert machine.cart1_mapper == machine.CART_MAPPER_KONAMI_SCC
+
+
+def test_instantiate_non_msx_rejects_machine_options(tmp_path):
+    rom_path = tmp_path / "spectrum48k_test.rom"
+    rom_path.write_bytes(b"\x00" * 0x4000)
+
+    try:
+        instantiate_machine(
+            "spectrum48k",
+            roms={"main": rom_path},
+            machine_options={"cart1_mapper": "konami"},
+        )
+    except ValueError as exc:
+        assert "opciones de emulación no soportadas" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for unsupported machine option")
 
 
 def test_instantiate_gameboy_machine(tmp_path):

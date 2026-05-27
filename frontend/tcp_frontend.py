@@ -259,6 +259,8 @@ class TcpFrontend(RemoteFrontendSession):
                     "keymap": self.input_maps.keymap_name or self.input_keymap_name,
                     "gamepad_map": self.input_gamepad_map_name,
                     "keymap_spec": self.input_maps.keymap_spec if self.keymap_file else None,
+                    "tap_hold_frames": getattr(self.backend, "input_tap_hold_frames", None),
+                    "quick_tap_max_frames": getattr(self.backend, "input_quick_tap_max_frames", None),
                 },
             },
         )
@@ -372,6 +374,7 @@ class TcpFrontend(RemoteFrontendSession):
                 "seq": self.backend.frame_counter,
                 "video_bytes": len(video_bytes),
                 "audio_bytes": len(audio_bytes),
+                "cassette": getattr(self.backend, "cassette_status", None),
             },
             separators=(",", ":"),
         ).encode("utf-8") + b"\n"

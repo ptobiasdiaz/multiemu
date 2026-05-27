@@ -66,6 +66,7 @@ class PygameFrontend:
         self.clock = None
         self.screen = None
         self.surface = None
+        self.osd_font = None
 
         self.audio_channel = None
         self.audio_started = False
@@ -84,22 +85,27 @@ class PygameFrontend:
             keymap_file=self.keymap_file,
         )
         self.keymap = self.input_maps.keymap
+        self.joystick_keymap = self.input_maps.joystick_keymap
         self.combo_keymap = self.input_maps.combo_keymap
         self.unicode_combo_keymap = self.input_maps.unicode_combo_keymap
         self.gamepad_map = self.input_maps.gamepad_map
         self.joystick_count = max(0, int(getattr(self.backend, "input_joystick_count", 0)))
-        self.tap_hold_frames = getattr(
+        tap_hold_frames = getattr(
             self.backend,
             "input_tap_hold_frames",
             self.TAP_HOLD_FRAMES,
         )
-        self.quick_tap_max_frames = getattr(
+        quick_tap_max_frames = getattr(
             self.backend,
             "input_quick_tap_max_frames",
             self.QUICK_TAP_MAX_FRAMES,
         )
+        self.tap_hold_frames = self.TAP_HOLD_FRAMES if tap_hold_frames is None else int(tap_hold_frames)
+        self.quick_tap_max_frames = self.QUICK_TAP_MAX_FRAMES if quick_tap_max_frames is None else int(quick_tap_max_frames)
         self.active_keyboard_controls: set[tuple[int, int]] = set()
+        self.active_keyboard_joystick_controls: set[tuple[int, int]] = set()
         self._keyboard_key_bindings: dict[int, tuple[tuple[int, int], ...]] = {}
+        self._keyboard_joystick_key_bindings: dict[int, tuple[int, int]] = {}
         self.active_gamepad_targets: set[tuple[str, int, int]] = set()
         # Track how long a control has been held while physically down.
         self.active_control_frames: dict[tuple[int, int], int] = {}
@@ -167,6 +173,7 @@ class PygameFrontend:
             self._apply_display_mode()
             pygame.display.set_caption(self.window_title)
             self.surface = pygame.Surface((self.src_width, self.src_height))
+            self.osd_font = pygame.font.Font(None, 18)
             self._refresh_gamepads()
 
             # Reserva un canal dedicado al audio del emulador
@@ -225,7 +232,16 @@ class PygameFrontend:
                     for control in controls:
                         self.active_keyboard_controls.add(control)
                         self.active_control_frames.setdefault(control, 0)
+                joystick_control = self.joystick_keymap.get(event.key)
+                if joystick_control is not None:
+                    self._keyboard_joystick_key_bindings[event.key] = joystick_control
+                    self.active_keyboard_joystick_controls.add(joystick_control)
             elif event.type == pygame.KEYUP:
+                joystick_control = self._keyboard_joystick_key_bindings.pop(event.key, None)
+                if joystick_control is None:
+                    joystick_control = self.joystick_keymap.get(event.key)
+                if joystick_control is not None:
+                    self.active_keyboard_joystick_controls.discard(joystick_control)
                 controls = self._keyboard_key_bindings.pop(event.key, None)
                 if controls is None:
                     controls = resolve_pygame_key_controls(
@@ -273,6 +289,16 @@ class PygameFrontend:
                     kind=kind,
                     control_a=control_a,
                     control_b=control_b,
+                    active=True,
+                )
+            )
+
+        for joystick_index, control in self.active_keyboard_joystick_controls:
+            self.backend.handle_input_event(
+                InputEvent(
+                    kind="joystick",
+                    control_a=joystick_index,
+                    control_b=control,
                     active=True,
                 )
             )
@@ -478,4 +504,15 @@ class PygameFrontend:
         else:
             self.screen.blit(self.surface, (0, 0))
 
+        self._draw_osd()
         pygame.display.flip()
+
+    def _draw_osd(self):
+        if self.osd_font is None:
+            return
+        cassette_status = getattr(self.backend, "cassette_status", None)
+        if not cassette_status or not cassette_status.get("active"):
+            return
+        text = f"CAS {int(cassette_status.get('percent', 0)):02d}%"
+        label = self.osd_font.render(text, True, (255, 255, 255), (0, 0, 0))
+        self.screen.blit(label, (8, 8))

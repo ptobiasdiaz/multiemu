@@ -89,6 +89,23 @@ def test_pygame_frontend_uses_machine_audio_channels():
     assert frontend.audio_channels == 2
 
 
+def test_pygame_frontend_uses_machine_tap_timing():
+    machine = _FakeMachine("msx")
+    machine.input_tap_hold_frames = 1
+    machine.input_quick_tap_max_frames = 1
+    frontend = PygameFrontend(machine)
+
+    assert frontend.tap_hold_frames == 1
+    assert frontend.quick_tap_max_frames == 1
+
+
+def test_pygame_frontend_uses_default_tap_timing_when_machine_exposes_none():
+    frontend = PygameFrontend(_FakeMachine("mastersystem2"))
+
+    assert frontend.tap_hold_frames == frontend.TAP_HOLD_FRAMES
+    assert frontend.quick_tap_max_frames == frontend.QUICK_TAP_MAX_FRAMES
+
+
 def test_local_machine_backend_exposes_cassette_motor_state():
     backend = LocalMachineBackend(_FakeMachine("cpc464", tape_motor_on=True))
 
@@ -102,6 +119,24 @@ def test_local_machine_backend_can_toggle_tape_play_pause():
     assert backend.tape_playing is False
     assert backend.toggle_tape_play_pause() is True
     assert backend.tape_playing is True
+
+
+def test_local_machine_backend_builds_generic_cassette_status():
+    machine = _FakeMachine("spectrum48k")
+    machine.cassette.playing = True
+    machine.cassette.motor_on = True
+    machine.cassette.pulses = [object()] * 10
+    machine.cassette._pulse_index = 4
+    backend = LocalMachineBackend(machine)
+
+    assert backend.cassette_status == {
+        "present": True,
+        "active": True,
+        "opened": True,
+        "bytes_read": 4,
+        "total_bytes": 10,
+        "percent": 40,
+    }
 
 
 def test_local_machine_backend_can_dump_debug_state(tmp_path, monkeypatch):
@@ -251,6 +286,27 @@ def test_pygame_frontend_applies_gamepad_joystick_mapping(monkeypatch):
         button = 0
 
     frontend._gamepad_assignments[1] = 0
+    monkeypatch.setattr("pygame.event.get", lambda: [_Event()])
+    frontend._handle_events()
+
+    assert any(
+        event.kind == "joystick" and event.control_a == 0 and event.control_b == 0x10 and event.active
+        for event in machine.events
+    )
+
+
+def test_pygame_frontend_applies_keyboard_joystick_mapping(monkeypatch):
+    machine = _FakeMachine("msx")
+    machine.input_keymap_name = "msx"
+    machine.input_joystick_count = 2
+    frontend = PygameFrontend(machine)
+
+    class _Event:
+        type = pygame.KEYDOWN
+        key = pygame.K_z
+        mod = 0
+        unicode = ""
+
     monkeypatch.setattr("pygame.event.get", lambda: [_Event()])
     frontend._handle_events()
 

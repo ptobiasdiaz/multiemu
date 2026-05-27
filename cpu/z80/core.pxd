@@ -4,7 +4,7 @@ from .bus cimport Z80Bus
 cdef class Z80Core:
     cdef Z80Bus bus
 
-    cdef uint8_t A, F
+    cdef public uint8_t A, F
     cdef uint8_t B, C
     cdef uint8_t D, E
     cdef uint8_t H, L
@@ -17,7 +17,7 @@ cdef class Z80Core:
     cdef uint16_t IX, IY
     cdef uint8_t I, R
 
-    cdef uint16_t PC, SP
+    cdef public uint16_t PC, SP
 
     cdef bint halted
     cdef bint iff1

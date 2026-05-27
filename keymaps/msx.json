@@ -1,0 +1,129 @@
+{
+  "id": "msx",
+  "keys": {
+    "K_7": [0, 7],
+    "K_6": [0, 6],
+    "K_5": [0, 5],
+    "K_4": [0, 4],
+    "K_3": [0, 3],
+    "K_2": [0, 2],
+    "K_1": [0, 1],
+    "K_0": [0, 0],
+
+    "K_SEMICOLON": [1, 7],
+    "K_RIGHTBRACKET": [1, 6],
+    "K_LEFTBRACKET": [1, 5],
+    "K_BACKSLASH": [1, 4],
+    "K_EQUALS": [1, 3],
+    "K_MINUS": [1, 2],
+    "K_9": [1, 1],
+    "K_8": [1, 0],
+
+    "K_b": [2, 7],
+    "K_a": [2, 6],
+    "K_SLASH": [2, 4],
+    "K_PERIOD": [2, 3],
+    "K_COMMA": [2, 2],
+    "K_BACKQUOTE": [2, 1],
+    "K_QUOTE": [2, 0],
+
+    "K_j": [3, 7],
+    "K_i": [3, 6],
+    "K_h": [3, 5],
+    "K_g": [3, 4],
+    "K_f": [3, 3],
+    "K_e": [3, 2],
+    "K_d": [3, 1],
+    "K_c": [3, 0],
+
+    "K_r": [4, 7],
+    "K_q": [4, 6],
+    "K_p": [4, 5],
+    "K_o": [4, 4],
+    "K_n": [4, 3],
+    "K_m": [4, 2],
+    "K_l": [4, 1],
+    "K_k": [4, 0],
+
+    "K_z": [5, 7],
+    "K_y": [5, 6],
+    "K_x": [5, 5],
+    "K_w": [5, 4],
+    "K_v": [5, 3],
+    "K_u": [5, 2],
+    "K_t": [5, 1],
+    "K_s": [5, 0],
+
+    "K_F3": [6, 7],
+    "K_F2": [6, 6],
+    "K_F1": [6, 5],
+    "K_MODE": [6, 4],
+    "K_CAPSLOCK": [6, 3],
+    "K_RALT": [6, 2],
+    "K_LCTRL": [6, 1],
+    "K_LSHIFT": [6, 0],
+
+    "K_RETURN": [7, 7],
+    "K_END": [7, 6],
+    "K_BACKSPACE": [7, 5],
+    "K_PAUSE": [7, 4],
+    "K_TAB": [7, 3],
+    "K_ESCAPE": [7, 2],
+    "K_F5": [7, 1],
+    "K_F4": [7, 0],
+
+    "K_RIGHT": [8, 7],
+    "K_DOWN": [8, 6],
+    "K_UP": [8, 5],
+    "K_LEFT": [8, 4],
+    "K_DELETE": [8, 3],
+    "K_INSERT": [8, 2],
+    "K_HOME": [8, 1],
+    "K_SPACE": [8, 0],
+
+    "K_KP4": [9, 7],
+    "K_KP3": [9, 6],
+    "K_KP2": [9, 5],
+    "K_KP1": [9, 4],
+    "K_KP0": [9, 3],
+    "K_KP_DIVIDE": [9, 2],
+    "K_KP_PLUS": [9, 1],
+    "K_KP_MULTIPLY": [9, 0],
+
+    "K_KP_PERIOD": [10, 7],
+    "K_KP_MINUS": [10, 5],
+    "K_KP9": [10, 4],
+    "K_KP8": [10, 3],
+    "K_KP7": [10, 2],
+    "K_KP6": [10, 1],
+    "K_KP5": [10, 0]
+  },
+  "joystick_keys": {
+    "K_UP": [0, "JOYSTICK_UP"],
+    "K_DOWN": [0, "JOYSTICK_DOWN"],
+    "K_LEFT": [0, "JOYSTICK_LEFT"],
+    "K_RIGHT": [0, "JOYSTICK_RIGHT"],
+    "K_z": [0, "JOYSTICK_FIRE"],
+    "K_x": [0, "JOYSTICK_FIRE_2"],
+    "K_SPACE": [0, "JOYSTICK_FIRE"]
+  },
+  "combos": [],
+  "unicode_combos": {
+    "\"": [
+      [6, 0],
+      [2, 0]
+    ],
+    ":": [
+      [6, 0],
+      [1, 7]
+    ]
+  },
+  "gamepad": {
+    "button_south": "JOYSTICK_FIRE",
+    "button_east": "JOYSTICK_FIRE_2",
+    "dpad_right": "JOYSTICK_RIGHT",
+    "dpad_left": "JOYSTICK_LEFT",
+    "dpad_down": "JOYSTICK_DOWN",
+    "dpad_up": "JOYSTICK_UP"
+  }
+}

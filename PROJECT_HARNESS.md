@@ -1,8 +1,69 @@
-# Project Harness
+Este documento define las reglas de ingeniería del proyecto y debe ser leído por los agentes que vayan a modificarlo.
 
-Este documento define las reglas de ingeniería de `multiemu`.
+## 1. Piensa antes de programar
 
-Su objetivo es mantener el proyecto coherente a medida que crece:
+**No des nada por hecho. No ocultes la confusión. Haz visibles las alternativas y sus implicaciones.**
+
+Antes de implementar:
+
+* Expón tus suposiciones explícitamente. Si tienes dudas, pregunta.
+* Si existen varias interpretaciones posibles, preséntalas; no elijas una en silencio.
+* Si existe un enfoque más simple, dilo. Cuestiona la idea cuando tenga sentido hacerlo.
+* Si algo no está claro, detente. Explica qué resulta confuso. Pregunta.
+
+## 2. La simplicidad primero
+
+**El mínimo código necesario para resolver el problema. Nada especulativo.**
+
+* No añadas funcionalidades más allá de lo solicitado.
+* No crees abstracciones para código de un solo uso.
+* No añadas "flexibilidad" ni "configurabilidad" que nadie pidió.
+* No implementes manejo de errores para escenarios imposibles.
+* Si escribes 200 líneas y podría resolverse con 50, reescríbelo.
+
+Pregúntate: *"¿Diría un ingeniero sénior que esto es innecesariamente complicado?"* Si la respuesta es sí, simplifícalo.
+
+## 3. Cambios quirúrgicos
+
+**Toca solo lo imprescindible. Limpia únicamente el desorden que generes tú.**
+
+Al modificar código existente:
+
+* No "mejores" código, comentarios o formato cercanos que no están relacionados.
+* No refactorices cosas que funcionan a menos que te lo pidan.
+* Sigue el estilo existente, incluso si tú lo harías de otra manera.
+* Si detectas código muerto no relacionado, menciónalo; no lo elimines.
+
+Cuando tus cambios generen elementos huérfanos:
+
+* Elimina importaciones, variables o funciones que TUS cambios hayan dejado sin uso.
+* No elimines código muerto preexistente salvo que se solicite.
+
+La prueba es simple: cada línea modificada debe poder relacionarse directamente con la petición del usuario.
+
+## 4. Ejecución orientada a objetivos
+
+**Define criterios de éxito. Itera hasta verificar el resultado.**
+
+Transforma las tareas en objetivos verificables:
+
+* "Añadir validación" → "Escribir pruebas para entradas inválidas y hacer que pasen"
+* "Corregir el error" → "Escribir una prueba que lo reproduzca y hacer que pase"
+* "Refactorizar X" → "Comprobar que las pruebas pasan antes y después"
+
+Para tareas con varios pasos, define un plan breve:
+
+```text
+1. [Paso] → verificar: [comprobación]
+2. [Paso] → verificar: [comprobación]
+3. [Paso] → verificar: [comprobación]
+```
+
+Unos criterios de éxito sólidos permiten trabajar de forma autónoma. Los criterios débiles ("haz que funcione") obligan a pedir aclaraciones constantemente.
+
+## 5. El proyecto
+
+El proyecto debe mantenerse coherente a medida que crece:
 
 - las máquinas deben implementarse con una estructura consistente
 - el código sensible a rendimiento no debe degradarse durante refactors
@@ -12,7 +73,7 @@ Su objetivo es mantener el proyecto coherente a medida que crece:
 Estas reglas están pensadas para ser prácticas. Si un cambio entra en conflicto
 con ellas, el cambio debe justificarse con claridad.
 
-## 1. Responsabilidades del repositorio
+### 5.1. Responsabilidades del repositorio
 
 ### `machines/`
 
@@ -73,7 +134,7 @@ o equivalencia pertenecen aquí.
 
 Son activos de test, no fallbacks de producción.
 
-## 2. Python primero, Cython después
+### 5.2. Python primero, Cython después
 
 El trabajo nuevo sobre una máquina o chip debe seguir este orden:
 
@@ -85,7 +146,7 @@ El trabajo nuevo sobre una máquina o chip debe seguir este orden:
 
 Esta regla existe para preservar depurabilidad y testabilidad.
 
-## 3. Sin fallbacks de producción para chips cythonizados
+### 5.3. Sin fallbacks de producción para chips cythonizados
 
 Si un chip tiene una implementación de producción en Cython, producción debe
 usar directamente esa implementación.
@@ -101,47 +162,7 @@ Esto evita:
 - imports accidentales de módulos obsoletos
 - deriva arquitectónica donde las referencias de test se filtran al runtime
 
-## 4. Reglas de rendimiento
-
-El código sensible a rendimiento debe tratarse de forma distinta al código frío.
-
-### Zonas seguras para refactor
-
-Suelen ser zonas seguras para reorganizar sin riesgo de rendimiento:
-
-- wiring de registry
-- factories de máquinas
-- resolución de ROMs/rutas
-- validación de blobs de estado
-- ensamblado de `debug_devices()`
-- plumbing del CLI
-- organización de tests
-- documentación
-
-### Hot paths
-
-Estas zonas exigen más disciplina:
-
-- stepping de CPU
-- bucles `run_until()`
-- stepping por frame
-- renderizadores por scanline
-- raster de sprites/tiles
-- generación de muestras de audio
-- lógica de mapper/bus por acceso
-
-Los refactors que toquen hot paths no deben aceptarse a ciegas.
-
-El proceso es:
-
-1. medir la línea base de comportamiento o velocidad
-2. hacer el cambio
-3. volver a medir
-4. rechazar el refactor si la regresión es relevante e injustificada
-
-La limpieza estructural no es razón suficiente para ralentizar la emulación.
-
-## 5. Estado y debug son de primer nivel
+### 5.4. Estado y debug son de primer nivel
 
 El soporte publicado de una máquina debe preservar:
 
@@ -160,7 +181,7 @@ integrarse limpiamente con:
 - inspección por debug
 - escenarios de test deterministas cuando sea posible
 
-## 6. Reglas de nombres
+### 5.5. Reglas de nombres
 
 Usar nombres canónicos de hardware cuando sea práctico.
 
@@ -179,11 +200,11 @@ Evitar nombres que oculten responsabilidades:
 Los aliases de compatibilidad pueden existir localmente, pero los nombres
 canónicos deben dominar en código fuente, tests y exports.
 
-## 7. Artefactos generados
+### 5.6. Artefactos generados
 
 Los artefactos generados no deben confundirse con código fuente.
 
-El repositorio debe poder limpiarse rutinariamente de:
+El repositorio debe poder limpiarse bajo demanda o antes de una release de:
 
 - `__pycache__/`
 - `build/`
@@ -216,7 +237,7 @@ o:
 .venv/bin/pip install ./
 ```
 
-## 8. Disciplina de validación
+### 5.7. Disciplina de validación
 
 Los tests son necesarios, pero no suficientes.
 
@@ -235,41 +256,15 @@ La cobertura debe leerse junto con:
 - reachability desde el machine registry
 - caminos de ejecución con software real
 
-## 9. Criterio de refactor
-
-El refactor está incentivado cuando mejora:
-
-- separación de responsabilidades
-- nombres
-- testabilidad
-- depurabilidad
-- consistencia entre máquinas
-
-El refactor debe rechazarse cuando:
-
-- mueve lógica caliente fuera de implementaciones eficientes sin justificación
-- fusiona responsabilidades no relacionadas por comodidad
-- introduce fallbacks de producción que diluyen la arquitectura
-- debilita las garantías de estado/debug/tests
-
-La preferencia por defecto es:
-
-- helpers compartidos de camino frío: bien
-- hacks específicos de máquina en capas genéricas: mal
-- abstracciones genéricas: bien sólo si son genuinamente genéricas
-
-No forzar abstracción pronto si la semántica sigue siendo específica de una
-máquina.
-
-## 10. Criterio de release
+### 5.8. Criterio de release
 
 Antes de una release:
 
 1. limpiar artefactos generados si hace falta
 2. reconstruir desde cero
-3. ejecutar los tests automáticos relevantes
+3. ejecutar los tests automáticos
 4. hacer smoke tests con medios reales en las máquinas afectadas
-5. actualizar changelog y TODO si el alcance cambió
+5. actualizar changelog, readme y TODO si el alcance cambió
 
 Una release está lista cuando el camino enviado es coherente, está respaldado
 por tests y no depende accidentalmente de artefactos obsoletos.

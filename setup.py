@@ -21,6 +21,7 @@ extensions = [
     Extension("devices.gameboy.dma", ["devices/gameboy/dma.pyx"]),
     Extension("machines.frame_runner", ["machines/frame_runner.pyx"]),
     Extension("devices.mapped_memory", ["devices/mapped_memory.pyx"]),
+    Extension("devices.msx_memory", ["devices/msx_memory.pyx"]),
     Extension("cpu.z80.memory", ["cpu/z80/memory.pyx"]),
     Extension("cpu.z80.io", ["cpu/z80/io.pyx"]),
     Extension("cpu.z80.bus", ["cpu/z80/bus.pyx"]),
@@ -42,7 +43,7 @@ extensions = [
 
 setup(
     name="multiemu",
-    version="0.2.10",
+    version="0.2.11",
     description="Work-in-progress retro machine emulator in Python and Cython",
     packages=find_packages(),
     data_files=[
@@ -55,11 +56,18 @@ setup(
                 "keymaps/gamegear.json",
                 "keymaps/kim1.json",
                 "keymaps/mastersystem2.json",
+                "keymaps/msx.json",
                 "keymaps/spectrum.json",
                 "keymaps/spectrum128k.json",
                 "keymaps/spectrum48k.json",
                 "keymaps/vic20.json",
                 "keymaps/README.md",
+            ],
+        ),
+        (
+            "share/multiemu/romdb",
+            [
+                "romdb/msx_mappers.json",
             ],
         ),
     ],

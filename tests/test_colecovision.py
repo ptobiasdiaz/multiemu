@@ -42,6 +42,13 @@ def test_colecovision_maps_bios_cart_and_mirrored_ram():
     assert machine.peek(0x6400) == 0x5A
 
 
+def test_colecovision_accepts_inverted_cartridge_signature():
+    machine = ColecoVision(b"\xAA\x55" + bytes([0xC9]) * (0x8000 - 2), bios_data=_make_bios())
+
+    assert machine.peek(0x8000) == 0x55
+    assert machine.peek(0x8001) == 0xAA
+
+
 def test_colecovision_psg_port_write_produces_audio():
     machine = ColecoVision(_make_cart(), bios_data=_make_bios())
 

@@ -34,6 +34,11 @@ def _roms_for(machine_id: str, tmp_path: Path) -> dict[str, str]:
             "bios": _write(tmp_path / "coleco.rom", bytes([0x00]) * 0x2000),
             "main": _write(tmp_path / "cart.col", bytes([0x00]) * 0x8000),
         }
+    if machine_id == "msx":
+        return {
+            "bios": _write(tmp_path / "msx_bios.rom", bytes([0xC3]) * 0x4000),
+            "basic": _write(tmp_path / "msx_basic.rom", bytes([0x55]) * 0x4000),
+        }
     if machine_id.startswith("cpc"):
         return {
             "os": _write(tmp_path / f"{machine_id}_os.rom", bytes([0x00]) * 0x4000),
@@ -76,6 +81,11 @@ def _mutate(machine) -> None:
         machine.poke(0x6000, 0x5A)
         machine._set_pad_control(1, 0, True)
         machine._set_pad_control(1, 6, True)
+    elif machine.machine_id == "msx":
+        machine._port_write(0xA8, 0xF3)
+        machine.poke(0x0002, 0x5A)
+        machine.keyboard_matrix[8] = 0xFE
+        machine.joystick_ports[0] = 0x3E
     elif machine.machine_id.startswith("cpc"):
         machine.poke(0x1234, 0x5A)
         machine.lower_rom_enabled = False
@@ -115,6 +125,11 @@ def _assert_restored(machine) -> None:
         assert machine.peek(0x6000) == 0x5A
         assert machine._pad1_state & 0x01 == 0
         assert machine._pad1_state & 0x40 == 0
+    elif machine.machine_id == "msx":
+        assert machine.slot_register == 0xF3
+        assert machine.peek(0x0002) == 0x5A
+        assert machine.keyboard_matrix[8] == 0xFE
+        assert machine.joystick_ports[0] == 0x3E
     elif machine.machine_id.startswith("cpc"):
         assert machine.ram.peek(0x1234) == 0x5A
         assert machine.lower_rom_enabled is False
@@ -147,6 +162,7 @@ def _assert_restored(machine) -> None:
         "mastersystem2",
         "gamegear",
         "colecovision",
+        "msx",
         "cpc464",
         "cpc664",
         "cpc6128",

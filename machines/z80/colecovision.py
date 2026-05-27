@@ -28,6 +28,12 @@ from machines.frame_runner import SteppedFrameRunner
 from machines.z80.common import install_uniform_port_handlers
 
 
+def _normalize_cart_signature(cart_data: bytes) -> bytes:
+    if len(cart_data) >= 2 and cart_data[:2] == b"\xAA\x55":
+        return b"\x55\xAA" + cart_data[2:]
+    return cart_data
+
+
 class ColecoVisionRAM(MemoryDevice):
     """Expose the 1KB ColecoVision RAM mirrored across 0x6000-0x7FFF."""
 
@@ -100,7 +106,7 @@ class ColecoVision(BaseMachine):
         self.display_profile_name = display_profile
 
         self.bios_data = pad_rom(bytes(bios_data), self.BIOS_SIZE)
-        self.cart_data = pad_rom(bytes(cart_data or b""), self.CART_SIZE)
+        self.cart_data = pad_rom(_normalize_cart_signature(bytes(cart_data or b"")), self.CART_SIZE)
         self.ram = bytearray(self.RAM_SIZE)
 
         self.frame_width = self.SCREEN_WIDTH

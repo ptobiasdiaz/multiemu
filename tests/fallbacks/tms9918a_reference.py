@@ -75,12 +75,7 @@ class TMS9918AReference:
         self._latch_sprite_status_for_frame()
         if (self.status & 0x80) == 0:
             self.status |= 0x80
-        if (self.registers[1] & 0x20) and not self.interrupt_line_asserted:
-            if getattr(self.machine, "vdp_vblank_uses_nmi", False) and hasattr(self.machine.cpu, "nmi"):
-                self.machine.cpu.nmi()
-            else:
-                self.machine.cpu.interrupt()
-            self.interrupt_line_asserted = True
+        self._sync_interrupt_line()
         self.interrupt_fired = True
 
     def end_frame(self) -> None:
@@ -95,7 +90,10 @@ class TMS9918AReference:
         first = self.first_control
         self.first_control = None
         if value & 0x80:
-            self.registers[value & 0x07] = first
+            register = value & 0x07
+            self.registers[register] = first
+            if register == 1:
+                self._sync_interrupt_line()
             return
 
         self.code = 1 if (value & 0x40) else 0
@@ -110,6 +108,20 @@ class TMS9918AReference:
         self.status = 0x00
         self.interrupt_line_asserted = False
         return value
+
+    def _sync_interrupt_line(self) -> None:
+        if (self.registers[1] & 0x20) == 0:
+            self.interrupt_line_asserted = False
+            return
+        if (self.status & 0x80) == 0:
+            return
+        if self.interrupt_line_asserted:
+            return
+        if getattr(self.machine, "vdp_vblank_uses_nmi", False) and hasattr(self.machine.cpu, "nmi"):
+            self.machine.cpu.nmi()
+        else:
+            self.machine.cpu.interrupt()
+        self.interrupt_line_asserted = True
 
     def write_data(self, value: int) -> None:
         value &= 0xFF
@@ -132,22 +144,40 @@ class TMS9918AReference:
         return ((self.registers[2] & 0x0F) << 10) & 0x3FFF
 
     def _color_table_base(self) -> int:
-        return ((self.registers[3] & 0xFF) << 6) & 0x3FFF
+        if self._mode() == "graphics2":
+            return ((self.registers[3] & 0x80) << 6) & 0x3FFF
+        return (self.registers[3] << 6) & 0x3FFF
 
     def _pattern_table_base(self) -> int:
+        if self._mode() == "graphics2":
+            return ((self.registers[4] & 0x04) << 11) & 0x3FFF
         return ((self.registers[4] & 0x07) << 11) & 0x3FFF
 
     def _graphics2_color_base(self) -> int:
-        return self._color_table_base() & 0x2000
+        return self._color_table_base()
 
     def _graphics2_pattern_base(self) -> int:
-        return self._pattern_table_base() & 0x2000
+        return self._pattern_table_base()
+
+    def _graphics2_color_addr(self, table_offset: int, tile: int, tile_row: int) -> int:
+        base_mask = ((self.registers[3] << 6) | 0x3F) & 0x3FFF
+        index = 0x2000 | table_offset | (tile * 8) | tile_row
+        return base_mask & index
+
+    def _graphics2_pattern_addr(self, table_offset: int, tile: int, tile_row: int) -> int:
+        base_mask = (
+            (self.registers[4] << 11)
+            | ((self.registers[3] & 0x1F) << 6)
+            | 0x3F
+        ) & 0x3FFF
+        index = 0x2000 | table_offset | (tile * 8) | tile_row
+        return base_mask & index
 
     def _sprite_attribute_base(self) -> int:
-        return ((self.registers[5] & 0x7F) << 7) & 0x3FFF
+        return ((self.registers[5] & 0x7F) << 7) & 0x3F80
 
     def _sprite_pattern_base(self) -> int:
-        return ((self.registers[6] & 0x07) << 11) & 0x3FFF
+        return ((self.registers[6] & 0x07) << 11) & 0x3800
 
     def _backdrop_color(self) -> int:
         return (self.registers[7] >> 4) & 0x0F
@@ -211,8 +241,6 @@ class TMS9918AReference:
 
     def _render_graphics2(self, out: bytearray) -> None:
         name_base = self._name_table_base()
-        color_base = self._graphics2_color_base()
-        pattern_base = self._graphics2_pattern_base()
         backdrop = self._backdrop_color()
         for y in range(self.FRAME_HEIGHT):
             sprite_buffer = self._find_sprites_on_line(y)
@@ -222,8 +250,8 @@ class TMS9918AReference:
             tile_row = y % 8
             for tile_x in range(32):
                 tile = self.vram[(line_name_addr + tile_x) & 0x3FFF]
-                pattern = self.vram[(pattern_base + table_offset + tile * 8 + tile_row) & 0x3FFF]
-                color = self.vram[(color_base + table_offset + tile * 8 + tile_row) & 0x3FFF]
+                pattern = self.vram[self._graphics2_pattern_addr(table_offset, tile, tile_row)]
+                color = self.vram[self._graphics2_color_addr(table_offset, tile, tile_row)]
                 fg = (color >> 4) & 0x0F
                 bg = color & 0x0F
                 for col in range(8):
@@ -281,11 +309,14 @@ class TMS9918AReference:
         magnify = bool(self.registers[1] & 0x01)
         sprite_size = 8 << (int(large_sprites) + int(magnify))
         sprites: list[tuple[int, int, int, int, bool]] = []
+        last_sprite_index = 31
         for sprite_index in range(32):
+            last_sprite_index = sprite_index
             attr = (sat_base + sprite_index * 4) & 0x3FFF
-            sprite_y = self.vram[attr]
-            if sprite_y == 0xD0:
+            raw_y = self.vram[attr]
+            if raw_y == 0xD0:
                 break
+            sprite_y = (raw_y + 1) & 0xFF
             sprite_bottom = (sprite_y + sprite_size) & 0xFF
             in_range = (
                 sprite_y <= y < sprite_bottom
@@ -295,7 +326,7 @@ class TMS9918AReference:
             if not in_range:
                 continue
             if len(sprites) == 4:
-                if (self.status & 0x40) == 0:
+                if (self.status & 0xC0) == 0:
                     self.status = (self.status & 0xA0) | 0x40 | (sprite_index & 0x1F)
                 break
             sprite_x = self.vram[(attr + 1) & 0x3FFF]
@@ -305,6 +336,8 @@ class TMS9918AReference:
             if color == 0:
                 continue
             sprites.append((sprite_y, sprite_x, pattern, color, bool(attributes & 0x80)))
+        if (self.status & 0x40) == 0:
+            self.status = (self.status & 0xE0) | (last_sprite_index & 0x1F)
         return sprites
 
     def _resolve_sprite_color(self, sprites: list[tuple[int, int, int, int, bool]], y: int, x: int) -> int:

@@ -6,6 +6,7 @@ import json
 
 import pygame
 
+from frontend.input_events import JOYSTICK_FIRE, JOYSTICK_UP
 from frontend.keymap import (
     CPC_PYGAME_KEYMAP,
     KIM1_PYGAME_KEYMAP,
@@ -230,6 +231,17 @@ def test_custom_keymap_file_can_override_default_machine_mapping(tmp_path):
     assert maps.keymap[pygame.K_a] == (9, 9)
     assert maps.unicode_combo_keymap["/"] == ((7, 1), (7, 4))
     assert maps.combo_keymap[(pygame.K_LEFT, 0)] == ((0, 0), (3, 4))
+
+
+def test_msx_keymap_loads_without_unknown_pygame_constants():
+    maps = load_pygame_input_maps("msx")
+
+    assert maps.keymap[pygame.K_a] == (2, 6)
+    assert maps.keymap[pygame.K_RETURN] == (7, 7)
+    assert maps.joystick_keymap[pygame.K_UP] == (0, JOYSTICK_UP)
+    assert maps.joystick_keymap[pygame.K_z] == (0, JOYSTICK_FIRE)
+    assert maps.unicode_combo_keymap['"'] == ((6, 0), (2, 0))
+    assert maps.unicode_combo_keymap[":"] == ((6, 0), (1, 7))
 
 
 def test_spectrum_shifted_digit_keys_resolve_to_symbol_shift_number_row():

@@ -26,6 +26,7 @@ Máquinas soportadas hoy:
 - `mastersystem2` (experimental)
 - `gamegear` (experimental)
 - `colecovision` (experimental)
+- `msx` (experimental)
 - `cpc464` (experimental)
 - `cpc664` (experimental)
 - `cpc6128` (experimental)
@@ -59,6 +60,7 @@ El frontend también puede cargar un keymap externo con:
 | `mastersystem2` | experimental avanzada | sí | sí | pad del host | sí, 2 pads | n/a | BIOS opcional, cartuchos `.sms`, save/load state | BIOS built-in y juegos reales ya validados |
 | `gamegear` | experimental avanzada | sí, `160x144` | sí, estéreo | pad del host | pad del host | n/a | BIOS opcional, cartuchos `.gg`, save/load state | CRAM `12` bits y registro estéreo PSG |
 | `colecovision` | experimental avanzada | sí | sí | keypad + mando | sí, 2 botones + keypad | n/a | BIOS + cartuchos `.bin/.rom`, save/load state | base funcional con `TMS9918A` y `SN76489` |
+| `msx` | experimental | sí | AY básico | sí | sí, 2 | cassette `.cas` | BIOS, BASIC, cartuchos MSX1, MegaROMs comunes | mappers por SHA1 DB o `--emu-ops cart1_mapper=...` |
 | `cpc464` | experimental | sí | AY básico | sí | sí, 1 | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | timings y fidelidad aún incompletos |
 | `cpc664` | experimental | sí | AY básico | sí | sí, 1 | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS | reutiliza la base CPC actual con ROMs 664 |
 | `cpc6128` | experimental | sí | AY básico | sí | sí, 1 | cinta `CDT/TZX`, disco `DSK` | ROM OS/BASIC/AMSDOS/expansion | RAM bancaria `128K` y scaffold 6128 inicial |
@@ -177,6 +179,12 @@ Slots y nombres esperados por defecto:
 - `colecovision`
   - `bios` -> `coleco.rom`, `bios.col`, `colecovision.rom`
   - `main` -> `game.col`, `cart.col`, `colecovision.col`
+- `msx`
+  - `bios` -> `msx.rom`, `bios.rom`, `hitbit_msx1.rom`
+  - `basic` -> `basic.rom`, `basic_msx1.rom`, `msxbasic.rom`
+  - `cart1` -> `cart.rom`, `game.rom`, `main.rom`
+  - `cart2` -> `cart2.rom`, `sub.rom`
+  - `tape` -> `program.cas`, `tape.cas`
 - `gameboy`
   - `main` -> `gameboy.gb`, `cart.gb`
 - `gameboycolor`
@@ -212,11 +220,24 @@ multiemu run cpc6128 --rom os=cpc6128.rom
 multiemu run mastersystem2 --rom main=game.sms
 multiemu run gamegear --rom main=game.gg
 multiemu run colecovision --rom bios=coleco.rom --rom main=game.bin
+multiemu run msx --rom bios=msx1.rom --rom basic=basic_msx1.rom --rom cart1=game.rom
+multiemu run msx --rom bios=msx1.rom --rom basic=basic_msx1.rom --rom tape=program.cas
 multiemu run gameboy --rom game.gb
 multiemu run gameboycolor --rom game.gbc
 multiemu run kim1 --rom lower=6530-002.bin --rom upper=6530-003.bin
 multiemu run vic20ntsc --rom basic=basic.bin --rom kernal=kernal.bin --rom char=char.bin
 ```
+
+Las opciones especificas de una maquina se pasan con `--emu-ops clave=valor`.
+En MSX se usa para forzar mappers cuando la ROM no esta en la base SHA1 local:
+
+```bash
+multiemu run msx --rom bios=msx1.rom --rom basic=basic_msx1.rom --rom cart1=game.rom --emu-ops cart1_mapper=konami_scc
+```
+
+Mappers MSX aceptados actualmente: `linear`, `generic8`, `generic16`,
+`ascii8`, `ascii16`, `konami`, `konami_scc`, `rtype`, `cross_blaim`,
+`harry_fox`, `holy_quran`, `zemina8` y `zemina16`.
 
 ### Estado JSON vs snapshots nativos
 

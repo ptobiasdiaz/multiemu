@@ -55,6 +55,7 @@ class TcpPygameClient:
         self.sock = None
         self.screen = None
         self.surface = None
+        self.osd_font = None
         self.clock = None
 
         self.src_width = 0
@@ -79,19 +80,25 @@ class TcpPygameClient:
         self.keymap_name = None
         self.input_maps = load_pygame_input_maps(None)
         self.keymap = self.input_maps.keymap
+        self.joystick_keymap = self.input_maps.joystick_keymap
         self.combo_keymap = self.input_maps.combo_keymap
         self.unicode_combo_keymap = self.input_maps.unicode_combo_keymap
         self.gamepad_map = self.input_maps.gamepad_map
         self.joystick_device_ids: list[str] = []
         self.active_keyboard_controls: set[tuple[int, int]] = set()
+        self.active_keyboard_joystick_controls: set[tuple[int, int]] = set()
         self._keyboard_key_bindings: dict[int, tuple[tuple[int, int], ...]] = {}
+        self._keyboard_joystick_key_bindings: dict[int, tuple[int, int]] = {}
         self.active_gamepad_targets: set[tuple[str, int, int]] = set()
         self.active_control_frames: dict[tuple[int, int], int] = {}
         self.tap_pulse_frames: dict[tuple[int, int], int] = {}
         self.pending_tap_counts: dict[tuple[int, int], int] = {}
+        self.tap_hold_frames = self.TAP_HOLD_FRAMES
+        self.quick_tap_max_frames = self.QUICK_TAP_MAX_FRAMES
         self.gamepads: dict[int, object] = {}
         self._gamepad_assignments: dict[int, int] = {}
         self._gamepad_sources: dict[tuple[int, str], tuple[str, int, int]] = {}
+        self.cassette_status = None
 
     def run(self):
         with socket.create_connection((self.host, self.port)) as sock:
@@ -125,6 +132,7 @@ class TcpPygameClient:
                 self.screen = pygame.display.set_mode((self.win_width, self.win_height))
                 pygame.display.set_caption(self.window_title)
                 self.surface = pygame.Surface((self.src_width, self.src_height))
+                self.osd_font = pygame.font.Font(None, 18)
                 self._refresh_gamepads()
 
                 pygame.mixer.set_num_channels(8)
@@ -147,6 +155,7 @@ class TcpPygameClient:
 
                     frame_bytes = self._recv_exact(int(message["video_bytes"]))
                     audio_bytes = self._recv_exact(int(message["audio_bytes"]))
+                    self.cassette_status = message.get("cassette")
                     self._draw_framebuffer(frame_bytes)
                     self._queue_audio(audio_bytes)
                     self._pump_audio_queue()
@@ -191,9 +200,14 @@ class TcpPygameClient:
             keymap_spec=frontend.get("keymap_spec"),
         )
         self.keymap = self.input_maps.keymap
+        self.joystick_keymap = self.input_maps.joystick_keymap
         self.combo_keymap = self.input_maps.combo_keymap
         self.unicode_combo_keymap = self.input_maps.unicode_combo_keymap
         self.gamepad_map = self.input_maps.gamepad_map
+        tap_hold = frontend.get("tap_hold_frames")
+        quick_tap = frontend.get("quick_tap_max_frames")
+        self.tap_hold_frames = self.TAP_HOLD_FRAMES if tap_hold is None else int(tap_hold)
+        self.quick_tap_max_frames = self.QUICK_TAP_MAX_FRAMES if quick_tap is None else int(quick_tap)
         self.joystick_device_ids = [
             str(device["device_id"])
             for device in welcome.get("input_devices", [])
@@ -254,7 +268,16 @@ class TcpPygameClient:
                     for control in controls:
                         self.active_keyboard_controls.add(control)
                         self.active_control_frames.setdefault(control, 0)
+                joystick_control = self.joystick_keymap.get(event.key)
+                if joystick_control is not None:
+                    self._keyboard_joystick_key_bindings[event.key] = joystick_control
+                    self.active_keyboard_joystick_controls.add(joystick_control)
             elif event.type == pygame.KEYUP:
+                joystick_control = self._keyboard_joystick_key_bindings.pop(event.key, None)
+                if joystick_control is None:
+                    joystick_control = self.joystick_keymap.get(event.key)
+                if joystick_control is not None:
+                    self.active_keyboard_joystick_controls.discard(joystick_control)
                 controls = self._keyboard_key_bindings.pop(event.key, None)
                 if controls is None:
                     controls = resolve_pygame_key_controls(
@@ -262,11 +285,11 @@ class TcpPygameClient:
                     )
                 for control in controls:
                     held_frames = self.active_control_frames.get(control, 0)
-                    if held_frames <= self.QUICK_TAP_MAX_FRAMES:
+                    if held_frames <= self.quick_tap_max_frames:
                         if control in self.tap_pulse_frames:
                             self.pending_tap_counts[control] = self.pending_tap_counts.get(control, 0) + 1
                         else:
-                            self.tap_pulse_frames[control] = self.TAP_HOLD_FRAMES
+                            self.tap_pulse_frames[control] = self.tap_hold_frames
                     self.active_keyboard_controls.discard(control)
                     self.active_control_frames.pop(control, None)
             elif event.type == pygame.JOYDEVICEADDED:
@@ -308,6 +331,11 @@ class TcpPygameClient:
                     {"control_a": control_a, "control_b": control_b}
                 )
 
+        for joystick_index, control in self.active_keyboard_joystick_controls:
+            joystick_pressed.setdefault(joystick_index, []).append(
+                {"control_a": joystick_index, "control_b": control}
+            )
+
         for control in list(self.active_keyboard_controls):
             self.active_control_frames[control] = self.active_control_frames.get(control, 0) + 1
 
@@ -322,23 +350,10 @@ class TcpPygameClient:
             queued = self.pending_tap_counts.get(control, 0)
             if queued > 0:
                 self.pending_tap_counts[control] = queued - 1
-                self.tap_pulse_frames[control] = self.TAP_HOLD_FRAMES
+                self.tap_pulse_frames[control] = self.tap_hold_frames
             else:
                 self.tap_pulse_frames.pop(control, None)
                 self.pending_tap_counts.pop(control, None)
-
-    def _uses_unicode_combo(self, event) -> bool:
-        text = getattr(event, "unicode", "") or ""
-        return bool(text and text in self.unicode_combo_keymap)
-
-    def _suppress_host_shift_bindings(self) -> None:
-        for shift_key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
-            controls = self._keyboard_key_bindings.pop(shift_key, None)
-            if not controls:
-                continue
-            for control in controls:
-                self.active_keyboard_controls.discard(control)
-                self.active_control_frames.pop(control, None)
 
         self._send_json(
             {
@@ -355,6 +370,19 @@ class TcpPygameClient:
                     "pressed": joystick_pressed.get(joystick_index, []),
                 }
             )
+
+    def _uses_unicode_combo(self, event) -> bool:
+        text = getattr(event, "unicode", "") or ""
+        return bool(text and text in self.unicode_combo_keymap)
+
+    def _suppress_host_shift_bindings(self) -> None:
+        for shift_key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
+            controls = self._keyboard_key_bindings.pop(shift_key, None)
+            if not controls:
+                continue
+            for control in controls:
+                self.active_keyboard_controls.discard(control)
+                self.active_control_frames.pop(control, None)
 
     def _refresh_gamepads(self) -> None:
         if not pygame.joystick.get_init():
@@ -518,7 +546,17 @@ class TcpPygameClient:
         else:
             self.screen.blit(self.surface, (0, 0))
 
+        self._draw_osd()
         pygame.display.flip()
+
+    def _draw_osd(self):
+        if self.osd_font is None:
+            return
+        if not self.cassette_status or not self.cassette_status.get("active"):
+            return
+        text = f"CAS {int(self.cassette_status.get('percent', 0)):02d}%"
+        label = self.osd_font.render(text, True, (255, 255, 255), (0, 0, 0))
+        self.screen.blit(label, (8, 8))
 
     def _recv_json(self) -> dict:
         line = self._recv_line()

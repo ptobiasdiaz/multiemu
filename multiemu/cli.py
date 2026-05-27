@@ -15,6 +15,7 @@ from multiemu.machine_registry import (
     instantiate_machine,
     list_machine_specs,
     load_state_dump,
+    parse_cli_machine_options,
     parse_cli_rom_specs,
 )
 from multiemu.runtime_registry import (
@@ -141,6 +142,12 @@ def _add_common_machine_options(parser: argparse.ArgumentParser) -> None:
         default=[],
         help="ROM path or slot=path; repeat for machines with multiple ROMs",
     )
+    parser.add_argument(
+        "--emu-ops",
+        action="append",
+        default=[],
+        help="machine-specific option as key=value; repeat for multiple options",
+    )
     parser.add_argument("--fps", type=int, default=None, help="frame rate limit")
     parser.add_argument(
         "--audio-sample-rate",
@@ -196,6 +203,7 @@ def _handle_run(args) -> int:
     machine = instantiate_machine(
         args.machine,
         roms=parse_cli_rom_specs(args.machine, args.rom),
+        machine_options=parse_cli_machine_options(args.emu_ops),
         display_profile=args.display_profile,
         state_dump=state_dump,
     )
@@ -221,6 +229,7 @@ def _handle_serve(args) -> int:
     machine = instantiate_machine(
         args.machine,
         roms=parse_cli_rom_specs(args.machine, args.rom),
+        machine_options=parse_cli_machine_options(args.emu_ops),
         display_profile=args.display_profile,
         state_dump=state_dump,
     )
@@ -253,6 +262,7 @@ def _handle_debug(args) -> int:
     machine = instantiate_machine(
         args.machine,
         roms=parse_cli_rom_specs(args.machine, args.rom),
+        machine_options=parse_cli_machine_options(args.emu_ops),
         display_profile=args.display_profile,
         state_dump=state_dump,
     )
